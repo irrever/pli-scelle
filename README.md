@@ -18,21 +18,8 @@ La clé publiable dans `index.html` est publique par conception : la protection 
 
 - `index.html` : l'appli, un seul fichier.
 - `relais.sql` : les tables et les fonctions du relais.
-- `sw.js` : le service worker, pour les notifications. Il ne met rien en cache et ne lit aucun message.
-- `notifications.sql` : les inscriptions aux notifications et le déclencheur d'envoi. Se lance après `relais.sql`.
-- `supabase/functions/push/index.ts` : la fonction qui envoie les notifications quand l'appli est fermée.
 
 ## Options
 
 - Déverrouillage par empreinte ou Face ID, si le téléphone le propose. Il s'active dans « Mon identité », avec le code secret. Le code reste toujours possible.
-- Sonnerie et notifications, facultatives. La sonnerie ne joue que si l'appli est ouverte. Les notifications arrivent aussi quand l'appli est fermée, une fois le serveur d'envoi en place (ci-dessous). Elles ne montrent jamais le contenu du message.
-
-## Notifications quand l'appli est fermée
-
-Le serveur d'envoi se met en place une fois, dans le projet Supabase :
-
-1. Lancer `notifications.sql` dans l'éditeur SQL, après `relais.sql`.
-2. Créer deux secrets du projet : `VAPID_PUBLIC_KEY` (la clé publique, identique à `PUSH_KEY` dans `index.html`) et `VAPID_PRIVATE_KEY` (la clé privée, qui ne doit jamais entrer dans le dépôt).
-3. Déployer la fonction `push` (dossier `supabase/functions/push`), sans vérification de jeton.
-
-Les notifications ne contiennent aucun texte : elles disent seulement qu'une activité attend.
+- Sonnerie à la réception, facultative. Elle joue à chaque message reçu, tant que l'appli est ouverte. Il n'y a pas de notification hors de l'appli.

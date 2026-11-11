@@ -216,7 +216,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v9';
+  const APP_VERSION = 'v10';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -434,8 +434,6 @@ button.chip{cursor:pointer;font:inherit}
   // Même forme d’accès qu’avant (collection, doc), mais chaque appel passe par une fonction du relais.
   const RELAY_URL = 'https://lvdkwatbqesxvsllnthz.supabase.co';
   const RELAY_KEY = 'sb_publishable_bEARM04rOXlQ5sJZQ2152w_W2ypAKTP';
-  // Clé publique VAPID : elle identifie le serveur d’envoi auprès des services de notification. La clé privée reste sur le serveur.
-  const PUSH_KEY = 'BE_P3wRWNbeAlOUODam9dd-Im1ZQEmDXblx9FlkpK1xjixjpqB8iavGxHm-t5TuLM90gG6DPXuTDur0MAZcEwMU';
   async function rpc(name, args) {
     const r = await fetch(RELAY_URL + '/rest/v1/rpc/' + name, {
       method: 'POST',
@@ -995,7 +993,7 @@ button.chip{cursor:pointer;font:inherit}
       '<div class="id-card"><div class="id-top"><span>PLI SCELLÉ</span><span>IDENTITÉ</span></div><div class="id-body"><div class="id-main"><div class="id-label">Mon pseudo</div><div class="id-name">' + esc(S.me.pseudo) + '</div></div><div class="id-qr" aria-hidden="true"><div class="qr-build">' + qrDecorCells() + '</div></div></div><div class="id-foot">Ni numéro, ni e-mail. Ce pseudo permet seulement de vous écrire.</div></div>' +
       '<div class="stack"><button class="btn btn-primary" data-act="montrer" data-arg="identite">' + I.qr + '<span>Montrer mon identité</span></button><button class="btn btn-secondary" data-act="newinvite">' + I.link + '<span>Inviter à distance</span></button></div>' +
       (S.bioAvail ? '<section><div class="section-title">Déverrouillage</div><div class="list"><button class="rowlink" data-act="go" data-arg="biometrie"><span>Empreinte ou Face ID</span><span class="state">' + (LS.get('bio', null) ? 'Activé' : 'Désactivé') + '</span>' + I.chev + '</button></div></section>' : '') +
-      '<section><div class="section-title">Alertes</div><div class="list"><button class="rowlink" data-act="togglesound"><span>Sonnerie à la réception</span><span class="state">' + (getPrefs().sound ? 'Activée' : 'Désactivée') + '</span>' + I.chev + '</button><button class="rowlink" data-act="togglenotif"><span>Notifications</span><span class="state">' + (getPrefs().notif ? 'Activées' : 'Désactivées') + '</span>' + I.chev + '</button></div><p class="hint">La sonnerie joue quand l’appli est ouverte. Les notifications arrivent aussi appli fermée, quand le navigateur le permet. Elles ne montrent jamais le contenu du message.</p></section>' +
+      '<section><div class="section-title">Alertes</div><div class="list"><button class="rowlink" data-act="togglesound"><span>Sonnerie à la réception</span><span class="state">' + (getPrefs().sound ? 'Activée' : 'Désactivée') + '</span>' + I.chev + '</button></div><p class="hint">La sonnerie joue à chaque message reçu, tant que l’appli est ouverte. Il n’y a pas de notification hors de l’appli.</p></section>' +
       '<section><div class="section-title">Sauvegarde</div><div class="list"><button class="rowlink" data-act="go" data-arg="sauvegarde"><span>Sauvegarder mes contacts</span>' + I.chev + '</button></div><p class="hint">' + (LS.get('lastBackup', 0) ? 'Dernière sauvegarde : ' + esc(new Date(LS.get('lastBackup', 0)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })) : 'Pas encore de sauvegarde. Sans elle, vos contacts ne sont que dans ce navigateur.') + '</p></section>' +
       '<section><div class="section-title">Sécurité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="supprimer"><span style="display:flex;gap:10px;align-items:center">' + I.trash + 'Supprimer mon identité</span>' + I.chev + '</button></div></section>' +
       '<p class="hint center" style="padding-top:8px">Version ' + APP_VERSION + '</p>' +
@@ -1420,7 +1418,6 @@ button.chip{cursor:pointer;font:inherit}
     reglages: (cid) => go('reglages', cid),
     lock: () => { S.priv = null; stopPolling(); go('verrouille'); },
     togglesound: actToggleSound,
-    togglenotif: actToggleNotif,
     enablebio: actEnableBio,
     disablebio: () => { LS.set('bio', null); S.flash = { t: 'Déverrouillage biométrique désactivé.', ok: true }; go('identite'); },
     biounlock: actBioUnlock,
@@ -1528,8 +1525,8 @@ button.chip{cursor:pointer;font:inherit}
   }
   setInterval(tick, 1000);
 
-  // ---------- alertes : sonnerie et notifications (facultatives, réglées dans « Mon identité ») ----------
-  function getPrefs() { const p = LS.get('prefs', null) || {}; return { sound: !!p.sound, notif: !!p.notif }; }
+  // ---------- alertes : sonnerie à la réception (facultative, réglée dans « Mon identité ») ----------
+  function getPrefs() { const p = LS.get('prefs', null) || {}; return { sound: !!p.sound }; }
   function setPref(k, v) { LS.set('prefs', Object.assign(getPrefs(), { [k]: v })); }
   let audio = null;
   // Sonnerie : six notes générées sur place, sans fichier. Le premier toucher autorise le son sur ce téléphone.
@@ -1549,67 +1546,29 @@ button.chip{cursor:pointer;font:inherit}
       });
     } catch (e) { /* son indisponible sur ce téléphone : rien à afficher */ }
   }
-  // Message reçu : sonnerie si elle est activée ; notification si elle est activée et que l’appli est en arrière-plan.
+  // Message reçu : la sonnerie joue si elle est activée (l’appli doit être ouverte).
   function alertIncoming() {
-    const p = getPrefs();
-    if (p.sound) playChime();
-    if (p.notif && document.hidden) notifyNewMessage();
+    if (getPrefs().sound) playChime();
   }
-  // La notification n’affiche jamais le contenu du message ni le nom du contact.
-  function notifyNewMessage() {
-    if (!('Notification' in window) || Notification.permission !== 'granted') return;
-    // Même texte et même étiquette que la notification du serveur : un seul avis, sans double sonnerie.
-    const opts = { body: 'Une nouvelle activité vous attend.', tag: 'pli-msg', renotify: false };
-    const reg = 'serviceWorker' in navigator ? navigator.serviceWorker.getRegistration() : Promise.resolve(null);
-    reg.then((r) => (r ? r.showNotification('Pli Scellé', opts) : new Notification('Pli Scellé', opts))).catch(() => {});
-  }
-  function registerWorker() {
-    if (!('serviceWorker' in navigator)) return Promise.resolve(null);
-    return navigator.serviceWorker.register('sw.js').catch(() => null);
-  }
-  // Notifications quand l’appli est fermée : l’abonnement de cet appareil est enregistré au relais, pour la boîte.
-  async function subscribePush() {
-    if (!('PushManager' in window) || !('serviceWorker' in navigator)) return false;
-    const reg = await navigator.serviceWorker.getRegistration();
-    if (!reg) return false;
-    let sub = await reg.pushManager.getSubscription();
-    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: unb64u(PUSH_KEY) });
+  // Arrêt des notifications : le service worker et les anciens abonnements sont retirés, pour que rien ne reste sur le téléphone.
+  async function cleanupNotifications() {
     try {
-      await rpc('pli_push_put', { p_mailbox: await mailboxOf(S.me.raw), p_sub: sub.toJSON() });
-    } catch (e) {
-      await sub.unsubscribe().catch(() => {});   // pas d’abonnement orphelin si le relais refuse
-      throw e;
-    }
-    return true;
-  }
-  async function unsubscribePush() {
-    if (!('serviceWorker' in navigator)) return;
-    const reg = await navigator.serviceWorker.getRegistration();
-    const sub = reg ? await reg.pushManager.getSubscription() : null;
-    if (sub) await sub.unsubscribe();
-    await rpc('pli_push_delete', { p_mailbox: await mailboxOf(S.me.raw) }).catch(() => {});
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const r of regs) {
+          const sub = r.pushManager ? await r.pushManager.getSubscription() : null;
+          if (sub) await sub.unsubscribe();
+          await r.unregister();
+        }
+      }
+    } catch (e) { /* rien à retirer */ }
+    LS.set('prefs', { sound: getPrefs().sound });   // les anciens réglages de notification sont effacés
   }
   async function actToggleSound() {
     if (getPrefs().sound) { setPref('sound', false); return go('identite'); }
     setPref('sound', true);
     playChime();
     S.flash = { t: 'Sonnerie activée. Elle sonne à l’arrivée d’un message, tant que l’appli est ouverte.', ok: true };
-    go('identite');
-  }
-  async function actToggleNotif() {
-    if (getPrefs().notif) { await unsubscribePush().catch(() => {}); setPref('notif', false); setPref('push', false); return go('identite'); }
-    if (!('Notification' in window)) { S.flash = { t: 'Les notifications ne sont pas disponibles dans ce navigateur.' }; return go('identite'); }
-    let perm = Notification.permission;
-    if (perm === 'default') { try { perm = await Notification.requestPermission(); } catch (e) { perm = 'denied'; } }
-    if (perm !== 'granted') { S.flash = { t: 'Notifications refusées. Autorisez-les pour cette appli dans les réglages du navigateur.' }; return go('identite'); }
-    await registerWorker();
-    let push = false;
-    try { push = await subscribePush(); } catch (e) { push = false; }
-    setPref('notif', true);
-    setPref('push', push);
-    S.flash = push
-      ? { t: 'Notifications activées. Elles arrivent aussi quand l’appli est fermée.', ok: true }
-      : { t: 'Notifications activées. Elles ne partent que si l’appli reste ouverte : l’envoi quand elle est fermée n’a pas pu être activé ici.', ok: true };
     go('identite');
   }
 
@@ -1704,7 +1663,7 @@ button.chip{cursor:pointer;font:inherit}
     }
     S.bioAvail = await bioAvailable();
     // Au démarrage : l’abonnement est vérifié et réenregistré (il peut avoir changé).
-    if (getPrefs().notif) registerWorker().then(() => (getPrefs().push && S.me ? subscribePush() : null)).catch(() => {});
+    cleanupNotifications();
     if (!S.me) return go('creer', S.inviteId ? 'invite' : null);
     return go('verrouille', S.inviteId ? 'invite' : null);
   }

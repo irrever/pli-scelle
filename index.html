@@ -1,0 +1,1359 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Pli Scellé</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{--bg:#EEF1F4;--surface:#FFFFFF;--surface-2:#F5F7FA;--ink:#10233A;--ink-2:#33475C;--muted:#5B6B7D;--line:#D3DAE2;--line-2:#E3E8EE;--accent:#0B6B5C;--on-accent:#FFFFFF;--accent-soft:#DDEFEA;--warn:#8A5200;--warn-soft:#FBEFD9;--danger:#B3261E;--danger-soft:#F9E3E1;--id-bg:#10233A;--id-ink:#E6EDF4;--id-muted:#9FB0C3;--id-accent:#9FD8C9;--shadow:0 1px 2px rgba(16,35,58,.06),0 6px 18px rgba(16,35,58,.06);color-scheme:light}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0E1A26;--surface:#15263A;--surface-2:#1A2E44;--ink:#E6EDF4;--ink-2:#B9C6D4;--muted:#93A3B5;--line:#2A3D52;--line-2:#22364C;--accent:#7FD8C2;--on-accent:#0E1A26;--accent-soft:#17383A;--warn:#F0B45A;--warn-soft:#3A2C12;--danger:#FF8A80;--danger-soft:#3D1F1D;--id-bg:#0A1522;--id-ink:#E6EDF4;--id-muted:#93A3B5;--id-accent:#7FD8C2;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 22px rgba(0,0,0,.35);color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0E1A26;--surface:#15263A;--surface-2:#1A2E44;--ink:#E6EDF4;--ink-2:#B9C6D4;--muted:#93A3B5;--line:#2A3D52;--line-2:#22364C;--accent:#7FD8C2;--on-accent:#0E1A26;--accent-soft:#17383A;--warn:#F0B45A;--warn-soft:#3A2C12;--danger:#FF8A80;--danger-soft:#3D1F1D;--id-bg:#0A1522;--id-ink:#E6EDF4;--id-muted:#93A3B5;--id-accent:#7FD8C2;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 22px rgba(0,0,0,.35);color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 "IBM Plex Sans",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+button,input,textarea{font:inherit;color:inherit}
+#app{max-width:460px;min-height:100vh;margin:0 auto;display:flex;flex-direction:column;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.screen{flex:1;display:flex;flex-direction:column;gap:16px;padding:0 0 16px;animation:in .22s ease both}
+@keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.screen{animation:none}.spinner{animation:none}}
+h1{margin:0;font:600 26px/1.2 "Bricolage Grotesque","Segoe UI",system-ui,sans-serif;letter-spacing:-.01em;text-wrap:balance}
+h2{margin:0;font:600 17px/1.3 "Bricolage Grotesque",system-ui,sans-serif}
+p{margin:0}
+.lead{color:var(--muted);font-size:15px}
+.hint{color:var(--muted);font-size:13px;line-height:1.45}
+.center{text-align:center;align-items:center}
+.center-col{align-items:center;text-align:center}
+.stack{display:flex;flex-direction:column;gap:10px}
+.row-between{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.row-title{font-weight:600;font-size:16px}
+.row-sub{color:var(--muted);font-size:13px}
+.section-title{font:500 11px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:6px 2px 8px}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+.code{font:600 34px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.16em;color:var(--ink)}
+.code-sm{font:600 15px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em}
+.code-label{font:500 11px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);border:0;opacity:0}
+.ico{width:20px;height:20px;flex:none}
+/* barre du haut */
+.topbar{position:relative;display:flex;align-items:center;gap:8px;min-height:60px;padding:8px 12px 8px 8px;background:var(--bg)}
+.topbar-title{flex:1;min-width:0;font:600 17px/1.2 "Bricolage Grotesque",system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar.bare{padding-left:0}
+.topbar-right{display:flex;align-items:center;gap:4px}
+.iconbtn{width:44px;height:44px;border-radius:12px;border:0;background:transparent;color:var(--ink);display:grid;place-items:center;cursor:pointer;flex:none}
+.iconbtn:hover{background:var(--surface)}
+.iconbtn .ico{width:22px;height:22px}
+.iconbtn-ph{width:44px;height:44px;flex:none}
+/* boutons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:52px;padding:0 18px;border-radius:14px;border:1px solid transparent;font-weight:600;font-size:15px;cursor:pointer;text-align:center;text-decoration:none}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-primary{background:var(--accent);color:var(--on-accent)}
+.btn-secondary{background:var(--surface);color:var(--ink);border-color:var(--line)}
+.btn-ghost{background:transparent;color:var(--accent);min-height:40px;width:auto;padding:0 10px;border-radius:10px}
+.btn-danger{background:transparent;color:var(--danger);border-color:var(--danger-soft)}
+.btn-danger-solid{background:var(--danger);color:#fff}
+.btn .ico{width:18px;height:18px}
+.dock{position:sticky;bottom:0;margin-top:auto;padding:14px 0 calc(16px + env(safe-area-inset-bottom,0px));background:linear-gradient(to top,var(--bg) 72%,transparent)}
+/* cartes et listes */
+.card{background:var(--surface);border:1px solid var(--line-2);border-radius:18px;padding:16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px}
+.form{gap:8px}
+.label{font-size:13px;font-weight:600;color:var(--ink-2);margin-top:4px}
+.field{width:100%;min-height:50px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font-size:16px;outline:none}
+.field:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
+.code-input{font:600 22px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.18em;text-align:center;text-transform:uppercase}
+.input-row{display:flex;gap:8px;align-items:stretch}
+.input-row .field{flex:1;min-width:0}
+.btn-inline{width:auto;min-height:50px;padding:0 14px;border-radius:12px}
+.list{background:var(--surface);border:1px solid var(--line-2);border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+.row-item{display:flex;align-items:center;gap:12px;width:100%;padding:14px 16px;border:0;border-top:1px solid var(--line-2);background:transparent;text-align:left;cursor:pointer;color:var(--ink)}
+.row-item:first-child{border-top:0}
+.row-item:hover{background:var(--surface-2)}
+.row-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.row-text .row-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rowlink{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:54px;padding:0 16px;border:0;border-top:1px solid var(--line-2);background:transparent;color:var(--ink);font-weight:500;text-align:left;cursor:pointer}
+.rowlink:first-child{border-top:0}
+.rowlink.danger{color:var(--danger)}
+.rowlink .ico{width:18px;height:18px}
+.choice{display:flex;align-items:center;gap:14px;width:100%;padding:16px;border-radius:18px;border:1px solid var(--line-2);background:var(--surface);box-shadow:var(--shadow);text-align:left;cursor:pointer;color:var(--ink)}
+.choice:hover{border-color:var(--line)}
+.choice-icon{width:44px;height:44px;border-radius:14px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;flex:none}
+.choice-text{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0}
+.choice-text b{font-size:16px;font-weight:600}
+.choice-text span{color:var(--muted);font-size:13px;line-height:1.4}
+.chev{width:18px;height:18px;color:var(--muted);flex:none}
+.avatar{width:44px;height:44px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font:600 17px "Bricolage Grotesque",system-ui,sans-serif;flex:none}
+.avatar.lg{width:56px;height:56px;font-size:21px}
+.avatar.xl{width:76px;height:76px;font-size:30px}
+.count{min-width:24px;height:24px;padding:0 7px;border-radius:12px;background:var(--accent);color:var(--on-accent);font-size:12px;font-weight:600;display:grid;place-items:center}
+.badge{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.badge-ok{background:var(--accent-soft);color:var(--accent)}
+.badge-warn{background:var(--warn-soft);color:var(--warn)}
+.badge-muted{background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
+.notice{display:flex;align-items:center;gap:12px;width:100%;padding:14px 16px;border:0;border-radius:16px;background:var(--accent-soft);color:var(--accent);font-weight:600;text-align:left;cursor:pointer}
+.notice.warn{background:var(--warn-soft);color:var(--warn)}
+.notice .ico{width:22px;height:22px}
+.notice .grow{flex:1}
+.notice .more{font-weight:500;font-size:13px;color:var(--ink-2)}
+.status{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:14px;font-size:14px;line-height:1.45}
+.status[hidden]{display:none}
+.status-ok{background:var(--accent-soft);color:var(--accent)}
+.status-err{background:var(--danger-soft);color:var(--danger)}
+.status-info{background:var(--warn-soft);color:var(--warn)}
+.empty{display:flex;flex-direction:column;align-items:center;gap:10px;padding:32px 20px;text-align:center;color:var(--muted)}
+.empty .ico{width:34px;height:34px;color:var(--accent)}
+.empty b{color:var(--ink);font-weight:600}
+/* QR et codes */
+.qr-frame{align-self:center;background:#fff;border:1px solid var(--line-2);border-radius:20px;padding:16px;box-shadow:var(--shadow)}
+.qr-frame img{display:block;width:min(300px,76vw);height:auto;image-rendering:pixelated}
+.code-card{align-items:center;text-align:center}
+.code-card .row-between{width:100%}
+.fallback{border:1px solid var(--line-2);border-radius:14px;padding:12px 14px;background:var(--surface);color:var(--ink-2)}
+.fallback summary{cursor:pointer;font-weight:600;font-size:14px}
+.fallback[open] summary{margin-bottom:10px}
+.fallback .stack{margin-top:10px}
+/* étapes */
+.step-card{gap:12px}
+.step-head{display:flex;align-items:center;gap:12px}
+.step-n{width:28px;height:28px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font:600 13px "IBM Plex Mono",ui-monospace,monospace;flex:none}
+.step-n.done{background:var(--accent);color:var(--on-accent)}
+.step-head b{font-size:15px;font-weight:600}
+.file-btn{position:relative;cursor:pointer}
+.progress{display:flex;flex-direction:column;gap:0}
+.pstep{display:flex;gap:14px;align-items:flex-start;padding-bottom:18px;position:relative}
+.pstep:not(:last-child)::before{content:"";position:absolute;left:13px;top:28px;bottom:0;width:2px;background:var(--line)}
+.pstep.done:not(:last-child)::before{background:var(--accent)}
+.pstep .dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--line);background:var(--surface);display:grid;place-items:center;flex:none;font:600 12px "IBM Plex Mono",ui-monospace,monospace;color:var(--muted)}
+.pstep.done .dot{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.pstep.now .dot{border-color:var(--accent);color:var(--accent)}
+.pstep b{display:block;font-weight:600}
+.pstep span{color:var(--muted);font-size:13px}
+.spinner{width:26px;height:26px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:spin 1s linear infinite;align-self:center}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* mots d’empreinte */
+.words-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.word{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line-2);font-weight:600}
+.word-n{font:500 11px "IBM Plex Mono",ui-monospace,monospace;color:var(--muted);min-width:14px}
+/* carte d’identité */
+.id-card{background:var(--id-bg);color:var(--id-ink);border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:10px;box-shadow:0 12px 28px rgba(16,35,58,.25)}
+.id-top{display:flex;justify-content:space-between;font:500 11px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;color:var(--id-accent)}
+.id-label{font:500 11px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--id-muted)}
+.id-name{font:700 32px/1.1 "Bricolage Grotesque",system-ui,sans-serif;letter-spacing:-.01em}
+.id-foot{font-size:13px;color:var(--id-muted);line-height:1.45}
+/* marque et écrans d’état */
+.brand{display:flex;align-items:center;gap:10px;padding-top:24px;font:600 16px "Bricolage Grotesque",system-ui,sans-serif}
+.brand-mark{width:36px;height:36px;color:var(--accent)}
+.hero-icon{width:76px;height:76px;border-radius:24px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;align-self:center}
+.hero-icon.danger{background:var(--danger-soft);color:var(--danger)}
+.hero-icon .ico{width:34px;height:34px}
+.contact-hero{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding-top:8px}
+.conv-title{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0}
+/* conversation */
+.thread{flex:1;display:flex;flex-direction:column;gap:10px;padding:8px 0}
+.bubble{max-width:82%;padding:11px 14px;border-radius:18px 18px 18px 6px;background:var(--surface);border:1px solid var(--line-2);box-shadow:var(--shadow);font-size:16px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+.bubble.mine{margin-left:auto;background:var(--accent-soft);border-color:transparent;border-radius:18px 18px 6px 18px}
+.tile{display:flex;align-items:center;gap:12px;max-width:82%;padding:12px 14px;border-radius:16px;background:var(--surface);border:1px solid var(--line-2);box-shadow:var(--shadow);color:var(--ink);text-align:left;cursor:pointer}
+.tile .ico{color:var(--accent)}
+.tile.mine{margin-left:auto;background:var(--accent-soft);border-color:transparent;cursor:default;color:var(--accent)}
+.tile.mine .ico{color:var(--accent)}
+.composer{display:flex;flex-direction:column;gap:10px;padding-top:10px;border-top:1px solid var(--line-2);background:var(--bg);position:sticky;bottom:0;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+.composer-row{display:flex;gap:8px;align-items:center}
+.composer-row .field{flex:1;min-width:0}
+.btn-send{width:auto;min-width:96px;min-height:50px;padding:0 16px;border-radius:14px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:12px;font-weight:600;color:var(--ink-2);align-self:flex-start}
+.chip.on{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.bubble-timer{margin-top:6px;font-size:12px;color:var(--muted)}
+.pending-stack{display:flex;flex-direction:column;gap:8px}
+</style>
+<div id="app"><div class="screen"><p class="lead" style="padding-top:24px">Chargement…</p></div></div>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ---------- constantes ----------
+  const WORDS = ['tulipe','chêne','lune','sable','orage','pierre','bruyère','garance','hêtre','ambre','iris','lichen','opale','rosée','basalte','cèdre','ardoise','ortie','saule','brume','fougère','galet','nacre','mistral','cerise','pivoine','camélia','marais','dune','falaise','rivière','source','colline','vallon','prairie','forêt','bouleau','érable','olivier','cyprès','mousse','lierre','roseau','algue','corail','perle','jade','onyx','cobalt','cuivre','argent','étain','ivoire','velours','soie','lin','laine','ruban','plume','boussole','phare','voile','ancre','navire'];
+  const CODE_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const ID_CHARS = 'abcdefghijkmnpqrstuvwxyz23456789';
+  const ITER_CODE = 100000;
+  const ITER_SECRET = 200000;
+  const CODE_LIFE = 5 * 60 * 1000;
+  const INVITE_LIFE = 24 * 3600 * 1000;
+  const REVEAL_MS = 20000;
+  const MAX_FAILS = 5;
+  const APP_URL = 'https://irrever.github.io/pli-scelle/';
+  const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
+  const enc = new TextEncoder();
+  const dec = new TextDecoder();
+
+  // ---------- icônes (trait fin, 24 px) ----------
+  const svg = (inner) => '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+  const I = {
+    back: svg('<path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>'),
+    plus: svg('<path d="M12 5v14"/><path d="M5 12h14"/>'),
+    qr: svg('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v3M14 20h3M18 18h3v3"/>'),
+    camera: svg('<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>'),
+    link: svg('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>'),
+    unlink: svg('<path d="M18.84 12.25l1.72-1.71a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M5.17 11.75l-1.71 1.71a5 5 0 0 0 7.07 7.07l1.71-1.71"/><line x1="8" y1="2" x2="8" y2="5"/><line x1="2" y1="8" x2="5" y2="8"/><line x1="16" y1="19" x2="16" y2="22"/><line x1="19" y1="16" x2="22" y2="16"/>'),
+    copy: svg('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'),
+    download: svg('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'),
+    user: svg('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),
+    lock: svg('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
+    trash: svg('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>'),
+    check: svg('<polyline points="20 6 9 17 4 12"/>'),
+    refresh: svg('<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>'),
+    more: svg('<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>'),
+    chev: svg('<polyline points="9 18 15 12 9 6"/>'),
+    alert: svg('<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'),
+    send: svg('<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>'),
+    msg: svg('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'),
+    shield: svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'),
+    inbox: svg('<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>')
+  };
+  const LOGO = '<svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="21" fill="currentColor" opacity=".14"/><path d="M15.5 24.5l5.7 5.7L32.5 18.9" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  // ---------- utilitaires ----------
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const initial = (n) => (String(n || '?').trim().charAt(0) || '?').toUpperCase();
+  function rand(n) { return crypto.getRandomValues(new Uint8Array(n)); }
+  function rid(n, alphabet) { const a = alphabet || ID_CHARS; const r = rand(n); let s = ''; for (const b of r) s += a[b % a.length]; return s; }
+  function randCode() { return rid(6, CODE_CHARS); }
+  function fmtCode(c) { return c.length === 6 ? c.slice(0, 3) + ' ' + c.slice(3) : c; }
+  function normCode(s) { return String(s || '').replace(/[\s-]/g, '').toUpperCase(); }
+  function genPseudo() { const r = rand(3); return WORDS[r[0] % WORDS.length].replace(/^./, (c) => c.toUpperCase()) + '-' + (10 + ((r[1] * 256 + r[2]) % 90)); }
+  function b64u(u8) { let s = ''; for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+  function unb64u(str) { let s = String(str).replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+  function cat(...arrs) { const n = arrs.reduce((a, b) => a + b.length, 0); const out = new Uint8Array(n); let o = 0; for (const a of arrs) { out.set(a, o); o += a.length; } return out; }
+  function hex(u8) { return Array.from(u8, (b) => b.toString(16).padStart(2, '0')).join(''); }
+  async function sha(u8) { return new Uint8Array(await crypto.subtle.digest('SHA-256', u8)); }
+  async function pbkdf2(text, salt, iter) {
+    const base = await crypto.subtle.importKey('raw', enc.encode(text), 'PBKDF2', false, ['deriveBits']);
+    return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: salt, iterations: iter, hash: 'SHA-256' }, base, 256));
+  }
+  async function mailboxOf(rawB64) { return hex(await sha(unb64u(rawB64))); }
+  async function proofFor(K, rawB64) { return b64u(await sha(cat(K, unb64u(rawB64)))); }
+  function cmpBytes(a, b) { const n = Math.min(a.length, b.length); for (let i = 0; i < n; i++) if (a[i] !== b[i]) return a[i] - b[i]; return a.length - b.length; }
+  // six mots tirés de l'empreinte commune aux deux identités (ordre indifférent)
+  async function wordsFor(a, b) {
+    const pair = cmpBytes(a, b) <= 0 ? cat(a, b) : cat(b, a);
+    const h = await sha(pair);
+    const out = []; let acc = 0, nb = 0;
+    for (let i = 0; i < h.length && out.length < 6; i++) {
+      acc = ((acc << 8) | h[i]) & 0xffff; nb += 8;
+      while (nb >= 6 && out.length < 6) { nb -= 6; out.push(WORDS[(acc >> nb) & 63]); }
+    }
+    return out;
+  }
+
+  // ---------- stockage local (ce téléphone seulement) ----------
+  const LS = {
+    get(k, d) { try { const v = localStorage.getItem('pli.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('pli.' + k, JSON.stringify(v)); return true; } catch (e) { return false; } },
+    clearAll() { try { Object.keys(localStorage).filter((k) => k.indexOf('pli.') === 0).forEach((k) => localStorage.removeItem(k)); } catch (e) {} }
+  };
+  const contacts = () => LS.get('contacts', []);
+  const msgsAll = () => LS.get('msgs', []);
+  const pendingAll = () => LS.get('pending', []);
+  const invitesAll = () => LS.get('invites', []);
+  const pendingById = (pid) => pendingAll().find((p) => p.pid === pid) || null;
+  function dropPending(pid) { LS.set('pending', pendingAll().filter((p) => p.pid !== pid)); }
+  function pushPending(item) { const l = pendingAll(); const it = Object.assign({ pid: rid(10), at: Date.now() }, item); l.push(it); LS.set('pending', l); return it; }
+  function setInvites(l) { LS.set('invites', l); }
+  function markInviteClosed(id) { const l = invitesAll(); const i = l.find((x) => x.id === id); if (i) i.status = 'closed'; setInvites(l); }
+  function addContact(raw, pseudo, name) {
+    const cs = contacts();
+    const ex = cs.find((c) => c.raw === raw);
+    if (ex) return ex;
+    let label;
+    do { label = randCode().slice(0, 3); } while (cs.some((c) => c.label === label));
+    const c = { cid: rid(8), name: name, pseudo: pseudo || '', raw: raw, label: label, since: Date.now() };
+    cs.push(c); LS.set('contacts', cs);
+    return c;
+  }
+  function removeContact(cid) {
+    const cs = contacts();
+    const c = cs.find((x) => x.cid === cid);
+    if (!c) return null;
+    LS.set('contacts', cs.filter((x) => x.cid !== cid));
+    LS.set('msgs', msgsAll().filter((m) => m.cid !== cid));
+    LS.set('pending', pendingAll().filter((p) => p.peer !== c.raw));
+    return c;
+  }
+  function expireOpened() {
+    const all = msgsAll(); let ch = false;
+    for (const m of all) if (m.state === 'open' && Date.now() > (m.until || 0)) { m.state = 'gone'; m.text = ''; ch = true; }
+    if (ch) LS.set('msgs', all);
+    return ch;
+  }
+
+  // ---------- état ----------
+  const S = { db: null, downloads: null, me: null, priv: null, screen: 'boot', arg: null, flash: null, cut: null, invite: null, inviteId: null, words: null, qr: null, invQR: null, qrText: '', draftPseudo: null, needRender: false, pollBusy: false, routed: new Set() };
+
+  // ---------- clés et chiffrement ----------
+  async function wrapPriv(priv, code) {
+    const salt = rand(16), iv = rand(12);
+    const kb = await pbkdf2(code, salt, ITER_SECRET);
+    const key = await crypto.subtle.importKey('raw', kb, 'AES-GCM', false, ['encrypt']);
+    const pkcs8 = new Uint8Array(await crypto.subtle.exportKey('pkcs8', priv));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, pkcs8));
+    return { salt: b64u(salt), iv: b64u(iv), ct: b64u(ct) };
+  }
+  async function unwrapPriv(wrap, code) {
+    const kb = await pbkdf2(code, unb64u(wrap.salt), ITER_SECRET);
+    const key = await crypto.subtle.importKey('raw', kb, 'AES-GCM', false, ['decrypt']);
+    const pkcs8 = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64u(wrap.iv) }, key, unb64u(wrap.ct));
+    return crypto.subtle.importKey('pkcs8', pkcs8, ECDH, false, ['deriveKey', 'deriveBits']);
+  }
+  async function createIdentity(pseudo, code) {
+    const kp = await crypto.subtle.generateKey(ECDH, true, ['deriveKey', 'deriveBits']);
+    const raw = b64u(new Uint8Array(await crypto.subtle.exportKey('raw', kp.publicKey)));
+    const wrap = await wrapPriv(kp.privateKey, code);
+    if (!LS.set('me', { pseudo: pseudo, raw: raw, wrap: wrap, created: Date.now() })) throw new Error('Le stockage de ce navigateur est indisponible.');
+    S.me = LS.get('me', null);
+    S.priv = kp.privateKey;
+  }
+  async function sharedKey(peerRaw) {
+    const pub = await crypto.subtle.importKey('raw', unb64u(peerRaw), ECDH, false, []);
+    return crypto.subtle.deriveKey({ name: 'ECDH', public: pub }, S.priv, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  }
+  async function encryptFor(key, obj) {
+    const iv = rand(12);
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, enc.encode(JSON.stringify(obj))));
+    return { iv: b64u(iv), ct: b64u(ct) };
+  }
+  async function decryptFrom(key, iv, ct) {
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64u(iv) }, key, unb64u(ct));
+    return JSON.parse(dec.decode(pt));
+  }
+
+  // ---------- QR codes ----------
+  function makeQR(text) {
+    if (typeof qrcode !== 'function') throw new Error('Génération du QR code indisponible.');
+    const q = qrcode(0, 'M');
+    q.addData(text);
+    q.make();
+    return q.createDataURL(8, 32);
+  }
+  function qrTextFor(d) { return APP_URL + '#ff-' + hex(unb64u(S.me.raw)) + hex(unb64u(d.salt)) + hex(enc.encode(S.me.pseudo)); }
+  function invTextFor(inv) { return APP_URL + '#inv-' + inv.id; }
+  function isInvText(t) { return /#inv-[a-z0-9]{8,24}/.test(t) || t.indexOf('PLI1:INV:') === 0; }
+  function parseFF(h) {
+    const raw = unhex(h.slice(0, 130)), salt = unhex(h.slice(130, 162));
+    if (raw.length !== 65 || raw[0] !== 4) throw new Error('Clé de l’identité invalide.');
+    let pseudo = '';
+    try { pseudo = dec.decode(unhex(h.slice(162))); } catch (e) { pseudo = ''; }
+    return { p: pseudo.slice(0, 24) || 'Contact', k: b64u(raw), s: b64u(salt) };
+  }
+  function unhex(s) { const out = new Uint8Array(Math.floor(s.length / 2)); for (let i = 0; i < out.length; i++) out[i] = parseInt(s.substr(i * 2, 2), 16); return out; }
+  function parseQR(text) {
+    const t = String(text || '').trim();
+    if (isInvText(t)) throw new Error('Ce n’est pas une identité, c’est une invitation. Utilisez « Rejoindre une invitation ».');
+    const ff = t.match(/#ff-([0-9a-f]{162,})/);
+    if (ff) return parseFF(ff[1]);
+    if (t.indexOf('PLI1:') !== 0) throw new Error('Ce n’est pas une identité Pli Scellé.');
+    let o;
+    try { o = JSON.parse(dec.decode(unb64u(t.slice(5)))); } catch (e) { throw new Error('Identité illisible. Scannez-la de plus près.'); }
+    if (!o.p || !o.k || !o.s) throw new Error('Identité incomplète.');
+    const kb = unb64u(o.k);
+    if (kb.length !== 65 || kb[0] !== 4) throw new Error('Clé de l’identité invalide.');
+    return o;
+  }
+  function parseInvText(text) {
+    const t = String(text || '').trim();
+    const link = t.match(/#inv-([a-z0-9]{8,24})/);
+    if (link) return { i: link[1], p: '' };
+    if (t.indexOf('PLI1:INV:') !== 0) throw new Error('Ce n’est pas une invitation Pli Scellé.');
+    const o = JSON.parse(dec.decode(unb64u(t.slice(9))));
+    if (!o.i || !/^[a-z0-9]{8,24}$/.test(o.i)) throw new Error('Invitation illisible.');
+    return o;
+  }
+  // Lit un QR code sur une photo : plusieurs tailles, les deux sens de contraste.
+  async function decodeFile(file) {
+    if (typeof jsQR !== 'function') throw new Error('La lecture n’est pas disponible ici. Collez le texte.');
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      for (const max of [1400, 900, 500]) {
+        const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(img.naturalWidth * k));
+        c.height = Math.max(1, Math.round(img.naturalHeight * k));
+        const g = c.getContext('2d', { willReadFrequently: true });
+        g.drawImage(img, 0, 0, c.width, c.height);
+        const d = g.getImageData(0, 0, c.width, c.height);
+        const r = jsQR(d.data, d.width, d.height, { inversionAttempts: 'attemptBoth' });
+        if (r && r.data) return r.data;
+      }
+      throw new Error('Rien de lisible sur la photo. Recommencez de près, bien droit, sans reflet.');
+    } finally { URL.revokeObjectURL(url); }
+  }
+
+  // ---------- relais : fonctions Supabase du script relais.sql ----------
+  // Même forme d’accès qu’avant (collection, doc), mais chaque appel passe par une fonction du relais.
+  const RELAY_URL = 'https://lvdkwatbqesxvsllnthz.supabase.co';
+  const RELAY_KEY = 'sb_publishable_bEARM04rOXlQ5sJZQ2152w_W2ypAKTP';
+  async function rpc(name, args) {
+    const r = await fetch(RELAY_URL + '/rest/v1/rpc/' + name, {
+      method: 'POST',
+      headers: { apikey: RELAY_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify(args)
+    });
+    const t = await r.text();
+    if (!r.ok) {
+      let msg = '';
+      try { msg = JSON.parse(t).message || ''; } catch (e) { msg = ''; }
+      throw new Error(msg || 'Relais indisponible (' + r.status + ').');
+    }
+    return t ? JSON.parse(t) : null;
+  }
+  // Seul « boîte == valeur » est utilisé pour lire les messages.
+  const relayDb = {
+    collection(name) {
+      return {
+        where(field, op, value) {
+          return {
+            async get() {
+              const rows = await rpc('pli_fetch', { p_mailbox: value });
+              return { docs: rows.map((x) => ({ id: x.msg_id, data: () => x.msg_payload })) };
+            }
+          };
+        },
+        doc(id) { return { delete: () => rpc('pli_ack', { p_id: id }) }; },
+        add(data) {
+          const payload = Object.assign({}, data);
+          const to = payload.to;
+          delete payload.to;
+          return rpc('pli_send', { p_mailbox: to, p_payload: payload });
+        }
+      };
+    },
+    doc(path) {
+      const id = path.split('/')[1];
+      return {
+        async get() { const d = await rpc('pli_inv_get', { p_id: id }); return { exists: d !== null, data: () => d }; },
+        set(data) { return rpc('pli_inv_put', { p_id: id, p_data: data }); },
+        delete() { return rpc('pli_inv_delete', { p_id: id }); }
+      };
+    }
+  };
+
+  // ---------- relais (suite) ----------
+  async function sendTo(peerRaw, body) {
+    const to = await mailboxOf(peerRaw);
+    await S.db.collection('box').add(Object.assign({ to: to, from: S.me.raw, ts: Date.now() }, body));
+  }
+  async function closeInviteDoc(id) { try { await S.db.doc('inv/' + id).delete(); } catch (e) {} }
+
+  async function poll() {
+    if (!S.db || !S.me || !S.priv || S.pollBusy) return;
+    S.pollBusy = true;
+    try {
+      const to = await mailboxOf(S.me.raw);
+      const snap = await S.db.collection('box').where('to', '==', to).get();
+      let changed = false;
+      for (const d of snap.docs) {
+        const m = d.data() || {};
+        try { if (await handle(m, d.id)) changed = true; } catch (e) { console.warn('Pli : message ignoré', e); }
+        try { await S.db.collection('box').doc(d.id).delete(); } catch (e) {}
+      }
+      if (changed) S.needRender = true;
+      await afterPoll();
+    } catch (e) { /* hors ligne : on réessaie au prochain tour */ }
+    finally { S.pollBusy = false; }
+  }
+  async function handle(m, docId) {
+    switch (m.kind) {
+      case 'ff-request': return onFFRequest(m);
+      case 'remote-claim': return onRemoteClaim(m);
+      case 'accept': return onAccept(m);
+      case 'refuse': return onRefuse(m);
+      case 'msg': return onMsg(m, docId);
+      case 'cut': return onCut(m);
+      default: return false;
+    }
+  }
+  // Demande face à face : acceptée seulement si la personne a tapé le code affiché sur cet écran.
+  async function onFFRequest(m) {
+    const d = LS.get('display', null);
+    const live = !!d && Date.now() < d.exp;
+    const expected = live ? await proofFor(unb64u(d.K), m.from) : null;
+    if (!live || expected !== m.proof) { await sendTo(m.from, { kind: 'refuse' }); return false; }
+    if (pendingAll().some((p) => p.type === 'ff-request' && p.peer === m.from)) return false;
+    pushPending({ type: 'ff-request', peer: m.from, peerPseudo: m.pseudo });
+    return true;
+  }
+  // Réponse à une invitation : même principe, avec le code d'invitation.
+  async function onRemoteClaim(m) {
+    const invs = invitesAll();
+    const inv = invs.find((i) => i.id === m.inv);
+    if (!inv || inv.status !== 'open' || Date.now() > inv.exp) { await sendTo(m.from, { kind: 'refuse', inv: m.inv }); return false; }
+    const expected = await proofFor(unb64u(inv.K), m.from);
+    if (expected !== m.proof) {
+      inv.fails = (inv.fails || 0) + 1;
+      if (inv.fails >= MAX_FAILS) { inv.status = 'closed'; await closeInviteDoc(inv.id); S.flash = { t: 'Une invitation a été fermée après plusieurs codes incorrects.' }; }
+      setInvites(invs);
+      await sendTo(m.from, { kind: 'refuse', inv: m.inv });
+      return true;
+    }
+    if (pendingAll().some((p) => p.type === 'remote-claim' && p.peer === m.from && p.invId === m.inv)) return false;
+    pushPending({ type: 'remote-claim', peer: m.from, peerPseudo: m.pseudo, invId: m.inv });
+    return true;
+  }
+  async function onAccept(m) {
+    const pend = pendingAll();
+    let idx = pend.findIndex((p) => p.type === 'ff-sent' && p.peer === m.from);
+    if (idx < 0 && m.inv) idx = pend.findIndex((p) => p.type === 'remote-sent' && p.invId === m.inv);
+    if (idx < 0) return false;
+    const p = pend[idx];
+    pend[idx] = { pid: p.pid, at: Date.now(), type: p.type === 'ff-sent' ? 'ff-accepted' : 'remote-accepted', peer: m.from, peerPseudo: m.pseudo || 'Contact', invId: p.invId || null };
+    LS.set('pending', pend);
+    return true;
+  }
+  async function onRefuse(m) {
+    const pend = pendingAll();
+    const idx = pend.findIndex((p) => (p.type === 'ff-sent' && p.peer === m.from) || (p.type === 'remote-sent' && p.invId === m.inv));
+    if (idx < 0) return false;
+    pend.splice(idx, 1); LS.set('pending', pend);
+    S.flash = { t: 'La demande a été refusée, ou le code est incorrect.' };
+    return true;
+  }
+  async function onMsg(m, docId) {
+    const c = contacts().find((x) => x.raw === m.from);
+    if (!c) return false;
+    const key = await sharedKey(c.raw);
+    const body = await decryptFrom(key, m.iv, m.ct);
+    const all = msgsAll();
+    all.push({ mid: docId, cid: c.cid, dir: 'in', text: String(body.t || ''), state: 'new', ts: body.ts || Date.now() });
+    LS.set('msgs', all);
+    return true;
+  }
+  async function onCut(m) {
+    const c = contacts().find((x) => x.raw === m.from);
+    if (!c) return false;
+    removeContact(c.cid);
+    S.cut = { name: c.pseudo || c.name };
+    return true;
+  }
+
+  // ---------- après un relevé ----------
+  async function openPending(pid, screen) {
+    const p = pendingById(pid);
+    if (!p) return go('accueil');
+    S.words = (screen === 'demande' || screen === 'verifier-ff') ? await wordsFor(unb64u(S.me.raw), unb64u(p.peer)) : null;
+    go(screen, pid);
+  }
+  async function afterPoll() {
+    if (!S.me || !S.priv) return;
+    const pend = pendingAll();
+    if (S.cut && S.screen !== 'lien-coupe') return go('lien-coupe');
+    const acc = pend.find((p) => p.type === 'ff-accepted' && !S.routed.has(p.pid));
+    if (acc) { S.routed.add(acc.pid); return openPending(acc.pid, 'verifier-ff'); }
+    const racc = pend.find((p) => p.type === 'remote-accepted' && !S.routed.has(p.pid));
+    if (racc) { S.routed.add(racc.pid); return openPending(racc.pid, 'nommer'); }
+    if (S.screen === 'attente' && !pend.some((p) => p.type === 'ff-sent' || p.type === 'remote-sent')) {
+      S.flash = { t: 'La demande a été refusée, ou le code est incorrect.' };
+      return go('accueil');
+    }
+    if (S.needRender && !isTyping()) render();
+  }
+  function isTyping() { const a = document.activeElement; return !!a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA'); }
+  let pollTimer = null;
+  function startPolling() { if (!pollTimer) pollTimer = setInterval(poll, 2000); poll(); }
+  function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+
+  // ---------- composants ----------
+  function topbar(o) {
+    const back = o.backAct
+      ? '<button class="iconbtn" data-act="' + o.backAct + '" data-arg="' + esc(o.backArg || '') + '" aria-label="Retour">' + I.back + '</button>'
+      : (o.back ? '<button class="iconbtn" data-act="go" data-arg="' + o.back + '" aria-label="Retour">' + I.back + '</button>' : '');
+    return '<header class="topbar' + (back ? '' : ' bare') + '">' + back + '<h1 class="topbar-title">' + (o.titleHTML || esc(o.title || '')) + '</h1><div class="topbar-right">' + (o.right || '') + '</div></header>';
+  }
+  function notice(kind, text) { return '<div class="status status-' + kind + '">' + text + '</div>'; }
+  function formStatus() { return '<div id="formstatus" class="status status-err" hidden></div>'; }
+  function pendingBanner() {
+    const p = pendingAll().find((x) => x.type === 'ff-request' || x.type === 'remote-claim');
+    return p ? '<div class="pending-stack">' + noticeHTML(p) + '</div>' : '';
+  }
+  function noticeHTML(p) {
+    const map = {
+      'ff-request': ['Une personne a scanné votre identité', 'Vérifier et répondre', 'demande'],
+      'remote-claim': ['Quelqu’un a rejoint votre invitation', 'Vérifier et répondre', 'lien-ouvert'],
+      'ff-accepted': [esc(p.peerPseudo || 'La personne') + ' a accepté votre demande', 'Comparer les mots', 'verifier-ff'],
+      'remote-accepted': [esc(p.peerPseudo || 'La personne') + ' a accepté votre invitation', 'Donner un nom', 'nommer']
+    };
+    const m = map[p.type];
+    if (!m) return '';
+    return '<button class="notice" data-act="openp" data-arg="' + m[2] + '|' + esc(p.pid) + '">' + I.inbox + '<span class="grow">' + m[0] + '<br><span class="more">' + m[1] + '</span></span>' + I.chev + '</button>';
+  }
+  function personCard(pseudo, badgeText) {
+    return '<div class="card"><div class="row-between"><div style="display:flex;gap:12px;align-items:center;min-width:0"><span class="avatar lg">' + esc(initial(pseudo)) + '</span><div style="min-width:0"><div class="row-title">' + esc(pseudo) + '</div><span class="hint">Pseudo reçu</span></div></div><span class="badge badge-ok">' + I.check + esc(badgeText) + '</span></div></div>';
+  }
+  function nameField() {
+    return '<div class="card form"><label class="label" for="cname">Nom dans vos contacts</label><input id="cname" class="field" placeholder="Nom obligatoire" autocomplete="off"><p class="hint">Vous seul le voyez. Il ne quitte pas cet appareil.</p>' + formStatus() + '</div>';
+  }
+  function wordsBlock(title, text) {
+    const w = S.words || [];
+    return '<section class="card"><div class="section-title" style="margin:0">' + esc(title) + '</div><div class="words-grid">' + w.map((x, i) => '<div class="word"><span class="word-n">' + (i + 1) + '</span><span>' + esc(x) + '</span></div>').join('') + '</div><p class="hint">' + esc(text) + '</p></section>';
+  }
+  function progressStep(n, label, state, hint) {
+    return '<div class="pstep ' + state + '"><span class="dot">' + (state === 'done' ? I.check.replace('class="ico"', 'class="ico" style="width:14px;height:14px"') : n) + '</span><div><b>' + esc(label) + '</b>' + (hint ? '<span>' + esc(hint) + '</span>' : '') + '</div></div>';
+  }
+  function choice(act, arg, icon, title, desc) {
+    return '<button class="choice" data-act="' + act + '"' + (arg ? ' data-arg="' + arg + '"' : '') + '><span class="choice-icon">' + icon + '</span><span class="choice-text"><b>' + esc(title) + '</b><span>' + esc(desc) + '</span></span>' + I.chev + '</button>';
+  }
+  function msgHTML(m) {
+    if (m.dir === 'out') return '<div class="tile mine">' + I.check + '<span>Message envoyé</span></div>';
+    if (m.state === 'new') return '<button class="tile" data-act="reveal" data-arg="' + esc(m.mid) + '">' + I.msg + '<span><b>Message reçu</b><br><span class="hint">Appuyez pour le lire, une seule fois</span></span></button>';
+    if (m.state === 'open') return '<div class="bubble">' + esc(m.text) + '<div class="bubble-timer" data-until="' + esc(m.until) + '">Se referme dans ' + Math.max(0, Math.ceil((m.until - Date.now()) / 1000)) + ' s</div></div>';
+    return '<div class="tile" style="color:var(--muted)">' + I.check + '<span>Message lu</span></div>';
+  }
+  function emptyState() {
+    return '<div class="list"><div class="empty">' + I.user + '<b>Aucun contact pour l’instant</b><span>Ajoutez une personne, face à face ou à distance.</span></div></div>';
+  }
+
+  // ---------- écrans ----------
+  const VIEWS = {
+    boot: () => '<div class="screen"><p class="lead" style="padding-top:24px">Chargement…</p></div>',
+    creer: viewCreer, verrouille: viewVerrouille, accueil: viewAccueil, ajouter: viewAjouter,
+    montrer: viewMontrer, scanner: viewScanner, rejoindre: viewRejoindre, reclamer: viewReclamer,
+    inviter: viewInviter, attente: viewAttente, demande: viewDemande, 'verifier-ff': viewVerifierFF,
+    'lien-ouvert': viewLienOuvert, nommer: viewNommer, contact: viewContact, conv: viewConv,
+    reglages: viewReglages, 'lien-coupe': viewLienCoupe, identite: viewIdentite, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, restaurer: viewRestaurer,
+    invalide: viewInvalide
+  };
+
+  function viewCreer() {
+    if (!S.draftPseudo) S.draftPseudo = genPseudo();
+    const note = S.arg === 'invite' ? notice('info', 'Vous répondez à une invitation. Une fois votre identité créée, vous entrerez le code reçu à part.') : '';
+    return '<div class="screen">' +
+      '<div class="brand">' + LOGO + '<span>Pli Scellé</span></div>' +
+      '<div><h1>Créer votre identité</h1><p class="lead" style="margin-top:6px">Un pseudo et un code secret. Pas de numéro, pas d’e-mail.</p></div>' +
+      note +
+      '<div class="card form">' +
+        '<label class="label" for="pseudo">Votre pseudo</label>' +
+        '<div class="input-row"><input id="pseudo" class="field" value="' + esc(S.draftPseudo) + '" autocomplete="off"><button class="btn btn-secondary btn-inline" data-act="regen" aria-label="Générer un pseudo">' + I.refresh + '</button></div>' +
+        '<p class="hint">C’est le seul nom que les autres voient.</p>' +
+        '<label class="label" for="s1">Code secret</label>' +
+        '<input id="s1" class="field" type="password" autocomplete="new-password" placeholder="6 caractères minimum">' +
+        '<label class="label" for="s2">Répétez le code secret</label>' +
+        '<input id="s2" class="field" type="password" autocomplete="new-password">' +
+        '<p class="hint">Il ouvre l’application sur cet appareil. Il ne se récupère pas.</p>' +
+        formStatus() +
+      '</div>' +
+      '<div class="dock stack"><button class="btn btn-primary" data-act="create">Créer mon identité</button><button class="btn btn-ghost" data-act="go" data-arg="restaurer">J’ai une sauvegarde à restaurer</button></div>' +
+    '</div>';
+  }
+  function viewVerrouille() {
+    return '<div class="screen center-col" style="justify-content:center;flex:1">' +
+      '<div class="brand" style="padding:0;justify-content:center">' + LOGO + '<span>Pli Scellé</span></div>' +
+      '<div><h1>Déverrouiller</h1><p class="lead" style="margin-top:6px">' + (S.arg === 'invite' ? 'Entrez votre code secret pour répondre à l’invitation.' : 'Entrez votre code secret pour accéder à vos messages.') + '</p></div>' +
+      '<div class="card form" style="width:100%;text-align:left"><label class="label" for="unlock">Code secret</label><input id="unlock" class="field" type="password" autocomplete="off">' + formStatus() + '</div>' +
+      '<div class="dock" style="width:100%"><button class="btn btn-primary" data-act="unlock">Déverrouiller</button></div>' +
+      '<p class="hint">Vos messages restent sur cet appareil.</p>' +
+    '</div>';
+  }
+  function viewAccueil() {
+    const notices = pendingAll().filter((p) => ['ff-request', 'remote-claim', 'ff-accepted', 'remote-accepted'].indexOf(p.type) >= 0).map(noticeHTML).join('');
+    const ms = msgsAll();
+    const cs = contacts();
+    const list = cs.length ? '<div class="list">' + cs.map((c) => {
+      const n = ms.filter((m) => m.cid === c.cid && m.dir === 'in' && m.state === 'new').length;
+      return '<button class="row-item conv" data-act="conv" data-arg="' + esc(c.cid) + '"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · Vérifié</span></span>' + (n ? '<span class="count">' + n + '</span>' : '') + I.chev + '</button>';
+    }).join('') + '</div>' : emptyState();
+    return '<div class="screen">' +
+      topbar({ titleHTML: 'Messages', right: '<button class="iconbtn" data-act="go" data-arg="identite" aria-label="Mon identité">' + I.user + '</button><button class="iconbtn" data-act="lock" aria-label="Verrouiller">' + I.lock + '</button>' }) +
+      (notices ? '<div class="pending-stack">' + notices + '</div>' : '') +
+      (cs.length && !LS.get('lastBackup', 0) ? '<div class="pending-stack"><button class="notice warn" data-act="go" data-arg="sauvegarde">' + I.shield + '<span class="grow">Sauvegardez vos contacts<br><span class="more">Sans sauvegarde, ils restent dans ce navigateur seulement.</span></span>' + I.chev + '</button></div>' : '') +
+      '<section><div class="section-title">Contacts</div>' + list + '</section>' +
+      '<div class="dock"><button class="btn btn-primary" data-act="go" data-arg="ajouter">' + I.plus + '<span>Ajouter une personne</span></button></div>' +
+    '</div>';
+  }
+  function viewAjouter() {
+    return '<div class="screen">' + topbar({ backAct: 'go', backArg: 'accueil', title: 'Ajouter une personne' }) +
+      '<section class="stack"><div><div class="section-title">Face à face</div><p class="hint">Vous êtes côte à côte.</p></div>' +
+        choice('montrer', 'ajouter', I.qr, 'Montrer mon identité', 'La personne scanne votre identité, puis tape le code affiché.') +
+        choice('go', 'scanner', I.camera, 'Scanner l’identité de la personne', 'Scannez son identité, puis tapez le code affiché sur son écran.') +
+      '</section>' +
+      '<section class="stack"><div><div class="section-title">À distance</div><p class="hint">Vous envoyez un QR code par la messagerie de votre choix. Le code se donne à part.</p></div>' +
+        choice('newinvite', null, I.send, 'Inviter quelqu’un', 'Envoyez-lui un QR code. Le code se donne à part.') +
+        choice('go', 'rejoindre', I.camera, 'Rejoindre une invitation', 'Scannez l’invitation reçue, puis entrez le code donné à part.') +
+      '</section></div>';
+  }
+  function viewMontrer() {
+    const d = LS.get('display', null);
+    const live = !!d && Date.now() < d.exp;
+    const text = live ? qrTextFor(d) : '';
+    return '<div class="screen">' + topbar({ back: S.origin || 'ajouter', title: 'Montrer mon identité' }) + pendingBanner() +
+      '<p class="lead">Face à face : la personne scanne cette identité, puis tape le code affiché ci-dessous.</p>' +
+      (S.qr ? '<div class="qr-frame"><img alt="Mon identité" src="' + S.qr + '"></div>' : notice('err', 'Cette identité ne peut pas s’afficher ici. Utilisez le texte, plus bas.')) +
+      (live
+        ? '<div class="card code-card"><span class="code-label">Code à taper</span><div class="code" id="codeshow">' + esc(fmtCode(d.code)) + '</div><div class="row-between" style="width:100%"><span class="hint">Valable encore <span id="cd" class="mono"></span></span><button class="btn btn-ghost" data-act="copycode" data-arg="' + esc(d.code) + '">' + I.copy + '<span>Copier</span></button></div></div>'
+        : notice('info', 'Ce code a expiré. Créez-en un nouveau.')) +
+      '<button class="btn btn-secondary" data-act="newdisplay">' + I.refresh + '<span>Nouveau code</span></button>' +
+      '<details class="fallback"><summary>L’identité ne s’affiche pas ? Copiez son texte.</summary><div class="stack"><textarea id="qrtextout" class="field" readonly>' + esc(text) + '</textarea><button class="btn btn-secondary" data-act="copyqr">' + I.copy + '<span>Copier le texte</span></button></div></details>' +
+    '</div>';
+  }
+  function viewScanner() {
+    return '<div class="screen">' + topbar({ back: 'ajouter', title: 'Scanner une identité' }) +
+      '<p class="lead">Face à face : scannez l’identité affichée sur l’écran de la personne, puis tapez le code affiché à côté.</p>' +
+      '<section class="card step-card"><div class="step-head"><span class="step-n">1</span><b>Scanner son identité</b></div>' +
+        '<label class="btn btn-secondary file-btn">' + I.camera + '<span>Caméra ou photos</span><input id="photo" class="sr-only" type="file" accept="image/*"></label>' +
+        '<div id="scanstatus" class="status status-ok" hidden></div>' +
+      '</section>' +
+      '<section class="card step-card"><div class="step-head"><span class="step-n">2</span><b>Taper le code affiché</b></div>' +
+        '<input id="fcode" class="field code-input" placeholder="K7P 2Q9" maxlength="8" autocomplete="off" autocapitalize="characters">' +
+        '<p class="hint">Il expire au bout de quelques minutes.</p>' +
+      '</section>' +
+      '<details class="fallback"><summary>Je n’arrive pas à scanner : coller le texte de l’identité</summary><div class="stack" style="margin-top:10px"><textarea id="qrtext" class="field" rows="3" placeholder="Collez ici le texte de l’identité">' + esc(S.qrText || '') + '</textarea></div></details>' +
+      formStatus() +
+      '<div class="dock"><button class="btn btn-primary" data-act="sendff">Envoyer la demande</button></div>' +
+    '</div>';
+  }
+  function viewRejoindre() {
+    return '<div class="screen">' + topbar({ back: 'ajouter', title: 'Rejoindre une invitation' }) +
+      '<p class="lead">Scannez l’invitation reçue : prenez-la avec la caméra, ou choisissez l’image dans vos photos. Le code, lui, vous a été donné à part.</p>' +
+      '<section class="card step-card"><div class="step-head"><span class="step-n">1</span><b>Scanner l’invitation</b></div>' +
+        '<label class="btn btn-secondary file-btn">' + I.camera + '<span>Caméra ou photos</span><input id="photoinv" class="sr-only" type="file" accept="image/*"></label>' +
+        '<div id="scanstatus" class="status status-ok" hidden></div>' +
+      '</section>' +
+      '<details class="fallback"><summary>Je n’arrive pas à scanner : coller le texte de l’invitation</summary><div class="stack" style="margin-top:10px"><textarea id="invtext" class="field" rows="3" placeholder="Collez ici le lien ou le texte de l’invitation">' + esc(S.invText || '') + '</textarea></div></details>' +
+      formStatus() +
+      '<div class="dock"><button class="btn btn-primary" data-act="readinv">Continuer</button></div>' +
+    '</div>';
+  }
+  function viewReclamer() {
+    if (!S.invite) return viewInvalide();
+    return '<div class="screen">' + topbar({ back: 'ajouter', title: 'Invitation' }) +
+      '<div><h1>Entrez le code</h1><p class="lead" style="margin-top:6px">Le code vous a été donné à part, par appel ou de vive voix.</p></div>' +
+      '<div class="card form"><label class="label" for="icode">Code d’invitation</label><input id="icode" class="field code-input" placeholder="K7P 2Q9" maxlength="8" autocomplete="off" autocapitalize="characters"><p class="hint">Il ne marche qu’une fois, pendant 24 heures.</p>' + formStatus() + '</div>' +
+      '<div class="dock"><button class="btn btn-primary" data-act="claim">Envoyer ma demande</button></div>' +
+    '</div>';
+  }
+  function viewInviter() {
+    const inv = invitesAll().find((i) => i.id === S.arg);
+    if (!inv) return viewAccueil();
+    const open = inv.status === 'open' && Date.now() < inv.exp;
+    const until = new Date(inv.exp).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+    return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) + pendingBanner() +
+      (open
+        ? '<div class="row-between"><span class="badge badge-ok">En attente</span><span class="hint">Valable jusqu’au ' + esc(until) + '</span></div>' +
+          (S.invQR ? '<div class="qr-frame"><img alt="QR code d’invitation" src="' + S.invQR + '"></div>' : notice('err', 'Le QR code ne peut pas s’afficher ici. Utilisez le texte, plus bas.')) +
+          '<div class="card code-card"><span class="code-label">Code à donner à part</span><div class="code">' + esc(fmtCode(inv.code)) + '</div><p class="hint">Par appel ou de vive voix. Jamais dans le même message que le QR code.</p></div>' +
+          '<div class="stack"><button class="btn btn-primary" data-act="sendqr">' + I.send + '<span>Envoyer le QR code</span></button>' +
+                    '</div>' +
+          '<p class="hint center">Envoyez ce QR code. La personne le scanne, puis entre le code ci-dessus.</p>' +
+          '<details class="fallback"><summary>Le QR code ne s’affiche pas ? Copiez son texte.</summary><div class="stack"><textarea id="invtextout" class="field" readonly>' + esc(invTextFor(inv)) + '</textarea><button class="btn btn-secondary" data-act="copyinv">' + I.copy + '<span>Copier le texte</span></button></div></details>' +
+          '<div class="dock"><button class="btn btn-danger" data-act="cancelinv" data-arg="' + esc(inv.id) + '">Annuler l’invitation</button></div>'
+        : notice('info', 'Cette invitation n’est plus valable.') + '<div class="dock"><button class="btn btn-secondary" data-act="go" data-arg="accueil">Retour aux messages</button></div>') +
+    '</div>';
+  }
+  function viewAttente() {
+    return '<div class="screen">' + topbar({ back: 'accueil', title: 'Demande envoyée' }) +
+      '<div class="progress"><div class="pstep done"><span class="dot">' + '✓' + '</span><div><b>Demande envoyée</b><span>Votre demande a bien été transmise.</span></div></div>' +
+        '<div class="pstep now"><span class="dot">2</span><div><b>Confirmation de la personne</b><span>Elle vérifie les mots de son côté.</span></div></div>' +
+        '<div class="pstep"><span class="dot">3</span><div><b>Contact ajouté</b><span>Vous pourrez écrire.</span></div></div></div>' +
+      '<div class="card center" style="align-items:center"><div class="spinner"></div><p class="hint">Gardez l’application ouverte. Cette page se met à jour seule.</p></div>' +
+      '<div class="dock"><button class="btn btn-secondary" data-act="go" data-arg="accueil">Retour aux messages</button></div>' +
+    '</div>';
+  }
+  function viewDemande() {
+    const p = pendingById(S.arg);
+    if (!p) return viewAccueil();
+    return '<div class="screen">' + topbar({ back: 'accueil', title: 'Demande reçue' }) +
+      '<div><h1>Une personne a scanné votre identité</h1><p class="lead" style="margin-top:6px">Vérifiez qu’elle est bien devant vous, puis comparez les mots.</p></div>' +
+      personCard(p.peerPseudo, 'Code vérifié') + nameField() +
+      wordsBlock('Mots à comparer', 'Ils doivent être identiques sur l’écran de la personne.') +
+      '<div class="dock stack"><button class="btn btn-primary" data-act="acceptff" data-arg="' + esc(p.pid) + '">Les mots sont identiques</button><button class="btn btn-danger" data-act="refuseff" data-arg="' + esc(p.pid) + '">Refuser</button></div>' +
+    '</div>';
+  }
+  function viewVerifierFF() {
+    const p = pendingById(S.arg);
+    if (!p) return viewAccueil();
+    return '<div class="screen">' + topbar({ back: 'accueil', title: 'Ajouter ce contact' }) +
+      '<div><h1>Ajouter ce contact</h1><p class="lead" style="margin-top:6px">La personne a accepté. Comparez les mots avant de continuer.</p></div>' +
+      personCard(p.peerPseudo, 'Accepté') + nameField() +
+      wordsBlock('Mots à comparer', 'Ils doivent être identiques sur l’écran de la personne.') +
+      '<div class="dock stack"><button class="btn btn-primary" data-act="confirmff" data-arg="' + esc(p.pid) + '">Les mots sont identiques</button><button class="btn btn-danger" data-act="drop" data-arg="' + esc(p.pid) + '">Ce n’est pas la bonne personne</button></div>' +
+    '</div>';
+  }
+  function viewLienOuvert() {
+    const p = pendingById(S.arg);
+    if (!p) return viewAccueil();
+    return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) +
+      '<div><h1>Quelqu’un a rejoint votre invitation</h1><p class="lead" style="margin-top:6px">Le code d’invitation est juste. Donnez un nom pour ajouter ce contact.</p></div>' +
+      personCard(p.peerPseudo, 'Code vérifié') + nameField() +
+      '<div class="dock stack"><button class="btn btn-primary" data-act="acceptremote" data-arg="' + esc(p.pid) + '">Ajouter ce contact</button><button class="btn btn-danger" data-act="refuseremote" data-arg="' + esc(p.pid) + '">Refuser</button></div>' +
+    '</div>';
+  }
+  function viewNommer() {
+    const p = pendingById(S.arg);
+    if (!p) return viewAccueil();
+    return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation acceptée' }) +
+      '<div><h1>Vous pouvez écrire à ' + esc(p.peerPseudo) + '</h1><p class="lead" style="margin-top:6px">Le code a été vérifié à la connexion. Donnez un nom pour ajouter ce contact.</p></div>' +
+      nameField() +
+      '<div class="dock"><button class="btn btn-primary" data-act="confirmremote" data-arg="' + esc(p.pid) + '">Ajouter ce contact</button></div>' +
+    '</div>';
+  }
+  function viewContact() {
+    const c = contacts().find((x) => x.cid === S.arg);
+    if (!c) return viewAccueil();
+    return '<div class="screen">' + topbar({ back: 'accueil', title: 'Contact', right: '<button class="iconbtn" data-act="reglages" data-arg="' + esc(c.cid) + '" aria-label="Réglages du contact">' + I.more + '</button>' }) +
+      '<div class="contact-hero"><span class="avatar xl">' + esc(initial(c.name)) + '</span><div class="row-title" style="font-size:20px">' + esc(c.name) + '</div><span class="hint">' + esc(c.pseudo) + '</span><span class="badge badge-ok">' + I.check + 'Vérifié</span></div>' +
+      '<div class="card code-card"><span class="code-label">Code de ce contact</span><div class="code">' + esc(c.label) + '</div><p class="hint">Dans les conversations, seul ce code apparaît.</p></div>' +
+      '<section class="card"><h2>Prêt à écrire</h2><p class="hint">Le message est chiffré. Seule cette personne peut le lire.</p></section>' +
+      '<div class="dock stack"><button class="btn btn-primary" data-act="conv" data-arg="' + esc(c.cid) + '">' + I.msg + '<span>Écrire</span></button><button class="btn btn-danger" data-act="cut" data-arg="' + esc(c.cid) + '">' + I.unlink + '<span>Couper le lien</span></button></div>' +
+    '</div>';
+  }
+  function viewConv() {
+    const c = contacts().find((x) => x.cid === S.arg);
+    if (!c) return viewAccueil();
+    const thread = msgsAll().filter((m) => m.cid === c.cid).sort((a, b) => (a.ts || 0) - (b.ts || 0)).map(msgHTML).join('');
+    return '<div class="screen" style="gap:12px">' +
+      topbar({ backAct: 'go', backArg: 'accueil', titleHTML: '<span class="conv-title"><span class="code code-sm">' + esc(c.label) + '</span><span class="hint">Vérifié</span></span>', right: '<button class="iconbtn" data-act="reglages" data-arg="' + esc(c.cid) + '" aria-label="Réglages du contact">' + I.more + '</button>' }) +
+      '<div class="thread">' + (thread || '<p class="hint center" style="padding-top:24px">Aucun message. Écrivez le premier.</p>') + '</div>' +
+      '<div class="composer"><span class="chip on">Lecture unique</span><div class="composer-row"><input id="draft" class="field" placeholder="Votre message" autocomplete="off"><button class="btn btn-primary btn-send" data-act="send" data-arg="' + esc(c.cid) + '">Envoyer</button></div></div>' +
+    '</div>';
+  }
+  function viewReglages() {
+    const c = contacts().find((x) => x.cid === S.arg);
+    if (!c) return viewAccueil();
+    return '<div class="screen">' + topbar({ backAct: 'conv', backArg: c.cid, title: 'Réglages' }) +
+      '<div class="card code-card"><span class="code-label">Code de ce contact</span><div class="code">' + esc(c.label) + '</div></div>' +
+      '<section class="list"><button class="rowlink" data-act="go" data-arg="verrouille"><span>Verrouiller l’application</span>' + I.chev + '</button>' +
+      '<button class="rowlink danger" data-act="cut" data-arg="' + esc(c.cid) + '"><span>Couper le lien</span>' + I.chev + '</button></section>' +
+      '<p class="hint">Couper le lien efface la conversation des deux côtés. Pour reprendre contact, il faut une nouvelle connexion.</p>' +
+    '</div>';
+  }
+  function viewLienCoupe() {
+    const n = S.cut ? S.cut.name : 'Ce contact';
+    return '<div class="screen center-col">' + topbar({ back: 'accueil', title: '' }) +
+      '<div class="hero-icon danger">' + I.unlink + '</div>' +
+      '<div><h1>Le lien n’existe plus</h1><p class="lead" style="margin-top:8px">La conversation a été effacée, des deux côtés. Tout se passe comme si vous n’aviez jamais écrit ensemble.</p></div>' +
+      '<div class="card center" style="width:100%"><span class="code-label">Ce contact</span><div class="row-title">' + esc(n) + '</div><p class="hint">Il n’est plus dans votre liste. Les messages ont disparu.</p></div>' +
+      '<div class="dock stack" style="width:100%"><button class="btn btn-primary" data-act="go" data-arg="accueil">Retour aux messages</button><button class="btn btn-secondary" data-act="newinvite">Inviter à nouveau</button></div>' +
+    '</div>';
+  }
+  function viewIdentite() {
+    return '<div class="screen">' + topbar({ back: 'accueil', title: 'Mon identité' }) +
+      '<div class="id-card"><div class="id-top"><span>PLI SCELLÉ</span><span>IDENTITÉ</span></div><div class="id-label">Mon pseudo</div><div class="id-name">' + esc(S.me.pseudo) + '</div><div class="id-foot">Ni numéro, ni e-mail. Ce pseudo permet seulement de vous écrire.</div></div>' +
+      '<div class="stack"><button class="btn btn-primary" data-act="montrer" data-arg="identite">' + I.qr + '<span>Montrer mon identité</span></button><button class="btn btn-secondary" data-act="newinvite">' + I.link + '<span>Inviter à distance</span></button></div>' +
+      '<section><div class="section-title">Sauvegarde</div><div class="list"><button class="rowlink" data-act="go" data-arg="sauvegarde"><span>Sauvegarder mes contacts</span>' + I.chev + '</button></div><p class="hint">' + (LS.get('lastBackup', 0) ? 'Dernière sauvegarde : ' + esc(new Date(LS.get('lastBackup', 0)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })) : 'Pas encore de sauvegarde. Sans elle, vos contacts ne sont que dans ce navigateur.') + '</p></section>' +
+      '<section><div class="section-title">Sécurité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="supprimer"><span style="display:flex;gap:10px;align-items:center">' + I.trash + 'Supprimer mon identité</span>' + I.chev + '</button></div></section>' +
+    '</div>';
+  }
+  function viewSupprimer() {
+    return '<div class="screen">' + topbar({ back: 'identite', title: 'Supprimer mon identité' }) +
+      '<div class="hero-icon danger">' + I.alert + '</div>' +
+      '<div><h1>Tout disparaît</h1><p class="lead" style="margin-top:8px">Votre identité, vos contacts et vos messages sont supprimés de cet appareil. Chaque lien est coupé, et les personnes concernées sont prévenues.</p></div>' +
+      notice('err', 'Cette action est définitive. Pour écrire de nouveau, il faudra créer une identité et refaire chaque invitation.') +
+      '<div class="dock stack"><button class="btn btn-danger-solid" data-act="deleteme">Supprimer définitivement</button><button class="btn btn-secondary" data-act="go" data-arg="identite">Garder mon identité</button></div>' +
+    '</div>';
+  }
+  function viewInvalide() {
+    return '<div class="screen center-col">' + topbar({ back: 'accueil', title: '' }) +
+      '<div class="hero-icon">' + I.alert + '</div>' +
+      '<div><h1>Cette invitation n’est plus valable</h1><p class="lead" style="margin-top:8px">Elle a expiré, elle a déjà été utilisée, ou elle a été fermée.</p></div>' +
+      '<div class="dock" style="width:100%"><button class="btn btn-primary" data-act="go" data-arg="accueil">Retour aux messages</button></div>' +
+    '</div>';
+  }
+
+  // ---------- sauvegarde chiffrée : le fichier reste entre vos mains ----------
+  async function sealWithCode(code, obj) {
+    const salt = rand(16), iv = rand(12);
+    const kb = await pbkdf2(code, salt, ITER_SECRET);
+    const key = await crypto.subtle.importKey('raw', kb, 'AES-GCM', false, ['encrypt']);
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, enc.encode(JSON.stringify(obj))));
+    return JSON.stringify({ pli: 1, s: b64u(salt), i: b64u(iv), c: b64u(ct) }, null, 1);
+  }
+  async function openWithCode(code, text) {
+    let box = null;
+    try { box = JSON.parse(text); } catch (e) { box = null; }
+    if (!box || box.pli !== 1 || !box.s || !box.i || !box.c) throw new Error('Ce fichier n’est pas une sauvegarde Pli Scellé.');
+    const kb = await pbkdf2(code, unb64u(box.s), ITER_SECRET);
+    const key = await crypto.subtle.importKey('raw', kb, 'AES-GCM', false, ['decrypt']);
+    let pt;
+    try { pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64u(box.i) }, key, unb64u(box.c)); }
+    catch (e) { throw new Error('Code secret incorrect, ou sauvegarde abîmée.'); }
+    return JSON.parse(dec.decode(pt));
+  }
+  function backupPayload() {
+    return {
+      v: 1, at: Date.now(),
+      me: { pseudo: S.me.pseudo, raw: S.me.raw, wrap: S.me.wrap, created: S.me.created || Date.now() },
+      contacts: contacts().map((c) => ({ cid: c.cid, name: c.name, pseudo: c.pseudo, raw: c.raw, label: c.label, since: c.since }))
+    };
+  }
+  function validBackup(o) {
+    if (!o || o.v !== 1 || !o.me || !o.me.pseudo || !o.me.raw || !o.me.wrap || !o.me.wrap.salt || !Array.isArray(o.contacts)) return false;
+    let k = null;
+    try { k = unb64u(o.me.raw); } catch (e) { return false; }
+    if (k.length !== 65 || k[0] !== 4) return false;
+    return o.contacts.every((c) => c && c.cid && c.raw && c.name);
+  }
+  // Lien ouvert depuis l’appareil photo : on passe directement à la saisie du code.
+  function afterFF() {
+    startPolling();
+    const t = S.ffText;
+    S.ffText = null; S.qrText = t;
+    go('scanner');
+    try { setStatus('scanstatus', 'ok', 'Identité reçue de ' + parseQR(t).p + '. Tapez le code affiché sur son écran.'); } catch (e) { /* QR illisible : le champ reste disponible */ }
+  }
+  function viewSauvegarde() {
+    const last = LS.get('lastBackup', 0);
+    const when = last ? new Date(last).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+    return '<div class="screen">' + topbar({ back: 'identite', title: 'Sauvegarder mes contacts' }) +
+      '<div><h1>Sauvegarde chiffrée</h1><p class="lead" style="margin-top:6px">Elle contient votre identité et vos contacts. Votre code secret la protège : sans lui, le fichier ne s’ouvre pas.</p></div>' +
+      (when ? notice('ok', 'Dernière sauvegarde : ' + esc(when)) : '') +
+      (S.backupText ? '<section class="card form"><span class="label">Copiez ce texte et gardez-le en lieu sûr</span><textarea id="btext" class="field" rows="6" readonly>' + esc(S.backupText) + '</textarea><button class="btn btn-secondary" data-act="copybackup">' + I.copy + '<span>Copier la sauvegarde</span></button></section>' : '') +
+      '<section class="card form"><label class="label" for="bcode">Code secret</label><input id="bcode" class="field" type="password" autocomplete="off">' + formStatus() +
+        '<p class="hint">Le fichier reste entre vos mains. L’application ne l’envoie nulle part.</p></section>' +
+      '<div class="dock"><button class="btn btn-primary" data-act="backup">Enregistrer la sauvegarde</button></div>' +
+    '</div>';
+  }
+  function viewRestaurer() {
+    return '<div class="screen">' + topbar({ back: 'creer', title: 'Restaurer une sauvegarde' }) +
+      '<div><h1>Restaurer une sauvegarde</h1><p class="lead" style="margin-top:6px">Retrouvez votre identité et vos contacts sur ce téléphone. Les personnes qui vous ont ajouté vous reconnaissent toujours.</p></div>' +
+      '<section class="card form"><span class="label">Fichier de sauvegarde</span>' +
+        '<label class="btn btn-secondary file-btn">' + I.download + '<span>Choisir le fichier</span><input id="restorefile" class="sr-only" type="file" accept=".json,application/json"></label>' +
+        '<details class="fallback"><summary>Je n’arrive pas à choisir le fichier</summary><div class="stack" style="margin-top:10px"><textarea id="rtext" class="field" rows="4" placeholder="Collez ici le contenu de la sauvegarde"></textarea></div></details>' +
+        '<label class="label" for="rcode">Code secret de la sauvegarde</label><input id="rcode" class="field" type="password" autocomplete="off">' + formStatus() +
+      '</section>' +
+      '<div class="dock"><button class="btn btn-primary" data-act="restore">Restaurer</button></div>' +
+    '</div>';
+  }
+
+  // ---------- affichage ----------
+  function go(screen, arg) {
+    if (screen !== 'lien-coupe') S.cut = null;
+    S.screen = screen;
+    S.arg = (arg == null ? null : arg);
+    render();
+  }
+  function render() {
+    expireOpened();
+    const app = $('#app');
+    const fn = VIEWS[S.screen] || VIEWS.boot;
+    let html;
+    try { html = fn(); } catch (e) { console.error(e); html = '<div class="screen">' + notice('err', 'Affichage impossible : ' + esc(e.message)) + '</div>'; }
+    const flash = S.flash ? notice(S.flash.ok ? 'ok' : 'info', esc(S.flash.t)) : '';
+    S.flash = null; S.needRender = false;
+    app.innerHTML = flash + html;
+  }
+  // Message dans la vue en cours ; sans zone dédiée, il s’affiche en haut.
+  function setStatus(id, kind, text) {
+    const el = document.getElementById(id);
+    if (!el) return flashNow({ t: text, ok: kind === 'ok' });
+    el.className = 'status status-' + kind;
+    el.textContent = text;
+    el.hidden = false;
+  }
+  function flashNow(f) {
+    const app = $('#app'); if (!app) return;
+    const el = document.createElement('div');
+    el.className = 'status flash ' + (f.ok ? 'status-ok' : 'status-info');
+    el.textContent = f.t;
+    el.style.margin = '0 0 12px';
+    app.prepend(el);
+    setTimeout(() => el.remove(), 4500);
+  }
+  function errText(e) { if (e && e.message) return e.message; if (e && e.code) return 'Base indisponible (' + e.code + ').'; return 'Une erreur est survenue. Réessayez.'; }
+  function nameValue() { const el = $('#cname'); return el ? el.value.trim().slice(0, 40) : ''; }
+  async function copyText(text, okMsg) {
+    try { await navigator.clipboard.writeText(text); flashNow({ t: okMsg, ok: true }); }
+    catch (e) { flashNow({ t: 'Copiez ce texte : ' + text, ok: true }); }
+  }
+
+  // ---------- actions ----------
+  async function actCreate() {
+    const pseudo = ($('#pseudo').value || '').trim();
+    const s1 = $('#s1').value, s2 = $('#s2').value;
+    if (pseudo.length < 2 || pseudo.length > 24) return setStatus('formstatus', 'err', 'Le pseudo fait entre 2 et 24 caractères.');
+    if (s1.length < 6) return setStatus('formstatus', 'err', 'Le code secret compte au moins 6 caractères.');
+    if (s1 !== s2) return setStatus('formstatus', 'err', 'Les deux codes secrets ne sont pas identiques.');
+    await createIdentity(pseudo, s1);
+    S.draftPseudo = null;
+    afterAuth();
+  }
+  async function actUnlock() {
+    const code = $('#unlock').value;
+    try { S.priv = await unwrapPriv(S.me.wrap, code); }
+    catch (e) { S.priv = null; return setStatus('formstatus', 'err', 'Code incorrect.'); }
+    afterAuth();
+  }
+  function afterAuth() {
+    if (S.ffText) return afterFF();
+    startPolling();
+    if (S.inviteId) {
+      S.inviteId = null;
+      try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+      return go(S.invite ? 'reclamer' : 'invalide');
+    }
+    return go('accueil');
+  }
+  async function ensureDisplay(regen) {
+    let d = LS.get('display', null);
+    if (regen || !d || Date.now() > d.exp) {
+      const code = randCode(), salt = rand(16);
+      const K = await pbkdf2(code, salt, ITER_CODE);
+      d = { code: code, salt: b64u(salt), K: b64u(K), exp: Date.now() + CODE_LIFE };
+      LS.set('display', d);
+    }
+    try { S.qr = makeQR(qrTextFor(d)); } catch (e) { S.qr = null; }
+    return d;
+  }
+  async function actSendFF() {
+    const text = ($('#qrtext').value || '').trim();
+    const code = normCode($('#fcode').value);
+    if (!text) return setStatus('formstatus', 'err', 'Scannez ou collez le texte.');
+    let o;
+    try { o = parseQR(text); } catch (e) { return setStatus('formstatus', 'err', e.message); }
+    if (o.k === S.me.raw) return setStatus('formstatus', 'err', 'C’est votre propre identité.');
+    if (code.length !== 6) return setStatus('formstatus', 'err', 'Tapez le code affiché sur son écran (6 caractères).');
+    const K = await pbkdf2(code, unb64u(o.s), ITER_CODE);
+    const proof = await proofFor(K, S.me.raw);
+    await sendTo(o.k, { kind: 'ff-request', pseudo: S.me.pseudo, proof: proof });
+    pushPending({ type: 'ff-sent', peer: o.k, peerPseudo: o.p });
+    S.qrText = '';
+    go('attente');
+  }
+  async function actAcceptFF(pid) {
+    const name = nameValue();
+    if (!name) return setStatus('formstatus', 'err', 'Donnez un nom à ce contact.');
+    const p = pendingById(pid);
+    if (!p) return go('accueil');
+    await sendTo(p.peer, { kind: 'accept', pseudo: S.me.pseudo });
+    const c = addContact(p.peer, p.peerPseudo, name);
+    dropPending(pid); S.words = null;
+    go('contact', c.cid);
+  }
+  async function actRefuseFF(pid) {
+    const p = pendingById(pid);
+    if (p) { try { await sendTo(p.peer, { kind: 'refuse' }); } catch (e) {} }
+    dropPending(pid);
+    go('accueil');
+  }
+  async function actConfirmFF(pid) {
+    const name = nameValue();
+    if (!name) return setStatus('formstatus', 'err', 'Donnez un nom à ce contact.');
+    const p = pendingById(pid);
+    if (!p) return go('accueil');
+    const c = addContact(p.peer, p.peerPseudo, name);
+    dropPending(pid); S.words = null;
+    go('contact', c.cid);
+  }
+  async function actNewInvite() {
+    const id = rid(12, ID_CHARS), code = randCode(), salt = rand(16);
+    const K = await pbkdf2(code, salt, ITER_CODE);
+    const exp = Date.now() + INVITE_LIFE;
+    await S.db.doc('inv/' + id).set({ from: S.me.raw, salt: b64u(salt), exp: exp, ts: Date.now() });
+    const l = invitesAll();
+    const entry = { id: id, code: code, salt: b64u(salt), K: b64u(K), exp: exp, status: 'open', fails: 0, createdAt: Date.now() };
+    l.push(entry);
+    setInvites(l);
+    S.invQR = null;
+    try { S.invQR = makeQR(invTextFor(entry)); } catch (e) { S.invQR = null; }
+    S.invPng = null;
+    try { S.invPng = await qrPngBlob(); } catch (e) { S.invPng = null; }
+    go('inviter', id);
+  }
+  // Le QR code est copié en image PNG, à coller dans la messagerie (la conversion se fait pendant le clic).
+  function qrPngBlob() {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth; c.height = img.naturalHeight;
+        const g = c.getContext('2d');
+        g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, c.width, c.height);
+        g.drawImage(img, 0, 0);
+        c.toBlob((b) => (b ? resolve(b) : reject(new Error('png'))), 'image/png');
+      };
+      img.onerror = () => reject(new Error('image'));
+      img.src = S.invQR;
+    });
+  }
+  async function actSendQR() {
+    // 1. Partage natif : la messagerie du téléphone s'ouvre avec l'image (quand l'appareil le permet).
+    const blob = S.invPng;
+    if (blob && navigator.share && navigator.canShare && navigator.canShare({ files: [new File([blob], 'invitation-pli-scelle.png', { type: 'image/png' })] })) {
+      try { await navigator.share({ files: [new File([blob], 'invitation-pli-scelle.png', { type: 'image/png' })], title: 'Invitation Pli Scellé' }); return flashNow({ t: 'Invitation envoyée. Donnez le code à part.', ok: true }); }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    if (!S.invQR) return flashNow({ t: 'Le QR code ne peut pas être copié ici. Faites une capture d’écran.' });
+    try {
+      if (!navigator.clipboard || !window.ClipboardItem) throw new Error('clipboard');
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': qrPngBlob() })]);
+      flashNow({ t: 'QR code copié. Collez-le dans la messagerie de votre choix.', ok: true });
+    } catch (e) {
+      // 3. Dernier recours : enregistrer le fichier, si le téléchargement est accordé.
+        if (S.downloads && blob) {
+          try { await S.downloads.save({ filename: 'invitation-pli-scelle.png', data: new Uint8Array(await blob.arrayBuffer()) }); return flashNow({ t: 'QR code enregistré. Envoyez-le depuis vos fichiers.', ok: true }); }
+          catch (e) { /* message ci-dessous */ }
+        }
+        flashNow({ t: 'Envoi impossible ici. Faites une capture d’écran du QR code.' });
+    }
+  }
+    async function actSaveQR(id) {
+    const inv = invitesAll().find((i) => i.id === id);
+    if (!inv || !S.invQR || !S.downloads) return;
+    const bin = atob(S.invQR.split(',')[1]);
+    const u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    try {
+      await S.downloads.save({ filename: 'invitation-pli-' + id + '.gif', data: u8 });
+      flashNow({ t: 'QR code enregistré. Envoyez-le par la messagerie de votre choix.', ok: true });
+    } catch (e) {
+      flashNow({ t: e && e.code === 'declined' ? 'Enregistrement annulé.' : 'Enregistrement impossible ici. Faites une capture d’écran du QR code.' });
+    }
+  }
+  async function actCancelInv(id) {
+    await closeInviteDoc(id);
+    markInviteClosed(id);
+    S.flash = { t: 'Invitation annulée.', ok: true };
+    go('accueil');
+  }
+  async function actReadInv(given) {
+    const text = String(given || $('#invtext').value || '').trim();
+    if (!text) return setStatus('formstatus', 'err', 'Scannez ou collez le texte.');
+    let o;
+    try { o = parseInvText(text); } catch (e) { return setStatus('formstatus', 'err', e.message); }
+    const snap = await S.db.doc('inv/' + o.i).get();
+    if (!snap.exists) return setStatus('formstatus', 'err', 'Cette invitation n’existe plus.');
+    const d = snap.data();
+    if (Date.now() > d.exp) return setStatus('formstatus', 'err', 'Cette invitation a expiré.');
+    S.invite = { id: o.i, from: d.from, salt: d.salt, exp: d.exp, pseudo: o.p };
+    go('reclamer');
+  }
+  async function actClaim() {
+    const code = normCode($('#icode').value);
+    if (code.length !== 6) return setStatus('formstatus', 'err', 'Le code d’invitation compte 6 caractères.');
+    const inv = S.invite;
+    const K = await pbkdf2(code, unb64u(inv.salt), ITER_CODE);
+    const proof = await proofFor(K, S.me.raw);
+    await sendTo(inv.from, { kind: 'remote-claim', inv: inv.id, pseudo: S.me.pseudo, proof: proof });
+    pushPending({ type: 'remote-sent', peer: inv.from, invId: inv.id, peerPseudo: '' });
+    S.invite = null;
+    go('attente');
+  }
+  async function actAcceptRemote(pid) {
+    const name = nameValue();
+    if (!name) return setStatus('formstatus', 'err', 'Donnez un nom à ce contact.');
+    const p = pendingById(pid);
+    if (!p) return go('accueil');
+    await sendTo(p.peer, { kind: 'accept', pseudo: S.me.pseudo, inv: p.invId });
+    const c = addContact(p.peer, p.peerPseudo, name);
+    await closeInviteDoc(p.invId); markInviteClosed(p.invId);
+    dropPending(pid);
+    go('contact', c.cid);
+  }
+  async function actRefuseRemote(pid) {
+    const p = pendingById(pid);
+    if (p) { try { await sendTo(p.peer, { kind: 'refuse', inv: p.invId }); } catch (e) {} }
+    dropPending(pid);
+    go('accueil');
+  }
+  async function actConfirmRemote(pid) {
+    const name = nameValue();
+    if (!name) return setStatus('formstatus', 'err', 'Donnez un nom à ce contact.');
+    const p = pendingById(pid);
+    if (!p) return go('accueil');
+    const c = addContact(p.peer, p.peerPseudo, name);
+    dropPending(pid);
+    go('contact', c.cid);
+  }
+  async function actSend(cid) {
+    const inp = $('#draft');
+    const text = (inp.value || '').trim();
+    if (!text) return;
+    const c = contacts().find((x) => x.cid === cid);
+    if (!c) return go('accueil');
+    const key = await sharedKey(c.raw);
+    const body = await encryptFor(key, { t: text, ts: Date.now() });
+    const to = await mailboxOf(c.raw);
+    await S.db.collection('box').add({ to: to, from: S.me.raw, kind: 'msg', ts: Date.now(), iv: body.iv, ct: body.ct });
+    const all = msgsAll();
+    all.push({ mid: rid(10), cid: cid, dir: 'out', state: 'sent', ts: Date.now() });
+    LS.set('msgs', all);
+    go('conv', cid);
+  }
+  function actReveal(mid) {
+    const all = msgsAll();
+    const m = all.find((x) => x.mid === mid);
+    if (m && m.state === 'new') { m.state = 'open'; m.until = Date.now() + REVEAL_MS; LS.set('msgs', all); }
+    go('conv', S.arg);
+  }
+  async function actCut(cid) {
+    const c = contacts().find((x) => x.cid === cid);
+    if (!c) return go('accueil');
+    try { await sendTo(c.raw, { kind: 'cut' }); } catch (e) {}
+    removeContact(cid);
+    S.cut = { name: c.pseudo || c.name };
+    go('lien-coupe');
+  }
+  async function actDeleteMe() {
+    for (const c of contacts()) { try { await sendTo(c.raw, { kind: 'cut' }); } catch (e) {} }
+    for (const i of invitesAll()) { if (i.status === 'open') await closeInviteDoc(i.id); }
+    LS.clearAll();
+    S.me = null; S.priv = null; S.qr = null; S.invQR = null; S.draftPseudo = null; S.words = null;
+    stopPolling();
+    go('creer');
+  }
+
+  async function actMakeBackup() {
+    const code = $('#bcode').value || '';
+    if (!code) return setStatus('formstatus', 'err', 'Entrez votre code secret.');
+    try { await unwrapPriv(S.me.wrap, code); } catch (e) { return setStatus('formstatus', 'err', 'Code secret incorrect.'); }
+    const text = await sealWithCode(code, backupPayload());
+    if (S.downloads) {
+      try {
+        await S.downloads.save({ filename: 'pli-sauvegarde-' + new Date().toISOString().slice(0, 10) + '.json', data: enc.encode(text) });
+        LS.set('lastBackup', Date.now()); S.backupText = null;
+        go('sauvegarde');
+        return flashNow({ t: 'Sauvegarde enregistrée. Gardez ce fichier en lieu sûr.', ok: true });
+      } catch (e) {
+        if (e && e.code === 'declined') return setStatus('formstatus', 'info', 'Enregistrement annulé.');
+      }
+    }
+    LS.set('lastBackup', Date.now()); S.backupText = text;
+    go('sauvegarde');
+    flashNow({ t: 'Copiez le texte de la sauvegarde et gardez-le en lieu sûr.', ok: true });
+  }
+  async function actRestore() {
+    const code = $('#rcode').value || '';
+    const text = ($('#rtext').value || '').trim();
+    if (!text) return setStatus('formstatus', 'err', 'Choisissez le fichier de sauvegarde.');
+    if (!code) return setStatus('formstatus', 'err', 'Entrez le code secret de la sauvegarde.');
+    if (LS.get('me', null)) return setStatus('formstatus', 'err', 'Une identité existe déjà sur ce téléphone.');
+    let o;
+    try { o = await openWithCode(code, text); } catch (e) { return setStatus('formstatus', 'err', e.message); }
+    if (!validBackup(o)) return setStatus('formstatus', 'err', 'Sauvegarde incomplète.');
+    let priv;
+    try { priv = await unwrapPriv(o.me.wrap, code); } catch (e) { return setStatus('formstatus', 'err', 'Sauvegarde abîmée : la clé ne s’ouvre pas.'); }
+    LS.set('me', { pseudo: String(o.me.pseudo).slice(0, 24), raw: o.me.raw, wrap: o.me.wrap, created: o.me.created || Date.now() });
+    LS.set('contacts', o.contacts.map((c) => ({ cid: String(c.cid), name: String(c.name).slice(0, 40), pseudo: String(c.pseudo || ''), raw: String(c.raw), label: String(c.label || randCode().slice(0, 3)), since: c.since || Date.now() })));
+    LS.set('lastBackup', o.at || Date.now());
+    S.me = LS.get('me', null);
+    S.priv = priv;
+    afterAuth();
+  }
+
+  const ACTS = {
+    go: (a) => { const p = String(a).split('|'); go(p[0], p[1] || null); },
+    openp: (a) => { const p = String(a).split('|'); return openPending(p[1], p[0]); },
+    conv: (cid) => go('conv', cid),
+    reglages: (cid) => go('reglages', cid),
+    lock: () => { S.priv = null; stopPolling(); go('verrouille'); },
+    unlock: actUnlock,
+    create: actCreate,
+    regen: () => { S.draftPseudo = genPseudo(); go('creer', S.arg); },
+    montrer: async (from) => { await ensureDisplay(false); S.origin = from || 'ajouter'; go('montrer'); },
+    newdisplay: async () => { await ensureDisplay(true); go('montrer'); },
+    copycode: (code) => copyText(String(code).replace(/\s/g, ''), 'Code copié.'),
+    copyqr: () => copyText(($('#qrtextout') || {}).value || '', 'Texte de l’identité copié.'),
+    copyinv: () => copyText(($('#invtextout') || {}).value || '', 'Texte copié. Collez-le dans la messagerie de votre choix.'),
+    sendff: actSendFF,
+    acceptff: actAcceptFF,
+    refuseff: actRefuseFF,
+    confirmff: actConfirmFF,
+    drop: (pid) => { dropPending(pid); go('accueil'); },
+    newinvite: actNewInvite,
+    sendqr: actSendQR,
+    saveqr: actSaveQR,
+    cancelinv: actCancelInv,
+    readinv: actReadInv,
+    claim: actClaim,
+    acceptremote: actAcceptRemote,
+    refuseremote: actRefuseRemote,
+    confirmremote: actConfirmRemote,
+    send: actSend,
+    reveal: actReveal,
+    cut: actCut,
+    deleteme: actDeleteMe,
+    backup: actMakeBackup,
+    restore: actRestore,
+    copybackup: () => copyText(S.backupText || '', 'Sauvegarde copiée.')
+  };
+
+  document.addEventListener('click', (ev) => {
+    const el = ev.target.closest && ev.target.closest('[data-act]');
+    if (!el || el.disabled) return;
+    ev.preventDefault();
+    const fn = ACTS[el.dataset.act];
+    if (!fn) return;
+    el.disabled = true;
+    Promise.resolve().then(() => fn(el.dataset.arg)).catch((err) => { console.warn('Pli', err); setStatus('formstatus', 'err', errText(err)); })
+      .finally(() => { if (el.isConnected) el.disabled = false; });
+  });
+  // Photo prise avec l’appareil : lecture du QR code, puis vérification du type.
+  document.addEventListener('change', async (ev) => {
+    const t = ev.target;
+    if (!t || (t.id !== 'photo' && t.id !== 'photoinv') || !t.files || !t.files[0]) return;
+    const inv = t.id === 'photoinv';
+    try {
+      const txt = await decodeFile(t.files[0]);
+      if (inv) {
+        if (!isInvText(txt)) return setStatus('scanstatus', 'err', 'Ce n’est pas une invitation. Pour une personne présente, utilisez « Scanner l’identité de la personne ».');
+        const box = $('#invtext'); if (box) box.value = txt;
+        S.invText = txt;
+        setStatus('scanstatus', 'ok', 'Invitation lue.');
+        await actReadInv(txt);
+      } else {
+        const o = parseQR(txt);
+        const box = $('#qrtext'); if (box) box.value = txt;
+        S.qrText = txt;
+        setStatus('scanstatus', 'ok', 'Identité lue : ' + o.p + '. Tapez maintenant le code affiché sur son écran.');
+      }
+    } catch (e) {
+      setStatus('scanstatus', 'err', e.message);
+    }
+    t.value = '';
+  });
+  document.addEventListener('change', async (ev) => {
+    const t = ev.target;
+    if (!t || t.id !== 'restorefile' || !t.files || !t.files[0]) return;
+    try { $('#rtext').value = await t.files[0].text(); setStatus('formstatus', 'ok', 'Sauvegarde lue. Entrez son code secret.'); }
+    catch (e) { setStatus('formstatus', 'err', 'Fichier illisible.'); }
+    t.value = '';
+  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+
+  function tick() {
+    const cd = document.getElementById('cd');
+    const d = LS.get('display', null);
+    if (cd && d) {
+      const s = Math.max(0, Math.round((d.exp - Date.now()) / 1000));
+      cd.textContent = Math.floor(s / 60) + ' min ' + String(s % 60).padStart(2, '0') + ' s';
+    }
+    if (expireOpened() && S.screen === 'conv') render();
+    document.querySelectorAll('[data-until]').forEach((el) => {
+      const s = Math.max(0, Math.ceil((Number(el.dataset.until) - Date.now()) / 1000));
+      el.textContent = 'Se referme dans ' + s + ' s';
+    });
+  }
+  setInterval(tick, 1000);
+
+  async function init() {
+    S.me = LS.get('me', null);
+    S.db = relayDb;
+    try { S.downloads = (window.claude && window.claude.use) ? await window.claude.use('downloads') : null; } catch (e) { S.downloads = null; }
+    const h = String(location.hash || '');
+    if (h.indexOf('#inv-') === 0) S.inviteId = h.slice(5).replace(/[^a-z0-9]/g, '');
+    if (h.indexOf('#ff-') === 0) { S.ffText = APP_URL + h; try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
+    if (S.inviteId) {
+      S.invite = null;
+      if (S.db) {
+        try {
+          const snap = await S.db.doc('inv/' + S.inviteId).get();
+          if (snap.exists) {
+            const d = snap.data();
+            if (Date.now() < d.exp) S.invite = { id: S.inviteId, from: d.from, salt: d.salt, exp: d.exp };
+          }
+        } catch (e) { S.invite = null; }
+      }
+    }
+    if (!S.me) return go('creer', S.inviteId ? 'invite' : null);
+    return go('verrouille', S.inviteId ? 'invite' : null);
+  }
+  init().catch((e) => { console.error(e); $('#app').innerHTML = '<div class="screen">' + notice('err', 'Erreur au démarrage : ' + esc(e.message)) + '</div>'; });
+})();
+</script>

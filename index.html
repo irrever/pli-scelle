@@ -172,6 +172,10 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
 .chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:12px;font-weight:600;color:var(--ink-2);align-self:flex-start}
 .chip.on{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
 .bubble-timer{margin-top:6px;font-size:12px;color:var(--muted)}
+.voice-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px;border-radius:14px;background:var(--accent-soft);color:var(--accent)}
+.voice-bar audio{width:100%;height:40px}
+.voice-dot{width:10px;height:10px;border-radius:50%;background:#d93025;animation:voicepulse 1s infinite}
+@keyframes voicepulse{50%{opacity:.25}}
 .pending-stack{display:flex;flex-direction:column;gap:8px}
 /* QR code décoratif de la page de création (même principe que la maquette) */
 .qr-card{align-self:center;display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 14px 10px;background:var(--surface);border:1px solid var(--line-2);border-radius:18px;box-shadow:var(--shadow)}
@@ -219,7 +223,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v14';
+  const APP_VERSION = 'v15';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -246,6 +250,7 @@ button.chip{cursor:pointer;font:inherit}
     send: svg('<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>'),
     msg: svg('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'),
     file: svg('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>'),
+    mic: svg('<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="17" x2="12" y2="21"/>'),
     shield: svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'),
     inbox: svg('<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>')
   };
@@ -315,13 +320,14 @@ button.chip{cursor:pointer;font:inherit}
     const c = cs.find((x) => x.cid === cid);
     if (!c) return null;
     LS.set('contacts', cs.filter((x) => x.cid !== cid));
+    msgsAll().filter((m) => m.cid === cid && m.kind === 'voice').forEach((m) => vdel('audio', m.mid).catch(() => {}));
     LS.set('msgs', msgsAll().filter((m) => m.cid !== cid));
     LS.set('pending', pendingAll().filter((p) => p.peer !== c.raw));
     return c;
   }
   function expireOpened() {
     const all = msgsAll(); let ch = false;
-    for (const m of all) if (m.state === 'open' && Date.now() > (m.until || 0)) { if (m.once === false) m.state = 'new'; else { m.state = 'gone'; m.text = ''; } ch = true; }
+    for (const m of all) if (m.state === 'open' && Date.now() > (m.until || 0)) { if (m.once === false) m.state = 'new'; else { m.state = 'gone'; m.text = ''; if (m.kind === 'voice') vdel('audio', m.mid).catch(() => {}); } ch = true; }
     if (ch) LS.set('msgs', all);
     return ch;
   }
@@ -539,6 +545,7 @@ button.chip{cursor:pointer;font:inherit}
       case 'accept': return onAccept(m);
       case 'refuse': return onRefuse(m);
       case 'msg': return onMsg(m, docId);
+      case 'voicepart': return onVoicePart(m);
       case 'cut': return onCut(m);
       default: return false;
     }
@@ -629,7 +636,7 @@ button.chip{cursor:pointer;font:inherit}
       S.flash = { t: 'La demande a été refusée, ou le code est incorrect.' };
       return go('accueil');
     }
-    if (S.needRender && !isTyping()) render();
+    if (S.needRender && !isTyping() && !voicePlaying()) render();
   }
   function isTyping() { const a = document.activeElement; return !!a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA'); }
   let pollTimer = null;
@@ -689,7 +696,151 @@ button.chip{cursor:pointer;font:inherit}
     thumbs.set(key, url);
     return url;
   }
+  // ---------- messages vocaux : enregistrés ici, chiffrés, envoyés en morceaux, écoutés dans la conversation ----------
+  const VOICE_MAX_MS = 60000, VOICE_PART = 20000;   // une minute au plus ; morceaux de 20 000 caractères (le relais accepte 30 000 par message)
+  let vdbP = null;
+  function vdb() {
+    if (!vdbP) vdbP = new Promise((resolve, reject) => {
+      const r = indexedDB.open('pli-voix', 1);
+      r.onupgradeneeded = () => { r.result.createObjectStore('audio'); r.result.createObjectStore('parts'); };
+      r.onsuccess = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+    });
+    return vdbP;
+  }
+  async function vget(store, key) {
+    const db = await vdb();
+    return new Promise((resolve, reject) => { const q = db.transaction(store, 'readonly').objectStore(store).get(key); q.onsuccess = () => resolve(q.result); q.onerror = () => reject(q.error); });
+  }
+  async function vput(store, key, value) {
+    const db = await vdb();
+    return new Promise((resolve, reject) => { const tx = db.transaction(store, 'readwrite'); tx.objectStore(store).put(value, key); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); });
+  }
+  async function vdel(store, key) {
+    const db = await vdb();
+    return new Promise((resolve, reject) => { const tx = db.transaction(store, 'readwrite'); tx.objectStore(store).delete(key); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); });
+  }
+  function blobBytes(b) {
+    return new Promise((resolve, reject) => { const fr = new FileReader(); fr.onload = () => resolve(new Uint8Array(fr.result)); fr.onerror = () => reject(fr.error); fr.readAsArrayBuffer(b); });
+  }
+  // Pas de redessin pendant une écoute : la lecture ne s’interrompt pas.
+  function voicePlaying() { return Array.from(document.querySelectorAll('audio[data-voice]')).some((a) => !a.paused && !a.ended); }
+  function hydrateVoices() {
+    document.querySelectorAll('audio[data-voice]').forEach(async (el) => {
+      if (el.getAttribute('src')) return;
+      try { const b = await vget('audio', el.dataset.voice); if (b) el.src = URL.createObjectURL(b); } catch (e) { /* audio indisponible sur ce téléphone */ }
+    });
+  }
+  function pickMime() {
+    const l = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
+    return l.find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || '';
+  }
+  async function startVoice() {
+    if (S.voice) return;
+    if (!window.MediaRecorder || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return flashNow({ t: 'Le message vocal n’est pas disponible sur ce téléphone.' });
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (e) { return flashNow({ t: 'Micro refusé. Autorisez-le pour cette appli.' }); }
+    if (S.voice || S.screen !== 'conv') { stream.getTracks().forEach((t) => t.stop()); return; }
+    const mime = pickMime();
+    let rec;
+    try { rec = new MediaRecorder(stream, mime ? { mimeType: mime, audioBitsPerSecond: 16000 } : { audioBitsPerSecond: 16000 }); }
+    catch (e) { stream.getTracks().forEach((t) => t.stop()); return flashNow({ t: 'Enregistrement impossible sur ce téléphone.' }); }
+    const v = { phase: 'rec', rec: rec, stream: stream, chunks: [], start: Date.now(), timer: null, cid: S.arg };
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) v.chunks.push(e.data); };
+    rec.onstop = () => {
+      stream.getTracks().forEach((t) => t.stop());
+      clearInterval(v.timer);
+      const blob = new Blob(v.chunks, { type: rec.mimeType || mime || 'audio/webm' });
+      S.voice = { phase: 'ready', blob: blob, url: URL.createObjectURL(blob), dur: Math.max(1, Math.round((Date.now() - v.start) / 1000)), cid: v.cid };
+      if (S.screen === 'conv') render();
+    };
+    S.voice = v;
+    rec.start(1000);
+    v.timer = setInterval(() => {
+      const s = Math.floor((Date.now() - v.start) / 1000);
+      const el = $('#voicetimer');
+      if (el) el.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+      if (Date.now() - v.start >= VOICE_MAX_MS) stopVoice();
+    }, 500);
+    render();
+  }
+  function stopVoice() {
+    const v = S.voice;
+    if (v && v.phase === 'rec' && v.rec.state !== 'inactive') v.rec.stop();
+  }
+  function cancelVoice() {
+    const v = S.voice;
+    if (!v) return;
+    if (v.phase === 'rec') {
+      v.rec.onstop = null;
+      clearInterval(v.timer);
+      if (v.rec.state !== 'inactive') v.rec.stop();
+      v.stream.getTracks().forEach((t) => t.stop());
+    }
+    if (v.url) URL.revokeObjectURL(v.url);
+    S.voice = null;
+  }
+  function voiceBarHTML(cid) {
+    const v = S.voice;
+    if (v.phase === 'rec') return '<div class="voice-bar"><span class="voice-dot"></span><span id="voicetimer" class="mono">0:00</span><span style="flex:1"></span><button class="btn btn-ghost" type="button" data-act="voicecancel">Annuler</button><button class="btn btn-primary" type="button" data-act="voicestop">Arrêter</button></div>';
+    if (v.phase === 'ready') return '<div class="voice-bar"><audio controls src="' + esc(v.url) + '"></audio><div class="row-between" style="width:100%"><button class="btn btn-ghost" type="button" data-act="voicecancel">Annuler</button><button class="btn btn-primary" type="button" data-act="voicesend" data-arg="' + esc(cid) + '">Envoyer le vocal</button></div></div>';
+    return '<div class="voice-bar"><span class="hint">Envoi du vocal en cours…</span></div>';
+  }
+  async function actSendVoice(cid) {
+    const v = S.voice;
+    if (!v || v.phase !== 'ready') return;
+    const c = contacts().find((x) => x.cid === cid);
+    if (!c) return go('accueil');
+    v.phase = 'sending';
+    render();
+    try {
+      const bytes = await blobBytes(v.blob);
+      const key = await sharedKey(c.raw);
+      const body = await encryptFor(key, { mime: v.blob.type, once: S.once !== false, ts: Date.now(), dur: v.dur, a: b64u(bytes) });
+      const n = Math.ceil(body.ct.length / VOICE_PART);
+      const vid = rid(12);
+      for (let i = 0; i < n; i++) {
+        await sendTo(c.raw, { kind: 'voicepart', vid: vid, i: i, n: n, iv: body.iv, d: body.ct.slice(i * VOICE_PART, (i + 1) * VOICE_PART) });
+      }
+      const all = msgsAll();
+      all.push({ mid: rid(10), cid: cid, dir: 'out', kind: 'voice', dur: v.dur, state: 'sent', ts: Date.now(), once: S.once !== false });
+      LS.set('msgs', all);
+      cancelVoice();
+      go('conv', cid);
+    } catch (e) {
+      if (S.voice === v) v.phase = 'ready';
+      render();
+      flashNow({ t: 'Envoi impossible. Vérifiez la connexion, puis réessayez.' });
+    }
+  }
+  // Morceaux reçus : quand tous sont là, le vocal est déchiffré et rangé sur ce téléphone.
+  async function onVoicePart(m) {
+    const c = contacts().find((x) => x.raw === m.from);
+    if (!c) return false;
+    const rec = (await vget('parts', m.vid)) || { n: m.n, iv: m.iv, pieces: [] };
+    rec.pieces[m.i] = m.d;
+    const complet = Array.from({ length: rec.n }).every((_, k) => typeof rec.pieces[k] === 'string');
+    if (!complet) { await vput('parts', m.vid, rec); return false; }
+    const key = await sharedKey(m.from);
+    const body = await decryptFrom(key, rec.iv, rec.pieces.join(''));
+    await vput('audio', m.vid, new Blob([unb64u(body.a)], { type: body.mime || 'audio/webm' }));
+    await vdel('parts', m.vid);
+    const all = msgsAll();
+    all.push({ mid: m.vid, cid: c.cid, dir: 'in', kind: 'voice', dur: body.dur || 0, state: 'new', ts: body.ts || Date.now(), once: body.once !== false });
+    LS.set('msgs', all);
+    return true;
+  }
+  function msgVoiceHTML(m) {
+    const d = m.dur ? ' · ' + m.dur + ' s' : '';
+    const vignette = '<img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '">';
+    if (m.dir === 'out') return '<div class="tile mine">' + vignette + '<span class="tt"><b>Message vocal envoyé</b><span class="hint">' + (m.once === false ? 'Relisible' : 'Lecture unique') + d + '</span></span></div>';
+    if (m.state === 'new') return '<button class="tile" data-act="reveal" data-arg="' + esc(m.mid) + '">' + vignette + '<span class="tt">' + (m.seen ? '<b>Message vocal relisible</b><span class="hint">Toucher pour réécouter' + d + '</span>' : '<b>Message vocal reçu</b><span class="hint">Toucher pour écouter' + d + '</span>') + '</span></button>';
+    if (m.state === 'open') return '<div class="bubble"><audio controls preload="auto" data-voice="' + esc(m.mid) + '"></audio><div class="bubble-timer" data-until="' + esc(m.until) + '">Se referme dans ' + Math.max(0, Math.ceil((m.until - Date.now()) / 1000)) + ' s</div></div>';
+    return '<div class="tile" style="color:var(--muted)">' + vignette.replace('class="qr-thumb"', 'class="qr-thumb faded"') + '<span class="tt"><b>Message vocal lu</b><span class="hint">Le contenu a été effacé</span></span></div>';
+  }
   function msgHTML(m) {
+    if (m.kind === 'voice') return msgVoiceHTML(m);
     if (m.dir === 'out') return '<div class="tile mine"><img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt"><b>Message envoyé</b><span class="hint">' + (m.once === false ? 'Relisible' : 'Lecture unique') + '</span></span></div>';
     if (m.state === 'new') return '<button class="tile" data-act="reveal" data-arg="' + esc(m.mid) + '"><img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt">' + (m.seen ? '<b>Message relisible</b><span class="hint">Toucher pour revoir</span>' : '<b>QR code reçu</b><span class="hint">Toucher pour lire</span>') + '</span></button>';
     if (m.state === 'open') return '<div class="bubble">' + esc(m.text) + '<div class="bubble-timer" data-until="' + esc(m.until) + '">Se referme dans ' + Math.max(0, Math.ceil((m.until - Date.now()) / 1000)) + ' s</div></div>';
@@ -941,11 +1092,12 @@ button.chip{cursor:pointer;font:inherit}
         '<label class="tool">' + I.camera + '<span>Photo</span><input id="pickPhoto" class="sr-only" type="file" accept="image/*"></label>' +
         '<label class="tool">' + I.file + '<span>Document</span><input id="pickDoc" class="sr-only" type="file"></label>' +
         '<button class="tool" type="button" data-act="showlink">' + I.link + '<span>Lien</span></button>' +
+        '<button class="tool" type="button" data-act="voicerec">' + I.mic + '<span>Vocal</span></button>' +
         '<button id="onceChip" class="chip' + (on ? ' on' : '') + '" type="button" data-act="togglemode">' + (on ? 'Lecture unique' : 'Relisible') + '</button>' +
       '</div>' +
       '<div id="linkRow" class="link-row"' + (S.linkOpen ? '' : ' hidden') + '><input id="linkIn" class="field" placeholder="Adresse du lien" inputmode="url" autocomplete="off"><button class="btn btn-secondary btn-send" type="button" data-act="addlink">Ajouter</button></div>' +
       '<div id="attachRow" class="attach-row">' + attachChipsHTML() + '</div>' +
-      '<div class="composer-row"><input id="draft" class="field" placeholder="Votre message" autocomplete="off"><button class="btn btn-primary btn-send" data-act="send" data-arg="' + esc(cid) + '">Envoyer</button></div>' +
+      (S.voice ? voiceBarHTML(cid) : '<div class="composer-row"><input id="draft" class="field" placeholder="Votre message" autocomplete="off"><button class="btn btn-primary btn-send" data-act="send" data-arg="' + esc(cid) + '">Envoyer</button></div>') +
     '</div>';
   }
   function updateOnceChip() {
@@ -1157,6 +1309,7 @@ button.chip{cursor:pointer;font:inherit}
 
   // ---------- affichage ----------
   function go(screen, arg) {
+    cancelVoice();   // quitter l’écran arrête le micro et jette l’enregistrement en cours
     if (screen !== 'lien-coupe') S.cut = null;
     S.screen = screen;
     S.arg = (arg == null ? null : arg);
@@ -1179,6 +1332,7 @@ button.chip{cursor:pointer;font:inherit}
     const flash = S.flash ? notice(S.flash.ok ? 'ok' : 'info', esc(S.flash.t)) : '';
     S.flash = null; S.needRender = false;
     app.innerHTML = flash + html;
+    hydrateVoices();
     app.dataset.view = key;
     Object.keys(keep).forEach((id) => { const el = document.getElementById(id); if (el) el.value = keep[id]; });
     if (focusId) { const el = document.getElementById(focusId); if (el) el.focus(); }
@@ -1429,7 +1583,7 @@ button.chip{cursor:pointer;font:inherit}
   function actReveal(mid) {
     const all = msgsAll();
     const m = all.find((x) => x.mid === mid);
-    if (m && m.state === 'new') { m.state = 'open'; m.seen = true; m.until = Date.now() + REVEAL_MS; LS.set('msgs', all); }
+    if (m && m.state === 'new') { m.state = 'open'; m.seen = true; m.until = Date.now() + (m.kind === 'voice' ? Math.max(REVEAL_MS, (m.dur || 0) * 1000 + 15000) : REVEAL_MS); LS.set('msgs', all); }
     go('conv', S.arg);
   }
   async function actCut(cid) {
@@ -1444,6 +1598,7 @@ button.chip{cursor:pointer;font:inherit}
     for (const c of contacts()) { try { await sendTo(c.raw, { kind: 'cut' }); } catch (e) {} }
     for (const i of invitesAll()) { if (i.status === 'open') await closeInviteDoc(i.id); }
     LS.clearAll();
+    try { indexedDB.deleteDatabase('pli-voix'); vdbP = null; } catch (e) { /* rien à effacer */ }
     S.me = null; S.priv = null; S.qr = null; S.invQR = null; S.draftPseudo = null; S.words = null;
     stopPolling();
     go('creer');
@@ -1529,6 +1684,10 @@ button.chip{cursor:pointer;font:inherit}
     cut: actCut,
     deleteme: actDeleteMe,
     togglemode: () => { S.once = S.once === false; updateOnceChip(); },
+    voicerec: () => startVoice(),
+    voicestop: () => stopVoice(),
+    voicecancel: () => { cancelVoice(); render(); },
+    voicesend: (cid) => actSendVoice(cid),
     showlink: () => { S.linkOpen = !S.linkOpen; const r = $('#linkRow'); if (r) { r.hidden = !S.linkOpen; if (S.linkOpen) $('#linkIn').focus(); } },
     addlink: addLinkAttach,
     rmattach: (i) => { S.attach = S.attach || []; S.attach.splice(Number(i), 1); renderAttach(); },
@@ -1599,7 +1758,7 @@ button.chip{cursor:pointer;font:inherit}
     t.value = '';
     renderAttach();
   });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stopVoice(); else poll(); });
 
   function tick() {
     const cd = document.getElementById('cd');

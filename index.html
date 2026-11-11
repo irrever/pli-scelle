@@ -96,10 +96,13 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
 .notice .ico{width:22px;height:22px}
 .notice .grow{flex:1}
 .notice .more{font-weight:500;font-size:13px;color:var(--ink-2)}
+.notice.alert{background:var(--accent);color:#fff;box-shadow:0 8px 22px rgba(0,0,0,.18)}
+.notice.alert .more{color:rgba(255,255,255,.92)}
 .status{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:14px;font-size:14px;line-height:1.45}
 .status[hidden]{display:none}
 .status-ok{background:var(--accent-soft);color:var(--accent)}
 .status-err{background:var(--danger-soft);color:var(--danger)}
+.status.big{font-size:17px;font-weight:600;padding:16px;border-radius:16px}
 .status-info{background:var(--warn-soft);color:var(--warn)}
 .empty{display:flex;flex-direction:column;align-items:center;gap:10px;padding:32px 20px;text-align:center;color:var(--muted)}
 .empty .ico{width:34px;height:34px;color:var(--accent)}
@@ -216,7 +219,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v13';
+  const APP_VERSION = 'v14';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -440,7 +443,7 @@ button.chip{cursor:pointer;font:inherit}
       img.src = url;
       try { await img.decode(); } catch (e) { throw new Error('Cette photo ne s’ouvre pas ici. Essayez une autre photo (JPEG ou PNG), ou collez le texte.'); }
       // Lecture à pleine résolution d’abord : sur une photo prise de loin, les modules du QR ne font que quelques pixels.
-      for (const max of [4500, 3000, 2000, 1400, 900, 500]) {
+      for (const max of [1400, 2000, 3000, 4500, 900, 500]) {
         const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
         const c = document.createElement('canvas');
         c.width = Math.max(1, Math.round(img.naturalWidth * k));
@@ -518,14 +521,13 @@ button.chip{cursor:pointer;font:inherit}
     try {
       const to = await mailboxOf(S.me.raw);
       const snap = await S.db.collection('box').where('to', '==', to).get();
-      let changed = false, incoming = false;
+      let changed = false;
       for (const d of snap.docs) {
         const m = d.data() || {};
-        try { if (await handle(m, d.id)) { changed = true; if (m.kind === 'msg') incoming = true; } } catch (e) { console.warn('Pli : message ignoré', e); }
+        try { if (await handle(m, d.id)) changed = true; } catch (e) { console.warn('Pli : message ignoré', e); }
         try { await S.db.collection('box').doc(d.id).delete(); } catch (e) {}
       }
-      if (changed) S.needRender = true;
-      if (incoming) alertIncoming();
+      if (changed) { S.needRender = true; alertIncoming(); }
       await afterPoll();
     } catch (e) { /* hors ligne : on réessaie au prochain tour */ }
     finally { S.pollBusy = false; }
@@ -615,6 +617,9 @@ button.chip{cursor:pointer;font:inherit}
     if (!S.me || !S.priv) return;
     const pend = pendingAll();
     if (S.cut && S.screen !== 'lien-coupe') return go('lien-coupe');
+    // Demande reçue : sa page s’ouvre toute seule, sauf si on est en train de taper quelque chose.
+    const req = pend.find((p) => (p.type === 'ff-request' || p.type === 'remote-claim') && !S.routed.has(p.pid));
+    if (req && !isTyping()) { S.routed.add(req.pid); return openPending(req.pid, req.type === 'ff-request' ? 'demande' : 'lien-ouvert'); }
     const acc = pend.find((p) => p.type === 'ff-accepted' && !S.routed.has(p.pid));
     if (acc) { S.routed.add(acc.pid); return openPending(acc.pid, 'verifier-ff'); }
     const racc = pend.find((p) => p.type === 'remote-accepted' && !S.routed.has(p.pid));
@@ -653,13 +658,17 @@ button.chip{cursor:pointer;font:inherit}
     };
     const m = map[p.type];
     if (!m) return '';
-    return '<button class="notice" data-act="openp" data-arg="' + m[2] + '|' + esc(p.pid) + '">' + I.inbox + '<span class="grow">' + m[0] + '<br><span class="more">' + m[1] + '</span></span>' + I.chev + '</button>';
+    return '<button class="notice' + (p.type === 'ff-request' || p.type === 'remote-claim' ? ' alert' : '') + '" data-act="openp" data-arg="' + m[2] + '|' + esc(p.pid) + '">' + I.inbox + '<span class="grow">' + m[0] + '<br><span class="more">' + m[1] + '</span></span>' + I.chev + '</button>';
   }
   function personCard(pseudo, badgeText) {
     return '<div class="card"><div class="row-between"><div style="display:flex;gap:12px;align-items:center;min-width:0"><span class="avatar lg">' + esc(initial(pseudo)) + '</span><div style="min-width:0"><div class="row-title">' + esc(pseudo) + '</div><span class="hint">Pseudo reçu</span></div></div><span class="badge badge-ok">' + I.check + esc(badgeText) + '</span></div></div>';
   }
   function nameField() {
-    return '<div class="card form"><label class="label" for="cname">Nom dans vos contacts</label><input id="cname" class="field" placeholder="Nom obligatoire" autocomplete="off">' + (contactPickerOk() ? '<button class="btn btn-secondary" data-act="pickcontact" style="margin-top:8px">Choisir dans mes contacts</button>' : '') + '<p class="hint">Vous seul le voyez. Il ne quitte pas cet appareil.</p>' + formStatus() + '</div>';
+    return '<div class="card form"><label class="label" for="cname">Nom dans vos contacts</label><input id="cname" class="field" placeholder="Nom obligatoire" autocomplete="off">' + (contactPickerOk()
+        ? '<button class="btn btn-secondary" data-act="pickcontact" style="margin-top:8px">Choisir dans mes contacts</button>'
+        : '<label class="btn btn-secondary file-btn" style="margin-top:8px">' + I.file + '<span>Prendre le nom dans un fichier de contacts (.vcf)</span><input id="vcard" class="sr-only" type="file" accept=".vcf,text/vcard,text/x-vcard"></label><div id="vcardlist"></div>' +
+          '<p class="hint">Le navigateur de l’iPhone ne peut pas lire vos contacts. Enregistrez la fiche en fichier .vcf (Contacts, Partager le contact, Enregistrer dans Fichiers), puis choisissez-la ici. Sinon, tapez le nom.</p>') +
+      '<p class="hint">Vous seul le voyez. Il ne quitte pas cet appareil.</p>' + formStatus() + '</div>';
   }
   function wordsBlock(title, text) {
     const w = S.words || [];
@@ -989,6 +998,42 @@ button.chip{cursor:pointer;font:inherit}
       if (n && el) el.value = String(n).slice(0, 40);
     } catch (e) { flashNow({ t: 'Choix dans les contacts annulé.' }); }
   }
+  // Noms des fiches d’un fichier .vcf : le fichier est lu sur cet appareil, rien n’est envoyé.
+  function parseVcardNames(text) {
+    const lignes = String(text || '').replace(/\r\n?/g, '\n').replace(/\n[ \t]/g, '').split('\n');
+    const val = (s) => s.replace(/\\n/gi, ' ').replace(/\\([,;\\])/g, '$1').trim();
+    const noms = [];
+    let fn = '', nom = '';
+    for (const ligne of lignes) {
+      const i = ligne.indexOf(':');
+      if (i < 0) continue;
+      const cle = ligne.slice(0, i).split(';')[0].split('.').pop().toUpperCase();
+      const v = ligne.slice(i + 1);
+      if (cle === 'BEGIN') { fn = ''; nom = ''; }
+      else if (cle === 'FN' && !fn) fn = val(v);
+      else if (cle === 'N' && !nom) { const p = v.split(';'); nom = [p[1], p[0]].map((x) => val(x || '')).filter(Boolean).join(' '); }
+      else if (cle === 'END') { const titre = (fn || nom).slice(0, 40); if (titre) noms.push(titre); fn = ''; nom = ''; }
+    }
+    return noms;
+  }
+  document.addEventListener('change', async (ev) => {
+    const t = ev.target;
+    if (!t || t.id !== 'vcard' || !t.files || !t.files[0]) return;
+    try {
+      const noms = parseVcardNames(await t.files[0].text());
+      const liste = $('#vcardlist');
+      if (!noms.length) setStatus('formstatus', 'err', 'Aucun contact trouvé dans ce fichier.');
+      else if (noms.length === 1) {
+        const el = $('#cname'); if (el) el.value = noms[0];
+        if (liste) liste.innerHTML = '';
+        setStatus('formstatus', 'ok', 'Nom repris du fichier.');
+      } else if (liste) {
+        liste.innerHTML = '<p class="hint">' + noms.length + ' contacts trouvés. Touchez celui à ajouter :</p><div class="stack">' +
+          noms.slice(0, 40).map((x) => '<button class="btn btn-ghost" type="button" data-act="setname" data-arg="' + esc(x) + '">' + esc(x) + '</button>').join('') + '</div>';
+      }
+    } catch (e) { setStatus('formstatus', 'err', 'Fichier illisible.'); }
+    t.value = '';
+  });
   function viewConv() {
     const c = contacts().find((x) => x.cid === S.arg);
     if (!c) return viewAccueil();
@@ -1023,7 +1068,7 @@ button.chip{cursor:pointer;font:inherit}
       '<div class="id-card"><div class="id-top"><span>PLI SCELLÉ</span><span>IDENTITÉ</span></div><div class="id-body"><div class="id-main"><div class="id-label">Mon pseudo</div><div class="id-name">' + esc(S.me.pseudo) + '</div></div><div class="id-qr" aria-hidden="true"><div class="qr-build">' + qrDecorCells() + '</div></div></div><div class="id-foot">Ni numéro, ni e-mail. Ce pseudo permet seulement de vous écrire.</div></div>' +
       '<div class="stack"><button class="btn btn-primary" data-act="montrer" data-arg="identite">' + I.qr + '<span>Montrer mon identité</span></button><button class="btn btn-secondary" data-act="newinvite">' + I.link + '<span>Inviter à distance</span></button></div>' +
       (S.bioAvail ? '<section><div class="section-title">Déverrouillage</div><div class="list"><button class="rowlink" data-act="go" data-arg="biometrie"><span>Empreinte ou Face ID</span><span class="state">' + (LS.get('bio', null) ? 'Activé' : 'Désactivé') + '</span>' + I.chev + '</button></div></section>' : '') +
-      '<section><div class="section-title">Alertes</div><div class="list"><button class="rowlink" data-act="togglesound"><span>Sonnerie à la réception</span><span class="state">' + (getPrefs().sound ? 'Activée' : 'Désactivée') + '</span>' + I.chev + '</button></div><p class="hint">La sonnerie joue à chaque message reçu, tant que l’appli est ouverte. Il n’y a pas de notification hors de l’appli.</p></section>' +
+      '<section><div class="section-title">Alertes</div><div class="list"><button class="rowlink" data-act="togglesound"><span>Sonnerie à la réception</span><span class="state">' + (getPrefs().sound ? 'Activée' : 'Désactivée') + '</span>' + I.chev + '</button></div><p class="hint">La sonnerie joue à chaque message ou demande reçus, tant que l’appli est ouverte (et vibre sur Android). Il n’y a pas de notification hors de l’appli.</p></section>' +
       '<section><div class="section-title">Sauvegarde</div><div class="list"><button class="rowlink" data-act="go" data-arg="sauvegarde"><span>Sauvegarder mes contacts</span>' + I.chev + '</button></div><p class="hint">' + (LS.get('lastBackup', 0) ? 'Dernière sauvegarde : ' + esc(new Date(LS.get('lastBackup', 0)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })) : 'Pas encore de sauvegarde. Sans elle, vos contacts ne sont que dans ce navigateur.') + '</p></section>' +
       '<section><div class="section-title">Sécurité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="supprimer"><span style="display:flex;gap:10px;align-items:center">' + I.trash + 'Supprimer mon identité</span>' + I.chev + '</button></div></section>' +
       '<p class="hint center" style="padding-top:8px">Version ' + APP_VERSION + '</p>' +
@@ -1489,6 +1534,7 @@ button.chip{cursor:pointer;font:inherit}
     rmattach: (i) => { S.attach = S.attach || []; S.attach.splice(Number(i), 1); renderAttach(); },
     savecontact: saveContactFile,
     pickcontact: pickContactName,
+    setname: (a) => { const el = $('#cname'); if (el) el.value = String(a || '').slice(0, 40); const l = $('#vcardlist'); if (l) l.innerHTML = ''; },
     backup: actMakeBackup,
     restore: actRestore,
     copybackup: () => copyText(S.backupText || '', 'Sauvegarde copiée.')
@@ -1506,28 +1552,34 @@ button.chip{cursor:pointer;font:inherit}
   });
   // Photo prise avec l’appareil : lecture du QR code, puis vérification du type.
   // Texte lu (photo ou caméra) : il est rangé dans le formulaire, puis le code est demandé.
+  // Message du scanner : en gros, et amené à l’écran pour qu’on le voie.
+  function scanMsg(kind, text) {
+    setStatus('scanstatus', kind, text);
+    const st = $('#scanstatus');
+    if (st) { st.classList.add('big'); st.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  }
   async function handleScan(txt, inv) {
     if (inv) {
-      if (!isInvText(txt)) return setStatus('scanstatus', 'err', 'Ce n’est pas une invitation. Pour une personne présente, utilisez « Scanner l’identité de la personne ».');
+      if (!isInvText(txt)) return scanMsg('err', 'Ce n’est pas une invitation. Pour une personne présente, utilisez « Scanner l’identité de la personne ».');
       const box = $('#invtext'); if (box) box.value = txt;
       S.invText = txt;
-      setStatus('scanstatus', 'ok', 'Invitation lue.');
+      scanMsg('ok', 'Invitation lue.');
       return actReadInv(txt);
     }
     const o = parseQR(txt);
     const box = $('#qrtext'); if (box) box.value = txt;
     S.qrText = txt;
-    setStatus('scanstatus', 'ok', 'Identité lue' + (o.p ? ' : ' + o.p : '') + '. Tapez maintenant le code affiché sur son écran.');
+    scanMsg('ok', 'Identité lue' + (o.p ? ' : ' + o.p : '') + '. Tapez maintenant le code affiché sur son écran.');
   }
   document.addEventListener('change', async (ev) => {
     const t = ev.target;
     if (!t || !['photo', 'photogal', 'photoinv', 'photoinvgal'].includes(t.id) || !t.files || !t.files[0]) return;
     const inv = t.id === 'photoinv' || t.id === 'photoinvgal';
-    setStatus('scanstatus', 'ok', 'Lecture de la photo…');
+    scanMsg('ok', 'Lecture de la photo…');
     try {
       await handleScan(await decodeFile(t.files[0]), inv);
     } catch (e) {
-      setStatus('scanstatus', 'err', e.message);
+      scanMsg('err', e.message);
     }
     t.value = '';
   });
@@ -1568,17 +1620,24 @@ button.chip{cursor:pointer;font:inherit}
   function getPrefs() { const p = LS.get('prefs', null) || {}; return { sound: !!p.sound }; }
   function setPref(k, v) { LS.set('prefs', Object.assign(getPrefs(), { [k]: v })); }
   let audio = null;
-  // Sonnerie : six notes générées sur place, sans fichier. Le premier toucher autorise le son sur ce téléphone.
-  function playChime() {
+  // Le son se crée au premier toucher : sans cela, le téléphone le bloque.
+  function unlockSound() {
     try {
       if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
       if (audio.state === 'suspended') audio.resume();
+    } catch (e) { /* son indisponible sur ce téléphone */ }
+  }
+  ['pointerdown', 'touchend', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, unlockSound, { once: true }));
+  // Sonnerie : six notes générées sur place, sans fichier.
+  function playChime() {
+    try {
+      unlockSound();
       const t0 = audio.currentTime + 0.02;
       [[1046, 0], [1318, 0.18], [1568, 0.36], [1046, 0.75], [1318, 0.93], [1568, 1.11]].forEach(([f, dt]) => {
         const o = audio.createOscillator(), g = audio.createGain();
         o.type = 'sine'; o.frequency.value = f;
         g.gain.setValueAtTime(0.0001, t0 + dt);
-        g.gain.exponentialRampToValueAtTime(0.25, t0 + dt + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.4, t0 + dt + 0.02);
         g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + 0.3);
         o.connect(g); g.connect(audio.destination);
         o.start(t0 + dt); o.stop(t0 + dt + 0.32);
@@ -1587,7 +1646,9 @@ button.chip{cursor:pointer;font:inherit}
   }
   // Message reçu : la sonnerie joue si elle est activée (l’appli doit être ouverte).
   function alertIncoming() {
-    if (getPrefs().sound) playChime();
+    if (!getPrefs().sound) return;
+    playChime();
+    if (navigator.vibrate) navigator.vibrate([300, 150, 300]);   // Android : vibration en plus du son
   }
   // Arrêt des notifications : le service worker et les anciens abonnements sont retirés, pour que rien ne reste sur le téléphone.
   async function cleanupNotifications() {

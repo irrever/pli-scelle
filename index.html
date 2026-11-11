@@ -176,6 +176,7 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
 .qr-thumb{width:52px;height:52px;flex:none;border-radius:8px;background:#fff;padding:3px;box-sizing:border-box}
 .tt{display:flex;flex-direction:column;gap:2px;min-width:0}
 .tt b{font-size:15px;font-weight:600}
+.qr-thumb.faded{opacity:.45;filter:grayscale(1)}
 </style>
 <div id="app"><div class="screen"><p class="lead" style="padding-top:24px">Chargement…</p></div></div>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
@@ -195,7 +196,7 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v4';
+  const APP_VERSION = 'v5';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -631,7 +632,7 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
     if (m.dir === 'out') return '<div class="tile mine"><img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt"><b>Message envoyé</b><span class="hint">Lecture unique</span></span></div>';
     if (m.state === 'new') return '<button class="tile" data-act="reveal" data-arg="' + esc(m.mid) + '"><img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt"><b>QR code reçu</b><span class="hint">Toucher pour lire</span></span></button>';
     if (m.state === 'open') return '<div class="bubble">' + esc(m.text) + '<div class="bubble-timer" data-until="' + esc(m.until) + '">Se referme dans ' + Math.max(0, Math.ceil((m.until - Date.now()) / 1000)) + ' s</div></div>';
-    return '<div class="tile" style="color:var(--muted)">' + I.check + '<span>Message lu</span></div>';
+    return '<div class="tile" style="color:var(--muted)"><img class="qr-thumb faded" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt"><b>Message lu</b><span class="hint">Le contenu a été effacé</span></span></div>';
   }
   function emptyState() {
     return '<div class="list"><div class="empty">' + I.user + '<b>Aucun contact pour l’instant</b><span>Ajoutez une personne, face à face ou à distance.</span></div></div>';

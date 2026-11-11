@@ -221,7 +221,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v11';
+  const APP_VERSION = 'v12';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -349,11 +349,26 @@ button.chip{cursor:pointer;font:inherit}
     const pkcs8 = await unwrapPkcs8(wrap, code);
     return crypto.subtle.importKey('pkcs8', pkcs8, ECDH, false, ['deriveKey', 'deriveBits']);
   }
+  // Secret de la boîte : il prouve, à chaque lecture ou suppression, qu’on possède l’identité. Il ne figure ni dans le QR code ni dans les messages ; le relais ne garde que son empreinte.
+  async function registerBox(mailbox, secretHex) {
+    await rpc('pli_box_register', { p_mailbox: mailbox, p_auth: hex(await sha(unhex(secretHex))) });
+  }
+  // Identité d’avant cette version : elle reçoit son secret, si sa boîte est encore libre.
+  async function ensureSecret() {
+    if (S.me.secret) return true;
+    const secret = hex(rand(32));
+    try { await registerBox(await mailboxOf(S.me.raw), secret); } catch (e) { return false; }
+    LS.set('me', Object.assign({}, S.me, { secret: secret }));
+    S.me = LS.get('me', null);
+    return true;
+  }
   async function createIdentity(pseudo, code) {
     const kp = await crypto.subtle.generateKey(ECDH, true, ['deriveKey', 'deriveBits']);
     const raw = b64u(new Uint8Array(await crypto.subtle.exportKey('raw', kp.publicKey)));
     const wrap = await wrapPriv(kp.privateKey, code);
-    if (!LS.set('me', { pseudo: pseudo, raw: raw, wrap: wrap, created: Date.now() })) throw new Error('Le stockage de ce navigateur est indisponible.');
+    const secret = hex(rand(32));
+    await registerBox(await mailboxOf(raw), secret);   // avant d’afficher le QR code : personne ne peut réserver cette boîte avant nous
+    if (!LS.set('me', { pseudo: pseudo, raw: raw, wrap: wrap, secret: secret, created: Date.now() })) throw new Error('Le stockage de ce navigateur est indisponible.');
     S.me = LS.get('me', null);
     S.priv = kp.privateKey;
   }
@@ -547,12 +562,13 @@ button.chip{cursor:pointer;font:inherit}
         where(field, op, value) {
           return {
             async get() {
-              const rows = await rpc('pli_fetch', { p_mailbox: value });
+              // Seule l’identité qui possède le secret de sa boîte peut la lire (le secret n’est ni dans le QR code ni dans les messages)
+              const rows = await rpc('pli_fetch', { p_mailbox: value, p_secret: S.me.secret });
               return { docs: rows.map((x) => ({ id: x.msg_id, data: () => x.msg_payload })) };
             }
           };
         },
-        doc(id) { return { delete: () => rpc('pli_ack', { p_id: id }) }; },
+        doc(id) { return { delete: async () => rpc('pli_ack', { p_id: id, p_mailbox: await mailboxOf(S.me.raw), p_secret: S.me.secret }) }; },
         add(data) {
           const payload = Object.assign({}, data);
           const to = payload.to;
@@ -1133,7 +1149,7 @@ button.chip{cursor:pointer;font:inherit}
   function backupPayload() {
     return {
       v: 1, at: Date.now(),
-      me: { pseudo: S.me.pseudo, raw: S.me.raw, wrap: S.me.wrap, created: S.me.created || Date.now() },
+      me: { pseudo: S.me.pseudo, raw: S.me.raw, wrap: S.me.wrap, secret: S.me.secret || '', created: S.me.created || Date.now() },
       contacts: contacts().map((c) => ({ cid: c.cid, name: c.name, pseudo: c.pseudo, raw: c.raw, label: c.label, since: c.since }))
     };
   }
@@ -1236,7 +1252,8 @@ button.chip{cursor:pointer;font:inherit}
     if (pseudo.length < 2 || pseudo.length > 24) return setStatus('formstatus', 'err', 'Le pseudo fait entre 2 et 24 caractères.');
     if (s1.length < 6) return setStatus('formstatus', 'err', 'Le code secret compte au moins 6 caractères.');
     if (s1 !== s2) return setStatus('formstatus', 'err', 'Les deux codes secrets ne sont pas identiques.');
-    await createIdentity(pseudo, s1);
+    try { await createIdentity(pseudo, s1); }
+    catch (e) { return setStatus('formstatus', 'err', 'Création impossible : le relais ne répond pas. Réessayez.'); }
     S.draftPseudo = null;
     afterAuth();
   }
@@ -1244,6 +1261,7 @@ button.chip{cursor:pointer;font:inherit}
     const code = $('#unlock').value;
     try { S.priv = await unwrapPriv(S.me.wrap, code); }
     catch (e) { S.priv = null; return setStatus('formstatus', 'err', 'Code incorrect.'); }
+    if (!await ensureSecret()) { S.priv = null; return setStatus('formstatus', 'err', 'Cette identité ne peut plus être ouverte ici : sa boîte est déjà prise. Créez une nouvelle identité.'); }
     afterAuth();
   }
   function afterAuth() {
@@ -1499,7 +1517,11 @@ button.chip{cursor:pointer;font:inherit}
     if (!validBackup(o)) return setStatus('formstatus', 'err', 'Sauvegarde incomplète.');
     let priv;
     try { priv = await unwrapPriv(o.me.wrap, code); } catch (e) { return setStatus('formstatus', 'err', 'Sauvegarde abîmée : la clé ne s’ouvre pas.'); }
-    LS.set('me', { pseudo: String(o.me.pseudo).slice(0, 24), raw: o.me.raw, wrap: o.me.wrap, created: o.me.created || Date.now() });
+    // Secret de la boîte : celui de la sauvegarde (même identité, même boîte). Une ancienne sauvegarde en reçoit un nouveau.
+    const secret = /^[0-9a-f]{64}$/.test(o.me.secret || '') ? o.me.secret : hex(rand(32));
+    try { await registerBox(await mailboxOf(o.me.raw), secret); }
+    catch (e) { return setStatus('formstatus', 'err', 'Cette sauvegarde ne peut pas être restaurée ici : sa boîte est déjà prise. Créez une nouvelle identité.'); }
+    LS.set('me', { pseudo: String(o.me.pseudo).slice(0, 24), raw: o.me.raw, wrap: o.me.wrap, secret: secret, created: o.me.created || Date.now() });
     LS.set('bio', null); // la biométrie est propre à chaque téléphone : on la réactive ici si besoin
     LS.set('contacts', o.contacts.map((c) => ({ cid: String(c.cid), name: String(c.name).slice(0, 40), pseudo: String(c.pseudo || ''), raw: String(c.raw), label: String(c.label || randCode().slice(0, 3)), since: c.since || Date.now() })));
     LS.set('lastBackup', o.at || Date.now());
@@ -1733,6 +1755,7 @@ button.chip{cursor:pointer;font:inherit}
       return setStatus('formstatus', 'err', 'Déverrouillage biométrique indisponible. Entrez votre code secret.');
     }
     S.priv = await crypto.subtle.importKey('pkcs8', pkcs8, ECDH, false, ['deriveKey', 'deriveBits']);
+    if (!await ensureSecret()) { S.priv = null; return setStatus('formstatus', 'err', 'Cette identité ne peut plus être ouverte ici. Entrez votre code secret, ou créez une nouvelle identité.'); }
     afterAuth();
   }
   function viewBiometrie() {

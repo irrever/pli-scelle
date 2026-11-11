@@ -8,7 +8,7 @@ Ouvrez https://irrever.github.io/pli-scelle/ sur votre téléphone.
 
 ## Le relais
 
-Les invitations et les messages passent par un relais Supabase. Son script est dans `relais.sql` : il se lance une fois, dans l'éditeur SQL du projet.
+Les invitations et les messages passent par un relais Supabase. Son script est dans `relais.sql` : il se lance une fois, dans l'éditeur SQL du projet. Le script `securite-relais.sql` se lance ensuite, une fois : il réserve la lecture et la suppression des messages à l'identité qui possède le secret de sa boîte. Il faut le lancer avant de publier la version qui l'utilise.
 
 Les messages sont chiffrés de bout en bout. Le relais voit les identifiants de boîte, les pseudos et les dates, mais jamais les noms donnés aux contacts ni le contenu des messages.
 
@@ -18,6 +18,7 @@ La clé publiable dans `index.html` est publique par conception : la protection 
 
 - `index.html` : l'appli, un seul fichier.
 - `relais.sql` : les tables et les fonctions du relais.
+- `securite-relais.sql` : la protection des boîtes, à lancer après `relais.sql`.
 
 ## Options
 

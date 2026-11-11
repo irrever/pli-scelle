@@ -1,6 +1,6 @@
 # Pli Scellé
 
-Messagerie privée : chaque personne a une identité (un pseudo et un code secret), les contacts se font face à face ou à distance, et les messages ne se lisent qu'une fois.
+Messagerie privée : chaque personne a une identité (un pseudo et un code secret), les contacts se font face à face ou à distance, et les messages se lisent une fois, sauf si l'expéditeur choisit « Relisible ».
 
 ## Utiliser l'appli
 

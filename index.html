@@ -177,6 +177,18 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
 .tt{display:flex;flex-direction:column;gap:2px;min-width:0}
 .tt b{font-size:15px;font-weight:600}
 .qr-thumb.faded{opacity:.45;filter:grayscale(1)}
+.composer-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tool{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);font:600 13px "IBM Plex Sans",system-ui,sans-serif;cursor:pointer}
+.tool .ico{width:16px;height:16px}
+button.chip{cursor:pointer;font:inherit}
+.attach-row{display:flex;gap:6px;flex-wrap:wrap}
+.attach-row:empty{display:none}
+.attach-chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 6px 0 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:13px;font-weight:600;max-width:100%}
+.attach-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
+.attach-chip button{width:24px;height:24px;border:0;border-radius:50%;background:transparent;color:inherit;font-size:16px;line-height:1;cursor:pointer}
+.link-row{display:flex;gap:8px}
+.link-row[hidden]{display:none}
+.link-row .field{flex:1;min-width:0}
 </style>
 <div id="app"><div class="screen"><p class="lead" style="padding-top:24px">Chargement…</p></div></div>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
@@ -196,7 +208,7 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v5';
+  const APP_VERSION = 'v6';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -222,6 +234,7 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
     alert: svg('<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'),
     send: svg('<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>'),
     msg: svg('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'),
+    file: svg('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>'),
     shield: svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'),
     inbox: svg('<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>')
   };
@@ -297,7 +310,7 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
   }
   function expireOpened() {
     const all = msgsAll(); let ch = false;
-    for (const m of all) if (m.state === 'open' && Date.now() > (m.until || 0)) { m.state = 'gone'; m.text = ''; ch = true; }
+    for (const m of all) if (m.state === 'open' && Date.now() > (m.until || 0)) { if (m.once === false) m.state = 'new'; else { m.state = 'gone'; m.text = ''; } ch = true; }
     if (ch) LS.set('msgs', all);
     return ch;
   }
@@ -541,7 +554,7 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
     const key = await sharedKey(c.raw);
     const body = await decryptFrom(key, m.iv, m.ct);
     const all = msgsAll();
-    all.push({ mid: docId, cid: c.cid, dir: 'in', text: String(body.t || ''), state: 'new', ts: body.ts || Date.now() });
+    all.push({ mid: docId, cid: c.cid, dir: 'in', text: String(body.t || ''), state: 'new', ts: body.ts || Date.now(), once: body.once !== false });
     LS.set('msgs', all);
     return true;
   }
@@ -607,7 +620,7 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
     return '<div class="card"><div class="row-between"><div style="display:flex;gap:12px;align-items:center;min-width:0"><span class="avatar lg">' + esc(initial(pseudo)) + '</span><div style="min-width:0"><div class="row-title">' + esc(pseudo) + '</div><span class="hint">Pseudo reçu</span></div></div><span class="badge badge-ok">' + I.check + esc(badgeText) + '</span></div></div>';
   }
   function nameField() {
-    return '<div class="card form"><label class="label" for="cname">Nom dans vos contacts</label><input id="cname" class="field" placeholder="Nom obligatoire" autocomplete="off"><p class="hint">Vous seul le voyez. Il ne quitte pas cet appareil.</p>' + formStatus() + '</div>';
+    return '<div class="card form"><label class="label" for="cname">Nom dans vos contacts</label><input id="cname" class="field" placeholder="Nom obligatoire" autocomplete="off">' + (contactPickerOk() ? '<button class="btn btn-secondary" data-act="pickcontact" style="margin-top:8px">Choisir dans mes contacts</button>' : '') + '<p class="hint">Vous seul le voyez. Il ne quitte pas cet appareil.</p>' + formStatus() + '</div>';
   }
   function wordsBlock(title, text) {
     const w = S.words || [];
@@ -629,8 +642,8 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
     return url;
   }
   function msgHTML(m) {
-    if (m.dir === 'out') return '<div class="tile mine"><img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt"><b>Message envoyé</b><span class="hint">Lecture unique</span></span></div>';
-    if (m.state === 'new') return '<button class="tile" data-act="reveal" data-arg="' + esc(m.mid) + '"><img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt"><b>QR code reçu</b><span class="hint">Toucher pour lire</span></span></button>';
+    if (m.dir === 'out') return '<div class="tile mine"><img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt"><b>Message envoyé</b><span class="hint">' + (m.once === false ? 'Relisible' : 'Lecture unique') + '</span></span></div>';
+    if (m.state === 'new') return '<button class="tile" data-act="reveal" data-arg="' + esc(m.mid) + '"><img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt">' + (m.seen ? '<b>Message relisible</b><span class="hint">Toucher pour revoir</span>' : '<b>QR code reçu</b><span class="hint">Toucher pour lire</span>') + '</span></button>';
     if (m.state === 'open') return '<div class="bubble">' + esc(m.text) + '<div class="bubble-timer" data-until="' + esc(m.until) + '">Se referme dans ' + Math.max(0, Math.ceil((m.until - Date.now()) / 1000)) + ' s</div></div>';
     return '<div class="tile" style="color:var(--muted)"><img class="qr-thumb faded" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt"><b>Message lu</b><span class="hint">Le contenu a été effacé</span></span></div>';
   }
@@ -856,8 +869,73 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
       '<div class="contact-hero"><span class="avatar xl">' + esc(initial(c.name)) + '</span><div class="row-title" style="font-size:20px">' + esc(c.name) + '</div><span class="hint">' + esc(c.pseudo) + '</span><span class="badge badge-ok">' + I.check + 'Vérifié</span></div>' +
       '<div class="card code-card"><span class="code-label">Code de ce contact</span><div class="code">' + esc(c.label) + '</div><p class="hint">Dans les conversations, seul ce code apparaît.</p></div>' +
       '<section class="card"><h2>Prêt à écrire</h2><p class="hint">Le message est chiffré. Seule cette personne peut le lire.</p></section>' +
-      '<div class="dock stack"><button class="btn btn-primary" data-act="conv" data-arg="' + esc(c.cid) + '">' + I.msg + '<span>Écrire</span></button><button class="btn btn-danger" data-act="cut" data-arg="' + esc(c.cid) + '">' + I.unlink + '<span>Couper le lien</span></button></div>' +
+      '<div class="dock stack"><button class="btn btn-primary" data-act="conv" data-arg="' + esc(c.cid) + '">' + I.msg + '<span>Écrire</span></button><button class="btn btn-secondary" data-act="savecontact" data-arg="' + esc(c.cid) + '">' + I.user + '<span>Ajouter à mes contacts</span></button><button class="btn btn-danger" data-act="cut" data-arg="' + esc(c.cid) + '">' + I.unlink + '<span>Couper le lien</span></button></div>' +
     '</div>';
+  }
+  // ---------- composeur : photo, document, lien, lecture unique ----------
+  function composerHTML(cid) {
+    const on = S.once !== false;
+    return '<div class="composer">' +
+      '<div class="composer-tools">' +
+        '<label class="tool">' + I.camera + '<span>Photo</span><input id="pickPhoto" class="sr-only" type="file" accept="image/*"></label>' +
+        '<label class="tool">' + I.file + '<span>Document</span><input id="pickDoc" class="sr-only" type="file"></label>' +
+        '<button class="tool" type="button" data-act="showlink">' + I.link + '<span>Lien</span></button>' +
+        '<button id="onceChip" class="chip' + (on ? ' on' : '') + '" type="button" data-act="togglemode">' + (on ? 'Lecture unique' : 'Relisible') + '</button>' +
+      '</div>' +
+      '<div id="linkRow" class="link-row"' + (S.linkOpen ? '' : ' hidden') + '><input id="linkIn" class="field" placeholder="Adresse du lien" inputmode="url" autocomplete="off"><button class="btn btn-secondary btn-send" type="button" data-act="addlink">Ajouter</button></div>' +
+      '<div id="attachRow" class="attach-row">' + attachChipsHTML() + '</div>' +
+      '<div class="composer-row"><input id="draft" class="field" placeholder="Votre message" autocomplete="off"><button class="btn btn-primary btn-send" data-act="send" data-arg="' + esc(cid) + '">Envoyer</button></div>' +
+    '</div>';
+  }
+  function updateOnceChip() {
+    const b = $('#onceChip');
+    if (!b) return;
+    const on = S.once !== false;
+    b.className = 'chip' + (on ? ' on' : '');
+    b.textContent = on ? 'Lecture unique' : 'Relisible';
+  }
+  function attachChipsHTML() {
+    return (S.attach || []).map((a, i) => '<span class="attach-chip"><span>' + esc(a.label) + '</span><button type="button" data-act="rmattach" data-arg="' + i + '" aria-label="Retirer">×</button></span>').join('');
+  }
+  function renderAttach() {
+    const row = $('#attachRow');
+    if (row) row.innerHTML = attachChipsHTML();
+  }
+  function addLinkAttach() {
+    const inp = $('#linkIn');
+    const v = (inp ? inp.value : '').trim();
+    if (!v) return;
+    S.attach = S.attach || [];
+    S.attach.push({ kind: 'link', label: v.slice(0, 60) });
+    inp.value = '';
+    $('#linkRow').hidden = true; S.linkOpen = false;
+    renderAttach();
+  }
+  // Fiche de contact (vCard) : le téléphone propose de l'ajouter à son répertoire.
+  function saveContactFile(cid) {
+    const c = contacts().find((x) => x.cid === cid);
+    if (!c) return;
+    const txt = (v) => String(v || '').replace(/\\/g, '\\\\').replace(/,/g, '\\,').replace(/;/g, '\\;').replace(/\r?\n/g, ' ');
+    const vcf = 'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:' + txt(c.name) + '\r\nNOTE:Pli Scellé : ' + txt(c.pseudo) + '\r\nEND:VCARD\r\n';
+    const url = URL.createObjectURL(new Blob([vcf], { type: 'text/vcard;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = String(c.name || 'contact').replace(/[\\\/:*?"<>|]/g, '') + '.vcf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    flashNow({ t: 'Fiche créée. Ouvrez-la pour l’ajouter à vos contacts.', ok: true });
+  }
+  // Lecture du répertoire du téléphone : disponible seulement sur Android (Chrome).
+  function contactPickerOk() { return !!(navigator.contacts && typeof navigator.contacts.select === 'function'); }
+  async function pickContactName() {
+    try {
+      const picked = await navigator.contacts.select(['name'], { multiple: false });
+      const n = picked && picked[0] && picked[0].name && picked[0].name[0];
+      const el = $('#cname');
+      if (n && el) el.value = String(n).slice(0, 40);
+    } catch (e) { flashNow({ t: 'Choix dans les contacts annulé.' }); }
   }
   function viewConv() {
     const c = contacts().find((x) => x.cid === S.arg);
@@ -866,7 +944,7 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
     return '<div class="screen" style="gap:12px">' +
       topbar({ backAct: 'go', backArg: 'accueil', titleHTML: '<span class="conv-title"><span class="code code-sm">' + esc(c.label) + '</span><span class="hint">Vérifié</span></span>', right: '<button class="iconbtn" data-act="reglages" data-arg="' + esc(c.cid) + '" aria-label="Réglages du contact">' + I.more + '</button>' }) +
       '<div class="thread">' + (thread || '<p class="hint center" style="padding-top:24px">Aucun message. Écrivez le premier.</p>') + '</div>' +
-      '<div class="composer"><span class="chip on">Lecture unique</span><div class="composer-row"><input id="draft" class="field" placeholder="Votre message" autocomplete="off"><button class="btn btn-primary btn-send" data-act="send" data-arg="' + esc(c.cid) + '">Envoyer</button></div></div>' +
+      '' + composerHTML(c.cid) + '' +
     '</div>';
   }
   function viewReglages() {
@@ -989,11 +1067,22 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
     expireOpened();
     const app = $('#app');
     const fn = VIEWS[S.screen] || VIEWS.boot;
+    // Même écran et même contact : brouillon, lien en cours et focus survivent au redessin.
+    const key = S.screen + ':' + S.arg;
+    const same = app.dataset.view === key;
+    if (!same) { S.attach = []; S.linkOpen = false; }
+    const keep = {};
+    if (same) ['draft', 'linkIn'].forEach((id) => { const el = document.getElementById(id); if (el) keep[id] = el.value; });
+    const act = document.activeElement;
+    const focusId = same && act && (act.id === 'draft' || act.id === 'linkIn') ? act.id : null;
     let html;
     try { html = fn(); } catch (e) { console.error(e); html = '<div class="screen">' + notice('err', 'Affichage impossible : ' + esc(e.message)) + '</div>'; }
     const flash = S.flash ? notice(S.flash.ok ? 'ok' : 'info', esc(S.flash.t)) : '';
     S.flash = null; S.needRender = false;
     app.innerHTML = flash + html;
+    app.dataset.view = key;
+    Object.keys(keep).forEach((id) => { const el = document.getElementById(id); if (el) el.value = keep[id]; });
+    if (focusId) { const el = document.getElementById(focusId); if (el) el.focus(); }
   }
   // Message dans la vue en cours ; sans zone dédiée, il s’affiche en haut.
   function setStatus(id, kind, text) {
@@ -1220,22 +1309,24 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
   async function actSend(cid) {
     const inp = $('#draft');
     const text = (inp.value || '').trim();
-    if (!text) return;
+    if (!text) { if ((S.attach || []).length) flashNow({ t: 'Photos, documents et liens : envoi pas encore disponible. Ajoutez un message.' }); return; }
     const c = contacts().find((x) => x.cid === cid);
     if (!c) return go('accueil');
     const key = await sharedKey(c.raw);
-    const body = await encryptFor(key, { t: text, ts: Date.now() });
+    const body = await encryptFor(key, { t: text, ts: Date.now(), once: S.once !== false });
     const to = await mailboxOf(c.raw);
     await S.db.collection('box').add({ to: to, from: S.me.raw, kind: 'msg', ts: Date.now(), iv: body.iv, ct: body.ct });
     const all = msgsAll();
-    all.push({ mid: rid(10), cid: cid, dir: 'out', state: 'sent', ts: Date.now() });
+    all.push({ mid: rid(10), cid: cid, dir: 'out', state: 'sent', ts: Date.now(), once: S.once !== false });
     LS.set('msgs', all);
+    if ((S.attach || []).length) { S.attach = []; S.flash = { t: 'Seul le texte est envoyé pour l’instant.', ok: true }; }
+    inp.value = '';
     go('conv', cid);
   }
   function actReveal(mid) {
     const all = msgsAll();
     const m = all.find((x) => x.mid === mid);
-    if (m && m.state === 'new') { m.state = 'open'; m.until = Date.now() + REVEAL_MS; LS.set('msgs', all); }
+    if (m && m.state === 'new') { m.state = 'open'; m.seen = true; m.until = Date.now() + REVEAL_MS; LS.set('msgs', all); }
     go('conv', S.arg);
   }
   async function actCut(cid) {
@@ -1325,6 +1416,12 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
     reveal: actReveal,
     cut: actCut,
     deleteme: actDeleteMe,
+    togglemode: () => { S.once = S.once === false; updateOnceChip(); },
+    showlink: () => { S.linkOpen = !S.linkOpen; const r = $('#linkRow'); if (r) { r.hidden = !S.linkOpen; if (S.linkOpen) $('#linkIn').focus(); } },
+    addlink: addLinkAttach,
+    rmattach: (i) => { S.attach = S.attach || []; S.attach.splice(Number(i), 1); renderAttach(); },
+    savecontact: saveContactFile,
+    pickcontact: pickContactName,
     backup: actMakeBackup,
     restore: actRestore,
     copybackup: () => copyText(S.backupText || '', 'Sauvegarde copiée.')
@@ -1370,6 +1467,15 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
     try { $('#rtext').value = await t.files[0].text(); setStatus('formstatus', 'ok', 'Sauvegarde lue. Entrez son code secret.'); }
     catch (e) { setStatus('formstatus', 'err', 'Fichier illisible.'); }
     t.value = '';
+  });
+  // Photo ou document choisis : ils s'affichent comme pièces jointes (l'envoi viendra ensuite).
+  document.addEventListener('change', (ev) => {
+    const t = ev.target;
+    if (!t || (t.id !== 'pickPhoto' && t.id !== 'pickDoc') || !t.files || !t.files[0]) return;
+    S.attach = S.attach || [];
+    S.attach.push({ kind: t.id === 'pickPhoto' ? 'photo' : 'document', label: t.files[0].name });
+    t.value = '';
+    renderAttach();
   });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
 

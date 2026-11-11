@@ -18,3 +18,9 @@ La clé publiable dans `index.html` est publique par conception : la protection 
 
 - `index.html` : l'appli, un seul fichier.
 - `relais.sql` : les tables et les fonctions du relais.
+- `sw.js` : le service worker, pour les notifications. Il ne met rien en cache et ne lit aucun message.
+
+## Options
+
+- Déverrouillage par empreinte ou Face ID, si le téléphone le propose. Il s'active dans « Mon identité », avec le code secret. Le code reste toujours possible.
+- Sonnerie et notifications, facultatives. Elles ne fonctionnent que si l'appli reste ouverte sur le téléphone : rien ne part quand l'appli est fermée.

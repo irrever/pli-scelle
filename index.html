@@ -74,6 +74,7 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
 .rowlink{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:54px;padding:0 16px;border:0;border-top:1px solid var(--line-2);background:transparent;color:var(--ink);font-weight:500;text-align:left;cursor:pointer}
 .rowlink:first-child{border-top:0}
 .rowlink.danger{color:var(--danger)}
+.rowlink .state{margin-left:auto;font-size:14px;font-weight:400;color:var(--muted)}
 .rowlink .ico{width:18px;height:18px}
 .choice{display:flex;align-items:center;gap:14px;width:100%;padding:16px;border-radius:18px;border:1px solid var(--line-2);background:var(--surface);box-shadow:var(--shadow);text-align:left;cursor:pointer;color:var(--ink)}
 .choice:hover{border-color:var(--line)}
@@ -215,7 +216,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v7';
+  const APP_VERSION = 'v8';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -334,10 +335,13 @@ button.chip{cursor:pointer;font:inherit}
     const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, pkcs8));
     return { salt: b64u(salt), iv: b64u(iv), ct: b64u(ct) };
   }
-  async function unwrapPriv(wrap, code) {
+  async function unwrapPkcs8(wrap, code) {
     const kb = await pbkdf2(code, unb64u(wrap.salt), ITER_SECRET);
     const key = await crypto.subtle.importKey('raw', kb, 'AES-GCM', false, ['decrypt']);
-    const pkcs8 = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64u(wrap.iv) }, key, unb64u(wrap.ct));
+    return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64u(wrap.iv) }, key, unb64u(wrap.ct)));
+  }
+  async function unwrapPriv(wrap, code) {
+    const pkcs8 = await unwrapPkcs8(wrap, code);
     return crypto.subtle.importKey('pkcs8', pkcs8, ECDH, false, ['deriveKey', 'deriveBits']);
   }
   async function createIdentity(pseudo, code) {
@@ -488,13 +492,14 @@ button.chip{cursor:pointer;font:inherit}
     try {
       const to = await mailboxOf(S.me.raw);
       const snap = await S.db.collection('box').where('to', '==', to).get();
-      let changed = false;
+      let changed = false, incoming = false;
       for (const d of snap.docs) {
         const m = d.data() || {};
-        try { if (await handle(m, d.id)) changed = true; } catch (e) { console.warn('Pli : message ignoré', e); }
+        try { if (await handle(m, d.id)) { changed = true; if (m.kind === 'msg') incoming = true; } } catch (e) { console.warn('Pli : message ignoré', e); }
         try { await S.db.collection('box').doc(d.id).delete(); } catch (e) {}
       }
       if (changed) S.needRender = true;
+      if (incoming) alertIncoming();
       await afterPoll();
     } catch (e) { /* hors ligne : on réessaie au prochain tour */ }
     finally { S.pollBusy = false; }
@@ -666,7 +671,7 @@ button.chip{cursor:pointer;font:inherit}
     montrer: viewMontrer, scanner: viewScanner, rejoindre: viewRejoindre, reclamer: viewReclamer,
     inviter: viewInviter, attente: viewAttente, demande: viewDemande, 'verifier-ff': viewVerifierFF,
     'lien-ouvert': viewLienOuvert, nommer: viewNommer, contact: viewContact, conv: viewConv,
-    reglages: viewReglages, 'lien-coupe': viewLienCoupe, identite: viewIdentite, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, restaurer: viewRestaurer,
+    reglages: viewReglages, 'lien-coupe': viewLienCoupe, identite: viewIdentite, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, restaurer: viewRestaurer,
     invalide: viewInvalide
   };
 
@@ -729,6 +734,7 @@ button.chip{cursor:pointer;font:inherit}
       qrDecorCard({ caption: false, plain: true }) +
       '<div class="card form" style="width:100%;text-align:left"><label class="label" for="unlock">Code secret</label><input id="unlock" class="field" type="password" autocomplete="off">' + formStatus() + '</div>' +
       '<div class="dock" style="width:100%"><button class="btn btn-primary" data-act="unlock">Déverrouiller</button></div>' +
+      (LS.get('bio', null) ? '<div class="dock" style="width:100%"><button class="btn btn-secondary" data-act="biounlock">Empreinte ou Face ID</button></div>' : '') +
       '<p class="hint">Vos messages restent sur cet appareil.</p>' +
     '</div>';
   }
@@ -986,6 +992,8 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Mon identité' }) +
       '<div class="id-card"><div class="id-top"><span>PLI SCELLÉ</span><span>IDENTITÉ</span></div><div class="id-body"><div class="id-main"><div class="id-label">Mon pseudo</div><div class="id-name">' + esc(S.me.pseudo) + '</div></div><div class="id-qr" aria-hidden="true"><div class="qr-build">' + qrDecorCells() + '</div></div></div><div class="id-foot">Ni numéro, ni e-mail. Ce pseudo permet seulement de vous écrire.</div></div>' +
       '<div class="stack"><button class="btn btn-primary" data-act="montrer" data-arg="identite">' + I.qr + '<span>Montrer mon identité</span></button><button class="btn btn-secondary" data-act="newinvite">' + I.link + '<span>Inviter à distance</span></button></div>' +
+      (S.bioAvail ? '<section><div class="section-title">Déverrouillage</div><div class="list"><button class="rowlink" data-act="go" data-arg="biometrie"><span>Empreinte ou Face ID</span><span class="state">' + (LS.get('bio', null) ? 'Activé' : 'Désactivé') + '</span>' + I.chev + '</button></div></section>' : '') +
+      '<section><div class="section-title">Alertes</div><div class="list"><button class="rowlink" data-act="togglesound"><span>Sonnerie à la réception</span><span class="state">' + (getPrefs().sound ? 'Activée' : 'Désactivée') + '</span>' + I.chev + '</button><button class="rowlink" data-act="togglenotif"><span>Notifications</span><span class="state">' + (getPrefs().notif ? 'Activées' : 'Désactivées') + '</span>' + I.chev + '</button></div><p class="hint">La sonnerie et les notifications ne fonctionnent que si l’appli reste ouverte sur ce téléphone. Une notification n’affiche jamais le contenu du message.</p></section>' +
       '<section><div class="section-title">Sauvegarde</div><div class="list"><button class="rowlink" data-act="go" data-arg="sauvegarde"><span>Sauvegarder mes contacts</span>' + I.chev + '</button></div><p class="hint">' + (LS.get('lastBackup', 0) ? 'Dernière sauvegarde : ' + esc(new Date(LS.get('lastBackup', 0)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })) : 'Pas encore de sauvegarde. Sans elle, vos contacts ne sont que dans ce navigateur.') + '</p></section>' +
       '<section><div class="section-title">Sécurité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="supprimer"><span style="display:flex;gap:10px;align-items:center">' + I.trash + 'Supprimer mon identité</span>' + I.chev + '</button></div></section>' +
       '<p class="hint center" style="padding-top:8px">Version ' + APP_VERSION + '</p>' +
@@ -1395,6 +1403,7 @@ button.chip{cursor:pointer;font:inherit}
     let priv;
     try { priv = await unwrapPriv(o.me.wrap, code); } catch (e) { return setStatus('formstatus', 'err', 'Sauvegarde abîmée : la clé ne s’ouvre pas.'); }
     LS.set('me', { pseudo: String(o.me.pseudo).slice(0, 24), raw: o.me.raw, wrap: o.me.wrap, created: o.me.created || Date.now() });
+    LS.set('bio', null); // la biométrie est propre à chaque téléphone : on la réactive ici si besoin
     LS.set('contacts', o.contacts.map((c) => ({ cid: String(c.cid), name: String(c.name).slice(0, 40), pseudo: String(c.pseudo || ''), raw: String(c.raw), label: String(c.label || randCode().slice(0, 3)), since: c.since || Date.now() })));
     LS.set('lastBackup', o.at || Date.now());
     S.me = LS.get('me', null);
@@ -1408,6 +1417,11 @@ button.chip{cursor:pointer;font:inherit}
     conv: (cid) => go('conv', cid),
     reglages: (cid) => go('reglages', cid),
     lock: () => { S.priv = null; stopPolling(); go('verrouille'); },
+    togglesound: actToggleSound,
+    togglenotif: actToggleNotif,
+    enablebio: actEnableBio,
+    disablebio: () => { LS.set('bio', null); S.flash = { t: 'Déverrouillage biométrique désactivé.', ok: true }; go('identite'); },
+    biounlock: actBioUnlock,
     unlock: actUnlock,
     create: actCreate,
     regen: () => { S.draftPseudo = genPseudo(); go('creer', S.arg); },
@@ -1512,6 +1526,133 @@ button.chip{cursor:pointer;font:inherit}
   }
   setInterval(tick, 1000);
 
+  // ---------- alertes : sonnerie et notifications (facultatives, réglées dans « Mon identité ») ----------
+  function getPrefs() { const p = LS.get('prefs', null) || {}; return { sound: !!p.sound, notif: !!p.notif }; }
+  function setPref(k, v) { LS.set('prefs', Object.assign(getPrefs(), { [k]: v })); }
+  let audio = null;
+  // Sonnerie : six notes générées sur place, sans fichier. Le premier toucher autorise le son sur ce téléphone.
+  function playChime() {
+    try {
+      if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+      if (audio.state === 'suspended') audio.resume();
+      const t0 = audio.currentTime + 0.02;
+      [[1046, 0], [1318, 0.18], [1568, 0.36], [1046, 0.75], [1318, 0.93], [1568, 1.11]].forEach(([f, dt]) => {
+        const o = audio.createOscillator(), g = audio.createGain();
+        o.type = 'sine'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t0 + dt);
+        g.gain.exponentialRampToValueAtTime(0.25, t0 + dt + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + 0.3);
+        o.connect(g); g.connect(audio.destination);
+        o.start(t0 + dt); o.stop(t0 + dt + 0.32);
+      });
+    } catch (e) { /* son indisponible sur ce téléphone : rien à afficher */ }
+  }
+  // Message reçu : sonnerie si elle est activée ; notification si elle est activée et que l’appli est en arrière-plan.
+  function alertIncoming() {
+    const p = getPrefs();
+    if (p.sound) playChime();
+    if (p.notif && document.hidden) notifyNewMessage();
+  }
+  // La notification n’affiche jamais le contenu du message ni le nom du contact.
+  function notifyNewMessage() {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const opts = { body: 'Nouveau message', tag: 'pli-msg', renotify: true };
+    const reg = 'serviceWorker' in navigator ? navigator.serviceWorker.getRegistration() : Promise.resolve(null);
+    reg.then((r) => (r ? r.showNotification('Pli Scellé', opts) : new Notification('Pli Scellé', opts))).catch(() => {});
+  }
+  function registerWorker() {
+    if (!('serviceWorker' in navigator)) return Promise.resolve(null);
+    return navigator.serviceWorker.register('sw.js').catch(() => null);
+  }
+  async function actToggleSound() {
+    if (getPrefs().sound) { setPref('sound', false); return go('identite'); }
+    setPref('sound', true);
+    playChime();
+    S.flash = { t: 'Sonnerie activée. Elle sonne à l’arrivée d’un message, tant que l’appli est ouverte.', ok: true };
+    go('identite');
+  }
+  async function actToggleNotif() {
+    if (getPrefs().notif) { setPref('notif', false); return go('identite'); }
+    if (!('Notification' in window)) { S.flash = { t: 'Les notifications ne sont pas disponibles dans ce navigateur.' }; return go('identite'); }
+    let perm = Notification.permission;
+    if (perm === 'default') { try { perm = await Notification.requestPermission(); } catch (e) { perm = 'denied'; } }
+    if (perm !== 'granted') { S.flash = { t: 'Notifications refusées. Autorisez-les pour cette appli dans les réglages du navigateur.' }; return go('identite'); }
+    await registerWorker();
+    setPref('notif', true);
+    S.flash = { t: 'Notifications activées. Elles ne partent que si l’appli reste ouverte sur ce téléphone.', ok: true };
+    go('identite');
+  }
+
+  // ---------- déverrouillage par empreinte ou Face ID (WebAuthn, extension PRF) ----------
+  async function bioAvailable() {
+    try { return !!(window.PublicKeyCredential && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()); } catch (e) { return false; }
+  }
+  // Le secret donné par l’appareil, après vérification biométrique, sert de clé pour chiffrer la clé privée.
+  async function bioKeyFrom(secret) {
+    const base = await crypto.subtle.importKey('raw', secret, 'HKDF', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: enc.encode('pli-bio-v1') }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  }
+  async function prfFrom(credId, salt) {
+    const a = await navigator.credentials.get({ publicKey: {
+      challenge: rand(32), rpId: location.hostname,
+      allowCredentials: [{ type: 'public-key', id: credId }],
+      userVerification: 'required',
+      extensions: { prf: { eval: { first: salt } } } } });
+    const r = a.getClientExtensionResults().prf;
+    if (!r || !r.results || !r.results.first) throw new Error('prf-absent');
+    return new Uint8Array(r.results.first);
+  }
+  async function actEnableBio() {
+    const code = ($('#biocode') || {}).value || '';
+    if (!code) return setStatus('formstatus', 'err', 'Entrez votre code secret.');
+    let pkcs8;
+    try { pkcs8 = await unwrapPkcs8(S.me.wrap, code); } catch (e) { return setStatus('formstatus', 'err', 'Code incorrect.'); }
+    const salt = rand(32);
+    let cred;
+    try {
+      cred = await navigator.credentials.create({ publicKey: {
+        challenge: rand(32),
+        rp: { id: location.hostname, name: 'Pli Scellé' },
+        user: { id: rand(16), name: 'identite', displayName: 'Pli Scellé' },
+        pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
+        authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'discouraged' },
+        extensions: { prf: {} } } });
+    } catch (e) { return setStatus('formstatus', 'err', 'Activation annulée ou refusée.'); }
+    const prf = cred.getClientExtensionResults().prf;
+    if (!prf || !prf.enabled) return setStatus('formstatus', 'err', 'Cet appareil ne propose pas ce déverrouillage pour cette appli. Le code secret reste nécessaire.');
+    let secret;
+    try { secret = await prfFrom(new Uint8Array(cred.rawId), salt); } catch (e) { return setStatus('formstatus', 'err', 'Activation annulée ou refusée.'); }
+    const iv = rand(12);
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, await bioKeyFrom(secret), pkcs8));
+    LS.set('bio', { cred: b64u(new Uint8Array(cred.rawId)), salt: b64u(salt), iv: b64u(iv), ct: b64u(ct) });
+    S.flash = { t: 'Déverrouillage biométrique activé sur cet appareil.', ok: true };
+    go('identite');
+  }
+  async function actBioUnlock() {
+    const bio = LS.get('bio', null);
+    if (!bio) return;
+    let pkcs8;
+    try {
+      const secret = await prfFrom(unb64u(bio.cred), unb64u(bio.salt));
+      pkcs8 = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64u(bio.iv) }, await bioKeyFrom(secret), unb64u(bio.ct));
+    } catch (e) {
+      if (e && e.name === 'NotAllowedError') return setStatus('formstatus', 'err', 'Déverrouillage annulé. Entrez votre code secret.');
+      LS.set('bio', null); // clé biométrique périmée : on la retire, le code secret reste valable
+      return setStatus('formstatus', 'err', 'Déverrouillage biométrique indisponible. Entrez votre code secret.');
+    }
+    S.priv = await crypto.subtle.importKey('pkcs8', pkcs8, ECDH, false, ['deriveKey', 'deriveBits']);
+    afterAuth();
+  }
+  function viewBiometrie() {
+    const on = !!LS.get('bio', null);
+    return '<div class="screen">' + topbar({ back: 'identite', title: 'Empreinte ou Face ID' }) +
+      '<div><h1>Empreinte ou Face ID</h1><p class="lead" style="margin-top:6px">Sur ce téléphone, l’empreinte ou Face ID peut ouvrir l’appli à la place du code secret. Le code reste toujours possible.</p></div>' +
+      (on
+        ? '<div class="card"><p class="hint">Activé sur cet appareil.</p></div><div class="dock"><button class="btn btn-danger" data-act="disablebio">Désactiver</button></div>'
+        : '<div class="card form"><label class="label" for="biocode">Code secret</label><input id="biocode" class="field" type="password" autocomplete="off">' + formStatus() + '</div><div class="dock"><button class="btn btn-primary" data-act="enablebio">Activer</button></div>') +
+    '</div>';
+  }
+
   async function init() {
     S.me = LS.get('me', null);
     S.db = relayDb;
@@ -1531,6 +1672,8 @@ button.chip{cursor:pointer;font:inherit}
         } catch (e) { S.invite = null; }
       }
     }
+    S.bioAvail = await bioAvailable();
+    if (getPrefs().notif) registerWorker();
     if (!S.me) return go('creer', S.inviteId ? 'invite' : null);
     return go('verrouille', S.inviteId ? 'invite' : null);
   }

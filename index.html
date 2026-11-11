@@ -223,7 +223,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v15';
+  const APP_VERSION = 'v16';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -528,11 +528,13 @@ button.chip{cursor:pointer;font:inherit}
       const to = await mailboxOf(S.me.raw);
       const snap = await S.db.collection('box').where('to', '==', to).get();
       let changed = false;
+      const suppressions = [];
       for (const d of snap.docs) {
         const m = d.data() || {};
         try { if (await handle(m, d.id)) changed = true; } catch (e) { console.warn('Pli : message ignoré', e); }
-        try { await S.db.collection('box').doc(d.id).delete(); } catch (e) {}
+        suppressions.push(S.db.collection('box').doc(d.id).delete().catch(() => {}));
       }
+      await Promise.all(suppressions);
       if (changed) { S.needRender = true; alertIncoming(); }
       await afterPoll();
     } catch (e) { /* hors ligne : on réessaie au prochain tour */ }
@@ -697,7 +699,7 @@ button.chip{cursor:pointer;font:inherit}
     return url;
   }
   // ---------- messages vocaux : enregistrés ici, chiffrés, envoyés en morceaux, écoutés dans la conversation ----------
-  const VOICE_MAX_MS = 60000, VOICE_PART = 20000;   // une minute au plus ; morceaux de 20 000 caractères (le relais accepte 30 000 par message)
+  const VOICE_MAX_MS = 60000, VOICE_PART = 28000;   // une minute au plus ; morceaux de 28 000 caractères (le relais accepte 30 000 par message, en-tête compris)
   let vdbP = null;
   function vdb() {
     if (!vdbP) vdbP = new Promise((resolve, reject) => {
@@ -724,6 +726,12 @@ button.chip{cursor:pointer;font:inherit}
     return new Promise((resolve, reject) => { const fr = new FileReader(); fr.onload = () => resolve(new Uint8Array(fr.result)); fr.onerror = () => reject(fr.error); fr.readAsArrayBuffer(b); });
   }
   // Pas de redessin pendant une écoute : la lecture ne s’interrompt pas.
+  // Un vocal qui se joue ne se ferme pas : son délai repart à chaque seconde d’écoute, puis court après la fin.
+  function keepVoiceOpen(mid) {
+    const all = msgsAll();
+    const m = all.find((x) => x.mid === mid);
+    if (m && m.state === 'open') { m.until = Date.now() + REVEAL_MS; LS.set('msgs', all); }
+  }
   function voicePlaying() { return Array.from(document.querySelectorAll('audio[data-voice]')).some((a) => !a.paused && !a.ended); }
   function hydrateVoices() {
     document.querySelectorAll('audio[data-voice]').forEach(async (el) => {
@@ -785,7 +793,7 @@ button.chip{cursor:pointer;font:inherit}
     const v = S.voice;
     if (v.phase === 'rec') return '<div class="voice-bar"><span class="voice-dot"></span><span id="voicetimer" class="mono">0:00</span><span style="flex:1"></span><button class="btn btn-ghost" type="button" data-act="voicecancel">Annuler</button><button class="btn btn-primary" type="button" data-act="voicestop">Arrêter</button></div>';
     if (v.phase === 'ready') return '<div class="voice-bar"><audio controls src="' + esc(v.url) + '"></audio><div class="row-between" style="width:100%"><button class="btn btn-ghost" type="button" data-act="voicecancel">Annuler</button><button class="btn btn-primary" type="button" data-act="voicesend" data-arg="' + esc(cid) + '">Envoyer le vocal</button></div></div>';
-    return '<div class="voice-bar"><span class="hint">Envoi du vocal en cours…</span></div>';
+    return '<div class="voice-bar"><span id="voiceprog" class="hint">Envoi du vocal en cours…</span></div>';
   }
   async function actSendVoice(cid) {
     const v = S.voice;
@@ -800,9 +808,20 @@ button.chip{cursor:pointer;font:inherit}
       const body = await encryptFor(key, { mime: v.blob.type, once: S.once !== false, ts: Date.now(), dur: v.dur, a: b64u(bytes) });
       const n = Math.ceil(body.ct.length / VOICE_PART);
       const vid = rid(12);
-      for (let i = 0; i < n; i++) {
-        await sendTo(c.raw, { kind: 'voicepart', vid: vid, i: i, n: n, iv: body.iv, d: body.ct.slice(i * VOICE_PART, (i + 1) * VOICE_PART) });
-      }
+      // Quatre morceaux à la fois : un vocal enregistré sur iPhone peut compter une soixantaine de morceaux.
+      let envoyes = 0, echec = false;
+      const suivant = { i: 0 };
+      const envoyer = async () => {
+        while (!echec && suivant.i < n) {
+          const i = suivant.i++;
+          try { await sendTo(c.raw, { kind: 'voicepart', vid: vid, i: i, n: n, iv: body.iv, d: body.ct.slice(i * VOICE_PART, (i + 1) * VOICE_PART) }); }
+          catch (e) { echec = true; throw e; }
+          envoyes++;
+          const el = $('#voiceprog');
+          if (el) el.textContent = 'Envoi du vocal : ' + envoyes + ' / ' + n;
+        }
+      };
+      await Promise.all([envoyer(), envoyer(), envoyer(), envoyer()]);
       const all = msgsAll();
       all.push({ mid: rid(10), cid: cid, dir: 'out', kind: 'voice', dur: v.dur, state: 'sent', ts: Date.now(), once: S.once !== false });
       LS.set('msgs', all);
@@ -836,7 +855,7 @@ button.chip{cursor:pointer;font:inherit}
     const vignette = '<img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '">';
     if (m.dir === 'out') return '<div class="tile mine">' + vignette + '<span class="tt"><b>Message vocal envoyé</b><span class="hint">' + (m.once === false ? 'Relisible' : 'Lecture unique') + d + '</span></span></div>';
     if (m.state === 'new') return '<button class="tile" data-act="reveal" data-arg="' + esc(m.mid) + '">' + vignette + '<span class="tt">' + (m.seen ? '<b>Message vocal relisible</b><span class="hint">Toucher pour réécouter' + d + '</span>' : '<b>Message vocal reçu</b><span class="hint">Toucher pour écouter' + d + '</span>') + '</span></button>';
-    if (m.state === 'open') return '<div class="bubble"><audio controls preload="auto" data-voice="' + esc(m.mid) + '"></audio><div class="bubble-timer" data-until="' + esc(m.until) + '">Se referme dans ' + Math.max(0, Math.ceil((m.until - Date.now()) / 1000)) + ' s</div></div>';
+    if (m.state === 'open') return '<div class="bubble"><audio controls preload="auto" data-voice="' + esc(m.mid) + '"></audio><div class="bubble-timer">Reste ouvert pendant l’écoute, puis se referme ' + REVEAL_MS / 1000 + ' s après.</div></div>';
     return '<div class="tile" style="color:var(--muted)">' + vignette.replace('class="qr-thumb"', 'class="qr-thumb faded"') + '<span class="tt"><b>Message vocal lu</b><span class="hint">Le contenu a été effacé</span></span></div>';
   }
   function msgHTML(m) {
@@ -1220,7 +1239,7 @@ button.chip{cursor:pointer;font:inherit}
       '<div class="id-card"><div class="id-top"><span>PLI SCELLÉ</span><span>IDENTITÉ</span></div><div class="id-body"><div class="id-main"><div class="id-label">Mon pseudo</div><div class="id-name">' + esc(S.me.pseudo) + '</div></div><div class="id-qr" aria-hidden="true"><div class="qr-build">' + qrDecorCells() + '</div></div></div><div class="id-foot">Ni numéro, ni e-mail. Ce pseudo permet seulement de vous écrire.</div></div>' +
       '<div class="stack"><button class="btn btn-primary" data-act="montrer" data-arg="identite">' + I.qr + '<span>Montrer mon identité</span></button><button class="btn btn-secondary" data-act="newinvite">' + I.link + '<span>Inviter à distance</span></button></div>' +
       (S.bioAvail ? '<section><div class="section-title">Déverrouillage</div><div class="list"><button class="rowlink" data-act="go" data-arg="biometrie"><span>Empreinte ou Face ID</span><span class="state">' + (LS.get('bio', null) ? 'Activé' : 'Désactivé') + '</span>' + I.chev + '</button></div></section>' : '') +
-      '<section><div class="section-title">Alertes</div><div class="list"><button class="rowlink" data-act="togglesound"><span>Sonnerie à la réception</span><span class="state">' + (getPrefs().sound ? 'Activée' : 'Désactivée') + '</span>' + I.chev + '</button></div><p class="hint">La sonnerie joue à chaque message ou demande reçus, tant que l’appli est ouverte (et vibre sur Android). Il n’y a pas de notification hors de l’appli.</p></section>' +
+      '<section><div class="section-title">Alertes</div><div class="list"><button class="rowlink" data-act="togglesound"><span>Sonnerie à la réception</span><span class="state">' + (getPrefs().sound ? 'Activée' : 'Désactivée') + '</span>' + I.chev + '</button></div>' + toneChipsHTML() + '<p class="hint">La sonnerie joue à chaque message ou demande reçus, tant que l’appli est ouverte (et vibre sur Android). Il n’y a pas de notification hors de l’appli.</p></section>' +
       '<section><div class="section-title">Sauvegarde</div><div class="list"><button class="rowlink" data-act="go" data-arg="sauvegarde"><span>Sauvegarder mes contacts</span>' + I.chev + '</button></div><p class="hint">' + (LS.get('lastBackup', 0) ? 'Dernière sauvegarde : ' + esc(new Date(LS.get('lastBackup', 0)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })) : 'Pas encore de sauvegarde. Sans elle, vos contacts ne sont que dans ce navigateur.') + '</p></section>' +
       '<section><div class="section-title">Sécurité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="supprimer"><span style="display:flex;gap:10px;align-items:center">' + I.trash + 'Supprimer mon identité</span>' + I.chev + '</button></div></section>' +
       '<p class="hint center" style="padding-top:8px">Version ' + APP_VERSION + '</p>' +
@@ -1583,7 +1602,7 @@ button.chip{cursor:pointer;font:inherit}
   function actReveal(mid) {
     const all = msgsAll();
     const m = all.find((x) => x.mid === mid);
-    if (m && m.state === 'new') { m.state = 'open'; m.seen = true; m.until = Date.now() + (m.kind === 'voice' ? Math.max(REVEAL_MS, (m.dur || 0) * 1000 + 15000) : REVEAL_MS); LS.set('msgs', all); }
+    if (m && m.state === 'new') { m.state = 'open'; m.seen = true; m.until = Date.now() + REVEAL_MS; LS.set('msgs', all); }
     go('conv', S.arg);
   }
   async function actCut(cid) {
@@ -1654,6 +1673,7 @@ button.chip{cursor:pointer;font:inherit}
     reglages: (cid) => go('reglages', cid),
     lock: () => { S.priv = null; stopPolling(); go('verrouille'); },
     togglesound: actToggleSound,
+    settone: (t) => { setPref('tone', t); unlockSound(); playChime(t); go('identite'); },
     enablebio: actEnableBio,
     disablebio: () => { LS.set('bio', null); S.flash = { t: 'Déverrouillage biométrique désactivé.', ok: true }; go('identite'); },
     biounlock: actBioUnlock,
@@ -1767,6 +1787,7 @@ button.chip{cursor:pointer;font:inherit}
       const s = Math.max(0, Math.round((d.exp - Date.now()) / 1000));
       cd.textContent = Math.floor(s / 60) + ' min ' + String(s % 60).padStart(2, '0') + ' s';
     }
+    document.querySelectorAll('audio[data-voice]').forEach((a) => { if (!a.paused && !a.ended) keepVoiceOpen(a.dataset.voice); });
     if (expireOpened() && S.screen === 'conv') render();
     document.querySelectorAll('[data-until]').forEach((el) => {
       const s = Math.max(0, Math.ceil((Number(el.dataset.until) - Date.now()) / 1000));
@@ -1776,7 +1797,7 @@ button.chip{cursor:pointer;font:inherit}
   setInterval(tick, 1000);
 
   // ---------- alertes : sonnerie à la réception (facultative, réglée dans « Mon identité ») ----------
-  function getPrefs() { const p = LS.get('prefs', null) || {}; return { sound: !!p.sound }; }
+  function getPrefs() { const p = LS.get('prefs', null) || {}; return { sound: !!p.sound, tone: (p.tone && TONES[p.tone]) ? p.tone : 'carillon' }; }
   function setPref(k, v) { LS.set('prefs', Object.assign(getPrefs(), { [k]: v })); }
   let audio = null;
   // Le son se crée au premier toucher : sans cela, le téléphone le bloque.
@@ -1787,19 +1808,31 @@ button.chip{cursor:pointer;font:inherit}
     } catch (e) { /* son indisponible sur ce téléphone */ }
   }
   ['pointerdown', 'touchend', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, unlockSound, { once: true }));
-  // Sonnerie : six notes générées sur place, sans fichier.
-  function playChime() {
+  // Sonneries au choix : suites de notes générées sur place, sans fichier.
+  const TONES = {
+    carillon: { label: 'Carillon', type: 'sine', gain: 0.4, len: 0.3, notes: [[1046, 0], [1318, 0.18], [1568, 0.36], [1046, 0.75], [1318, 0.93], [1568, 1.11]] },
+    deux: { label: 'Deux notes', type: 'triangle', gain: 0.45, len: 0.45, notes: [[880, 0], [660, 0.35], [880, 0.7], [660, 1.05]] },
+    cloche: { label: 'Cloche', type: 'sine', gain: 0.3, len: 1.6, notes: [[660, 0], [990, 0], [1320, 0], [660, 1.1], [990, 1.1], [1320, 1.1]] },
+    doux: { label: 'Doux', type: 'sine', gain: 0.25, len: 0.9, notes: [[392, 0], [494, 0.5], [587, 1.0]] }
+  };
+  function toneChipsHTML() {
+    return '<div class="stack" style="margin-top:10px"><span class="hint">Son de la sonnerie (touchez un son pour l’entendre)</span><div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      Object.keys(TONES).map((k) => '<button class="chip' + (getPrefs().tone === k ? ' on' : '') + '" type="button" data-act="settone" data-arg="' + k + '">' + TONES[k].label + '</button>').join('') +
+      '</div></div>';
+  }
+  function playChime(tone) {
     try {
       unlockSound();
+      const def = TONES[tone || getPrefs().tone] || TONES.carillon;
       const t0 = audio.currentTime + 0.02;
-      [[1046, 0], [1318, 0.18], [1568, 0.36], [1046, 0.75], [1318, 0.93], [1568, 1.11]].forEach(([f, dt]) => {
+      def.notes.forEach(([f, dt]) => {
         const o = audio.createOscillator(), g = audio.createGain();
-        o.type = 'sine'; o.frequency.value = f;
+        o.type = def.type; o.frequency.value = f;
         g.gain.setValueAtTime(0.0001, t0 + dt);
-        g.gain.exponentialRampToValueAtTime(0.4, t0 + dt + 0.02);
-        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + 0.3);
+        g.gain.exponentialRampToValueAtTime(def.gain, t0 + dt + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + def.len);
         o.connect(g); g.connect(audio.destination);
-        o.start(t0 + dt); o.stop(t0 + dt + 0.32);
+        o.start(t0 + dt); o.stop(t0 + dt + def.len + 0.02);
       });
     } catch (e) { /* son indisponible sur ce téléphone : rien à afficher */ }
   }
@@ -1821,7 +1854,7 @@ button.chip{cursor:pointer;font:inherit}
         }
       }
     } catch (e) { /* rien à retirer */ }
-    LS.set('prefs', { sound: getPrefs().sound });   // les anciens réglages de notification sont effacés
+    LS.set('prefs', { sound: getPrefs().sound, tone: getPrefs().tone });   // les anciens réglages de notification sont effacés
   }
   async function actToggleSound() {
     if (getPrefs().sound) { setPref('sound', false); return go('identite'); }

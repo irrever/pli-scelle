@@ -140,6 +140,11 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
 .id-label{font:500 11px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--id-muted)}
 .id-name{font:700 32px/1.1 "Bricolage Grotesque",system-ui,sans-serif;letter-spacing:-.01em}
 .id-foot{font-size:13px;color:var(--id-muted);line-height:1.45}
+.id-body{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.id-main{display:flex;flex-direction:column;gap:10px;min-width:0}
+.id-name{overflow-wrap:anywhere}
+.id-qr{flex:none;width:min(88px,25vw)}
+.id-qr .qr-build{width:100%;padding:5px;border-radius:8px}
 /* marque et écrans d’état */
 .brand{display:flex;align-items:center;gap:10px;padding-top:24px;font:600 16px "Bricolage Grotesque",system-ui,sans-serif}
 .brand-mark{width:36px;height:36px;color:var(--accent)}
@@ -172,6 +177,8 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
 .qr-build i.l{background:transparent}
 @keyframes build{0%{opacity:0;transform:scale(.2)}35%{opacity:1;transform:scale(1)}75%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.2)}}
 @media (prefers-reduced-motion: reduce){.qr-build i:not(.l){animation:none;opacity:1;transform:none}}
+.qr-card.plain{background:none;border:0;box-shadow:none;padding:12px 0 4px}
+.qr-card.plain .qr-build{width:min(200px,58vw)}
 /* Aperçu QR des messages (tuiles) */
 .qr-thumb{width:52px;height:52px;flex:none;border-radius:8px;background:#fff;padding:3px;box-sizing:border-box}
 .tt{display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -208,7 +215,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v6';
+  const APP_VERSION = 'v7';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -582,6 +589,7 @@ button.chip{cursor:pointer;font:inherit}
     const racc = pend.find((p) => p.type === 'remote-accepted' && !S.routed.has(p.pid));
     if (racc) { S.routed.add(racc.pid); return openPending(racc.pid, 'nommer'); }
     if (S.screen === 'attente' && !pend.some((p) => p.type === 'ff-sent' || p.type === 'remote-sent')) {
+      S.words = null;
       S.flash = { t: 'La demande a été refusée, ou le code est incorrect.' };
       return go('accueil');
     }
@@ -686,8 +694,11 @@ button.chip{cursor:pointer;font:inherit}
     }
     return out;
   }
-  function qrDecorCard() {
-    return '<div class="qr-card" aria-hidden="true"><div class="qr-build">' + qrDecorCells() + '</div><p class="hint" style="text-align:center">Votre QR code d’identité se prépare…</p></div>';
+  // Purement décoratif : ces modules ne contiennent aucune donnée. Le vrai QR d’identité est dans « Montrer mon identité ».
+  function qrDecorCard(o) {
+    const opt = o || {};
+    const cap = opt.caption === false ? '' : '<p class="hint" style="text-align:center">Votre QR code d’identité se prépare…</p>';
+    return '<div class="qr-card' + (opt.plain ? ' plain' : '') + '" aria-hidden="true"><div class="qr-build">' + qrDecorCells() + '</div>' + cap + '</div>';
   }
   function viewCreer() {
     if (!S.draftPseudo) S.draftPseudo = genPseudo();
@@ -715,6 +726,7 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="screen center-col" style="justify-content:center;flex:1">' +
       '<div class="brand" style="padding:0;justify-content:center">' + LOGO + '<span>Pli Scellé</span></div>' +
       '<div><h1>Déverrouiller</h1><p class="lead" style="margin-top:6px">' + (S.arg === 'invite' ? 'Entrez votre code secret pour répondre à l’invitation.' : 'Entrez votre code secret pour accéder à vos messages.') + '</p></div>' +
+      qrDecorCard({ caption: false, plain: true }) +
       '<div class="card form" style="width:100%;text-align:left"><label class="label" for="unlock">Code secret</label><input id="unlock" class="field" type="password" autocomplete="off">' + formStatus() + '</div>' +
       '<div class="dock" style="width:100%"><button class="btn btn-primary" data-act="unlock">Déverrouiller</button></div>' +
       '<p class="hint">Vos messages restent sur cet appareil.</p>' +
@@ -733,6 +745,7 @@ button.chip{cursor:pointer;font:inherit}
       (notices ? '<div class="pending-stack">' + notices + '</div>' : '') +
       (cs.length && !LS.get('lastBackup', 0) ? '<div class="pending-stack"><button class="notice warn" data-act="go" data-arg="sauvegarde">' + I.shield + '<span class="grow">Sauvegardez vos contacts<br><span class="more">Sans sauvegarde, ils restent dans ce navigateur seulement.</span></span>' + I.chev + '</button></div>' : '') +
       '<section><div class="section-title">Contacts</div>' + list + '</section>' +
+      qrDecorCard({ caption: false, plain: true }) +
       '<div class="dock"><button class="btn btn-primary" data-act="go" data-arg="ajouter">' + I.plus + '<span>Ajouter une personne</span></button></div>' +
     '</div>';
   }
@@ -816,10 +829,13 @@ button.chip{cursor:pointer;font:inherit}
     '</div>';
   }
   function viewAttente() {
+    // Les 6 mots se calculent des deux côtés à partir des deux clés : le scanneur les voit dès l’envoi, en même temps que la personne.
+    const words = S.words && S.words.length ? wordsBlock('Mots à comparer', 'Ils doivent être identiques sur l’écran de la personne. Comparez-les dès maintenant.') : '';
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Demande envoyée' }) +
       '<div class="progress"><div class="pstep done"><span class="dot">' + '✓' + '</span><div><b>Demande envoyée</b><span>Votre demande a bien été transmise.</span></div></div>' +
         '<div class="pstep now"><span class="dot">2</span><div><b>Confirmation de la personne</b><span>Elle vérifie les mots de son côté.</span></div></div>' +
         '<div class="pstep"><span class="dot">3</span><div><b>Contact ajouté</b><span>Vous pourrez écrire.</span></div></div></div>' +
+      words +
       '<div class="card center" style="align-items:center"><div class="spinner"></div><p class="hint">Gardez l’application ouverte. Cette page se met à jour seule.</p></div>' +
       '<div class="dock"><button class="btn btn-secondary" data-act="go" data-arg="accueil">Retour aux messages</button></div>' +
     '</div>';
@@ -968,7 +984,7 @@ button.chip{cursor:pointer;font:inherit}
   }
   function viewIdentite() {
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Mon identité' }) +
-      '<div class="id-card"><div class="id-top"><span>PLI SCELLÉ</span><span>IDENTITÉ</span></div><div class="id-label">Mon pseudo</div><div class="id-name">' + esc(S.me.pseudo) + '</div><div class="id-foot">Ni numéro, ni e-mail. Ce pseudo permet seulement de vous écrire.</div></div>' +
+      '<div class="id-card"><div class="id-top"><span>PLI SCELLÉ</span><span>IDENTITÉ</span></div><div class="id-body"><div class="id-main"><div class="id-label">Mon pseudo</div><div class="id-name">' + esc(S.me.pseudo) + '</div></div><div class="id-qr" aria-hidden="true"><div class="qr-build">' + qrDecorCells() + '</div></div></div><div class="id-foot">Ni numéro, ni e-mail. Ce pseudo permet seulement de vous écrire.</div></div>' +
       '<div class="stack"><button class="btn btn-primary" data-act="montrer" data-arg="identite">' + I.qr + '<span>Montrer mon identité</span></button><button class="btn btn-secondary" data-act="newinvite">' + I.link + '<span>Inviter à distance</span></button></div>' +
       '<section><div class="section-title">Sauvegarde</div><div class="list"><button class="rowlink" data-act="go" data-arg="sauvegarde"><span>Sauvegarder mes contacts</span>' + I.chev + '</button></div><p class="hint">' + (LS.get('lastBackup', 0) ? 'Dernière sauvegarde : ' + esc(new Date(LS.get('lastBackup', 0)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })) : 'Pas encore de sauvegarde. Sans elle, vos contacts ne sont que dans ce navigateur.') + '</p></section>' +
       '<section><div class="section-title">Sécurité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="supprimer"><span style="display:flex;gap:10px;align-items:center">' + I.trash + 'Supprimer mon identité</span>' + I.chev + '</button></div></section>' +
@@ -1159,6 +1175,7 @@ button.chip{cursor:pointer;font:inherit}
     await sendTo(o.k, { kind: 'ff-request', pseudo: S.me.pseudo, proof: proof });
     pushPending({ type: 'ff-sent', peer: o.k, peerPseudo: o.p });
     S.qrText = '';
+    S.words = await wordsFor(unb64u(S.me.raw), unb64u(o.k));
     go('attente');
   }
   async function actAcceptFF(pid) {
@@ -1278,6 +1295,7 @@ button.chip{cursor:pointer;font:inherit}
     await sendTo(inv.from, { kind: 'remote-claim', inv: inv.id, pseudo: S.me.pseudo, proof: proof });
     pushPending({ type: 'remote-sent', peer: inv.from, invId: inv.id, peerPseudo: '' });
     S.invite = null;
+    S.words = null;
     go('attente');
   }
   async function actAcceptRemote(pid) {

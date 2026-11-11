@@ -195,6 +195,7 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
+  const APP_VERSION = 'v4';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -892,6 +893,7 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
       '<div class="stack"><button class="btn btn-primary" data-act="montrer" data-arg="identite">' + I.qr + '<span>Montrer mon identité</span></button><button class="btn btn-secondary" data-act="newinvite">' + I.link + '<span>Inviter à distance</span></button></div>' +
       '<section><div class="section-title">Sauvegarde</div><div class="list"><button class="rowlink" data-act="go" data-arg="sauvegarde"><span>Sauvegarder mes contacts</span>' + I.chev + '</button></div><p class="hint">' + (LS.get('lastBackup', 0) ? 'Dernière sauvegarde : ' + esc(new Date(LS.get('lastBackup', 0)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })) : 'Pas encore de sauvegarde. Sans elle, vos contacts ne sont que dans ce navigateur.') + '</p></section>' +
       '<section><div class="section-title">Sécurité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="supprimer"><span style="display:flex;gap:10px;align-items:center">' + I.trash + 'Supprimer mon identité</span>' + I.chev + '</button></div></section>' +
+      '<p class="hint center" style="padding-top:8px">Version ' + APP_VERSION + '</p>' +
     '</div>';
   }
   function viewSupprimer() {

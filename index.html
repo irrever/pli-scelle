@@ -105,8 +105,13 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
 .empty .ico{width:34px;height:34px;color:var(--accent)}
 .empty b{color:var(--ink);font-weight:600}
 /* QR et codes */
-.qr-frame{align-self:center;background:#fff;border:1px solid var(--line-2);border-radius:20px;padding:16px;box-shadow:var(--shadow)}
-.qr-frame img{display:block;width:min(300px,76vw);height:auto;image-rendering:pixelated}
+.qr-frame{align-self:center;background:#fff;border:1px solid var(--line-2);border-radius:20px;padding:10px;box-shadow:var(--shadow)}
+.qr-frame img{display:block;width:min(336px,calc(100vw - 56px));height:auto;image-rendering:pixelated}
+.livescan{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.livescan[hidden]{display:none}
+.livescan-box{position:relative;border-radius:18px;overflow:hidden;background:#0b1620;aspect-ratio:3/4;width:100%}
+.livescan-box video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.livescan-frame{position:absolute;inset:16%;border:3px solid #fff;border-radius:18px;box-shadow:0 0 0 999px rgba(11,22,32,.35);pointer-events:none}
 .code-card{align-items:center;text-align:center}
 .code-card .row-between{width:100%}
 .fallback{border:1px solid var(--line-2);border-radius:14px;padding:12px 14px;background:var(--surface);color:var(--ink-2)}
@@ -216,7 +221,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v10';
+  const APP_VERSION = 'v11';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -374,21 +379,30 @@ button.chip{cursor:pointer;font:inherit}
     q.make();
     return q.createDataURL(8, 32);
   }
-  function qrTextFor(d) { return APP_URL + '#ff-' + hex(unb64u(S.me.raw)) + hex(unb64u(d.salt)) + hex(enc.encode(S.me.pseudo)); }
+  // Texte du QR : clé et sel en base64, sans pseudo (il voyage avec la demande). Plus court = QR plus gros, donc plus facile à lire sur une photo.
+  function qrTextFor(d) { return APP_URL + '#ff-' + S.me.raw + d.salt; }
   function invTextFor(inv) { return APP_URL + '#inv-' + inv.id; }
   function isInvText(t) { return /#inv-[a-z0-9]{8,24}/.test(t) || t.indexOf('PLI1:INV:') === 0; }
   function parseFF(h) {
-    const raw = unhex(h.slice(0, 130)), salt = unhex(h.slice(130, 162));
-    if (raw.length !== 65 || raw[0] !== 4) throw new Error('Clé de l’identité invalide.');
-    let pseudo = '';
-    try { pseudo = dec.decode(unhex(h.slice(162))); } catch (e) { pseudo = ''; }
-    return { p: pseudo.slice(0, 24) || 'Contact', k: b64u(raw), s: b64u(salt) };
+    // Ancien format (QR déjà affiché ailleurs) : tout en hexadécimal, pseudo compris.
+    if (/^[0-9a-f]+$/.test(h) && h.length >= 162) {
+      const raw = unhex(h.slice(0, 130)), salt = unhex(h.slice(130, 162));
+      if (raw.length !== 65 || raw[0] !== 4) throw new Error('Clé de l’identité invalide.');
+      let pseudo = '';
+      try { pseudo = dec.decode(unhex(h.slice(162))); } catch (e) { pseudo = ''; }
+      return { p: pseudo.slice(0, 24) || 'Contact', k: b64u(raw), s: b64u(salt) };
+    }
+    // Format actuel : clé (87 caractères en base64), puis sel (22). Le pseudo n’est pas dans le QR.
+    const k = h.slice(0, 87), s = h.slice(87, 109);
+    if (k.length !== 87 || s.length !== 22) throw new Error('Identité illisible. Scannez-la de plus près.');
+    if (unb64u(k).length !== 65 || unb64u(k)[0] !== 4) throw new Error('Clé de l’identité invalide.');
+    return { p: '', k: k, s: s };
   }
   function unhex(s) { const out = new Uint8Array(Math.floor(s.length / 2)); for (let i = 0; i < out.length; i++) out[i] = parseInt(s.substr(i * 2, 2), 16); return out; }
   function parseQR(text) {
     const t = String(text || '').trim();
     if (isInvText(t)) throw new Error('Ce n’est pas une identité, c’est une invitation. Utilisez « Rejoindre une invitation ».');
-    const ff = t.match(/#ff-([0-9a-f]{162,})/);
+    const ff = t.match(/#ff-([0-9A-Za-z_-]{100,})/);
     if (ff) return parseFF(ff[1]);
     if (t.indexOf('PLI1:') !== 0) throw new Error('Ce n’est pas une identité Pli Scellé.');
     let o;
@@ -408,14 +422,92 @@ button.chip{cursor:pointer;font:inherit}
     return o;
   }
   // Lit un QR code sur une photo : plusieurs tailles, les deux sens de contraste.
+  // ---------- lecture en direct par la caméra de l’appli (comme l’appareil photo du téléphone) ----------
+  // La caméra ne sert qu’à viser le QR code : rien n’est enregistré, et elle s’arrête dès qu’on quitte l’écran.
+  const cam = { stream: null, timer: null, video: null, inv: false, busy: false, detector: null, canvas: null, avertiLe: 0 };
+  function camActive() { return !!cam.stream; }
+  function stopLiveScan() {
+    if (cam.timer) clearInterval(cam.timer);
+    if (cam.stream) cam.stream.getTracks().forEach((t) => t.stop());
+    cam.timer = null; cam.stream = null; cam.video = null; cam.busy = false;
+    const host = $('#livescan');
+    if (host) { host.hidden = true; host.innerHTML = ''; }
+  }
+  async function startLiveScan(inv) {
+    stopLiveScan();
+    cam.inv = !!inv;
+    if (!$('#livescan')) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return setStatus('scanstatus', 'err', 'La caméra n’est pas disponible ici. Choisissez une photo, ou collez le texte.');
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    } catch (e) {
+      return setStatus('scanstatus', 'err', 'Caméra refusée ou indisponible. Autorisez-la pour cette appli, ou choisissez une photo.');
+    }
+    const host = $('#livescan');
+    if (!host) { stream.getTracks().forEach((t) => t.stop()); return; }   // l’écran a changé pendant l’autorisation
+    host.hidden = false;
+    host.innerHTML = '<div class="livescan-box"><video id="camvideo" playsinline muted autoplay></video><div class="livescan-frame"></div></div>' +
+      '<p class="hint" id="camhint" style="text-align:center">Pointez la caméra sur le QR code. La lecture se fait toute seule.</p>' +
+      '<button class="btn btn-ghost" type="button" data-act="stoplive">Arrêter la caméra</button>';
+    const video = $('#camvideo');
+    video.srcObject = stream;
+    cam.stream = stream; cam.video = video;
+    try { await video.play(); } catch (e) { /* la lecture reprendra au prochain toucher */ }
+    cam.timer = setInterval(scanFrame, 250);
+  }
+  async function scanFrame() {
+    const v = cam.video;
+    if (!v || cam.busy || v.readyState < 2 || !v.videoWidth) return;
+    cam.busy = true;
+    try {
+      let txt = null;
+      if ('BarcodeDetector' in window) {
+        // Téléphones Android : le détecteur du système, très rapide
+        if (!cam.detector) cam.detector = new BarcodeDetector({ formats: ['qr_code'] });
+        const codes = await cam.detector.detect(v);
+        if (codes.length) txt = codes[0].rawValue;
+      } else if (typeof jsQR === 'function') {
+        // Autres navigateurs (iPhone) : lecture de chaque image avec jsQR
+        const k = Math.min(1, 960 / Math.max(v.videoWidth, v.videoHeight));
+        if (!cam.canvas) cam.canvas = document.createElement('canvas');
+        const c = cam.canvas;
+        c.width = Math.round(v.videoWidth * k); c.height = Math.round(v.videoHeight * k);
+        const g = c.getContext('2d', { willReadFrequently: true });
+        g.drawImage(v, 0, 0, c.width, c.height);
+        const d = g.getImageData(0, 0, c.width, c.height);
+        const r = jsQR(d.data, d.width, d.height, { inversionAttempts: 'attemptBoth' });
+        if (r && r.data) txt = r.data;
+      }
+      if (txt) await foundLive(txt);
+    } catch (e) { /* image pas encore prête : on continue de viser */ }
+    finally { cam.busy = false; }
+  }
+  async function foundLive(txt) {
+    // Un autre QR code (pas une identité, ou pas une invitation) : on continue de viser.
+    try {
+      if (cam.inv ? !isInvText(txt) : !parseQR(txt)) throw new Error('mauvais QR');
+    } catch (e) {
+      const now = Date.now();
+      if (now - cam.avertiLe > 3000) {
+        cam.avertiLe = now;
+        const h = $('#camhint');
+        if (h) h.textContent = (cam.inv ? 'Ce QR code n’est pas une invitation.' : 'Ce QR code n’est pas une identité Pli Scellé.') + ' Continuez à viser.';
+      }
+      return;
+    }
+    stopLiveScan();
+    try { await handleScan(txt, cam.inv); } catch (e) { setStatus('scanstatus', 'err', e.message); }
+  }
   async function decodeFile(file) {
     if (typeof jsQR !== 'function') throw new Error('La lecture n’est pas disponible ici. Collez le texte.');
     const url = URL.createObjectURL(file);
     try {
       const img = new Image();
       img.src = url;
-      await img.decode();
-      for (const max of [1400, 900, 500]) {
+      try { await img.decode(); } catch (e) { throw new Error('Cette photo ne s’ouvre pas ici. Essayez une autre photo (JPEG ou PNG), ou collez le texte.'); }
+      // Lecture à pleine résolution d’abord : sur une photo prise de loin, les modules du QR ne font que quelques pixels.
+      for (const max of [3000, 2000, 1400, 900, 500]) {
         const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
         const c = document.createElement('canvas');
         c.width = Math.max(1, Math.round(img.naturalWidth * k));
@@ -426,7 +518,7 @@ button.chip{cursor:pointer;font:inherit}
         const r = jsQR(d.data, d.width, d.height, { inversionAttempts: 'attemptBoth' });
         if (r && r.data) return r.data;
       }
-      throw new Error('Rien de lisible sur la photo. Recommencez de près, bien droit, sans reflet.');
+      throw new Error('Rien de lisible sur la photo. Rapprochez-vous pour que le QR remplisse l’image, bien droit, sans reflet, l’écran de l’autre téléphone au maximum. Sinon, collez le texte.');
     } finally { URL.revokeObjectURL(url); }
   }
 
@@ -598,7 +690,7 @@ button.chip{cursor:pointer;font:inherit}
       S.flash = { t: 'La demande a été refusée, ou le code est incorrect.' };
       return go('accueil');
     }
-    if (S.needRender && !isTyping()) render();
+    if (S.needRender && !isTyping() && !camActive()) render();
   }
   function isTyping() { const a = document.activeElement; return !!a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA'); }
   let pollTimer = null;
@@ -784,7 +876,9 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="screen">' + topbar({ back: 'ajouter', title: 'Scanner une identité' }) +
       '<p class="lead">Face à face : scannez l’identité affichée sur l’écran de la personne, puis tapez le code affiché à côté.</p>' +
       '<section class="card step-card"><div class="step-head"><span class="step-n">1</span><b>Scanner son identité</b></div>' +
-        '<label class="btn btn-secondary file-btn">' + I.camera + '<span>Caméra ou photos</span><input id="photo" class="sr-only" type="file" accept="image/*"></label>' +
+        '<button class="btn btn-primary" type="button" data-act="livescan">' + I.camera + '<span>Scanner avec la caméra</span></button>' +
+        '<div id="livescan" class="livescan" hidden></div>' +
+        '<label class="btn btn-secondary file-btn">' + I.file + '<span>Choisir une photo</span><input id="photo" class="sr-only" type="file" accept="image/*"></label>' +
         '<div id="scanstatus" class="status status-ok" hidden></div>' +
       '</section>' +
       '<section class="card step-card"><div class="step-head"><span class="step-n">2</span><b>Taper le code affiché</b></div>' +
@@ -800,7 +894,9 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="screen">' + topbar({ back: 'ajouter', title: 'Rejoindre une invitation' }) +
       '<p class="lead">Scannez l’invitation reçue : prenez-la avec la caméra, ou choisissez l’image dans vos photos. Le code, lui, vous a été donné à part.</p>' +
       '<section class="card step-card"><div class="step-head"><span class="step-n">1</span><b>Scanner l’invitation</b></div>' +
-        '<label class="btn btn-secondary file-btn">' + I.camera + '<span>Caméra ou photos</span><input id="photoinv" class="sr-only" type="file" accept="image/*"></label>' +
+        '<button class="btn btn-primary" type="button" data-act="livescaninv">' + I.camera + '<span>Scanner avec la caméra</span></button>' +
+        '<div id="livescan" class="livescan" hidden></div>' +
+        '<label class="btn btn-secondary file-btn">' + I.file + '<span>Choisir une photo</span><input id="photoinv" class="sr-only" type="file" accept="image/*"></label>' +
         '<div id="scanstatus" class="status status-ok" hidden></div>' +
       '</section>' +
       '<details class="fallback"><summary>Je n’arrive pas à scanner : coller le texte de l’invitation</summary><div class="stack" style="margin-top:10px"><textarea id="invtext" class="field" rows="3" placeholder="Collez ici le lien ou le texte de l’invitation">' + esc(S.invText || '') + '</textarea></div></details>' +
@@ -1054,7 +1150,7 @@ button.chip{cursor:pointer;font:inherit}
     const t = S.ffText;
     S.ffText = null; S.qrText = t;
     go('scanner');
-    try { setStatus('scanstatus', 'ok', 'Identité reçue de ' + parseQR(t).p + '. Tapez le code affiché sur son écran.'); } catch (e) { /* QR illisible : le champ reste disponible */ }
+    try { const p = parseQR(t).p; setStatus('scanstatus', 'ok', (p ? 'Identité reçue de ' + p : 'Identité reçue') + '. Tapez le code affiché sur son écran.'); } catch (e) { /* QR illisible : le champ reste disponible */ }
   }
   function viewSauvegarde() {
     const last = LS.get('lastBackup', 0);
@@ -1082,6 +1178,7 @@ button.chip{cursor:pointer;font:inherit}
 
   // ---------- affichage ----------
   function go(screen, arg) {
+    stopLiveScan();   // quitter l’écran coupe la caméra
     if (screen !== 'lien-coupe') S.cut = null;
     S.screen = screen;
     S.arg = (arg == null ? null : arg);
@@ -1430,6 +1527,9 @@ button.chip{cursor:pointer;font:inherit}
     copyqr: () => copyText(($('#qrtextout') || {}).value || '', 'Texte de l’identité copié.'),
     copyinv: () => copyText(($('#invtextout') || {}).value || '', 'Texte copié. Collez-le dans la messagerie de votre choix.'),
     sendff: actSendFF,
+    livescan: () => startLiveScan(false),
+    livescaninv: () => startLiveScan(true),
+    stoplive: () => stopLiveScan(),
     acceptff: actAcceptFF,
     refuseff: actRefuseFF,
     confirmff: actConfirmFF,
@@ -1469,24 +1569,27 @@ button.chip{cursor:pointer;font:inherit}
       .finally(() => { if (el.isConnected) el.disabled = false; });
   });
   // Photo prise avec l’appareil : lecture du QR code, puis vérification du type.
+  // Texte lu (photo ou caméra) : il est rangé dans le formulaire, puis le code est demandé.
+  async function handleScan(txt, inv) {
+    if (inv) {
+      if (!isInvText(txt)) return setStatus('scanstatus', 'err', 'Ce n’est pas une invitation. Pour une personne présente, utilisez « Scanner l’identité de la personne ».');
+      const box = $('#invtext'); if (box) box.value = txt;
+      S.invText = txt;
+      setStatus('scanstatus', 'ok', 'Invitation lue.');
+      return actReadInv(txt);
+    }
+    const o = parseQR(txt);
+    const box = $('#qrtext'); if (box) box.value = txt;
+    S.qrText = txt;
+    setStatus('scanstatus', 'ok', 'Identité lue' + (o.p ? ' : ' + o.p : '') + '. Tapez maintenant le code affiché sur son écran.');
+  }
   document.addEventListener('change', async (ev) => {
     const t = ev.target;
     if (!t || (t.id !== 'photo' && t.id !== 'photoinv') || !t.files || !t.files[0]) return;
     const inv = t.id === 'photoinv';
+    setStatus('scanstatus', 'ok', 'Lecture de la photo…');
     try {
-      const txt = await decodeFile(t.files[0]);
-      if (inv) {
-        if (!isInvText(txt)) return setStatus('scanstatus', 'err', 'Ce n’est pas une invitation. Pour une personne présente, utilisez « Scanner l’identité de la personne ».');
-        const box = $('#invtext'); if (box) box.value = txt;
-        S.invText = txt;
-        setStatus('scanstatus', 'ok', 'Invitation lue.');
-        await actReadInv(txt);
-      } else {
-        const o = parseQR(txt);
-        const box = $('#qrtext'); if (box) box.value = txt;
-        S.qrText = txt;
-        setStatus('scanstatus', 'ok', 'Identité lue : ' + o.p + '. Tapez maintenant le code affiché sur son écran.');
-      }
+      await handleScan(await decodeFile(t.files[0]), inv);
     } catch (e) {
       setStatus('scanstatus', 'err', e.message);
     }
@@ -1508,7 +1611,7 @@ button.chip{cursor:pointer;font:inherit}
     t.value = '';
     renderAttach();
   });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stopLiveScan(); else poll(); });
 
   function tick() {
     const cd = document.getElementById('cd');

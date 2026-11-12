@@ -243,7 +243,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v32';
+  const APP_VERSION = 'v33';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -771,8 +771,8 @@ button.chip{cursor:pointer;font:inherit}
           '<p class="hint">Le navigateur de l’iPhone ne peut pas lire vos contacts. Enregistrez la fiche en fichier .vcf (Contacts, Partager le contact, Enregistrer dans Fichiers), puis choisissez-la ici. Sinon, tapez le nom.</p>') +
       '<p class="hint">Vous seul le voyez. Il ne quitte pas cet appareil.</p>' + formStatus() + '</div>';
   }
-  function wordsBlock(title, text) {
-    const w = S.words || [];
+  function wordsBlock(title, text, mots) {
+    const w = mots || S.words || [];
     return '<section class="card"><div class="section-title" style="margin:0">' + esc(title) + '</div><div class="words-grid">' + w.map((x, i) => '<div class="word"><span class="word-n">' + (i + 1) + '</span><span>' + esc(x) + '</span></div>').join('') + '</div><p class="hint">' + esc(text) + '</p></section>';
   }
   function progressStep(n, label, state, hint) {
@@ -1310,6 +1310,7 @@ button.chip{cursor:pointer;font:inherit}
     if (!c) return viewAccueil();
     return '<div class="screen">' + topbar({ backAct: 'conv', backArg: c.cid, title: 'Réglages' }) +
       '<div class="card code-card"><span class="code-label">Code de ce contact</span><div class="code">' + esc(c.label) + '</div></div>' +
+      (S.motsCle && S.motsCle.cid === c.cid ? wordsBlock('Mots à comparer', 'Ces six mots sont les mêmes sur votre écran et sur celui de ce contact. Comparez-les avec lui, de vive voix ou au téléphone. S’ils sont identiques, personne ne s’est intercalé entre vous.', S.motsCle.mots) : '') +
       '<section class="list"><button class="rowlink" data-act="go" data-arg="verrouille"><span>Verrouiller l’application</span>' + I.chev + '</button>' +
       '<button class="rowlink danger" data-act="cut" data-arg="' + esc(c.cid) + '"><span>Couper le lien</span>' + I.chev + '</button></section>' +
       '<p class="hint">Couper le lien efface la conversation des deux côtés. Pour reprendre contact, il faut une nouvelle connexion.</p>' +
@@ -1799,7 +1800,12 @@ button.chip{cursor:pointer;font:inherit}
     go: (a) => { const p = String(a).split('|'); go(p[0], p[1] || null); },
     openp: (a) => { const p = String(a).split('|'); return openPending(p[1], p[0]); },
     conv: (cid) => go('conv', cid),
-    reglages: (cid) => go('reglages', cid),
+    reglages: async (cid) => {
+      // Les six mots de ce contact sont calculés avant d’ouvrir la page des réglages.
+      const c = contacts().find((x) => x.cid === cid);
+      try { if (c && c.raw && S.me && S.me.raw) S.motsCle = { cid: cid, mots: await wordsFor(unb64u(S.me.raw), unb64u(c.raw)) }; } catch (e) { S.motsCle = null; }
+      go('reglages', cid);
+    },
     lock: () => { S.priv = null; stopPolling(); go('verrouille'); },
     togglesound: actToggleSound,
     settone: (t) => { setPref('tone', t); playChime(t, true); go('identite'); },

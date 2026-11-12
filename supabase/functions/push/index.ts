@@ -5,7 +5,7 @@
 // Le téléphone affiche seulement « Une nouvelle activité vous attend. ».
 //
 // Secrets du projet : VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY.
-// SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY sont fournies par Supabase.
+// SUPABASE_URL et la clé de service (SUPABASE_SECRET_KEY, ou SUPABASE_SERVICE_ROLE_KEY) sont fournies par Supabase.
 // Déployée sans vérification de jeton (verify_jwt = false) : le relais l’appelle sans authentification.
 //
 // Journal : chaque étape écrit une ligne dans les journaux de la fonction (Supabase → Edge Functions → push → Logs).
@@ -76,15 +76,16 @@ export async function handle(req: Request, env: Env, fetchFn: Fetcher, now: numb
   }
   if (!/^[0-9a-f]{64}$/.test(mailbox)) return json(400, { ok: false });
 
-  const db = (path: string, init: RequestInit = {}) => fetchFn(env.SUPABASE_URL + '/rest/v1/' + path, {
-    ...init,
-    headers: {
-      apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: 'Bearer ' + env.SUPABASE_SERVICE_ROLE_KEY,
-      'Content-Type': 'application/json',
-      ...((init.headers as Record<string, string>) || {}),
-    },
-  });
+  // Comme l’appli : la clé va dans l’en-tête apikey. Seule une clé au format JWT (ancienne génération) va aussi dans
+  // Authorization ; une clé « sb_secret_ » n’y va pas, le serveur la refuserait comme jeton.
+  const db = (path: string, init: RequestInit = {}) => {
+    const entetes: Record<string, string> = { apikey: env.SUPABASE_SERVICE_ROLE_KEY, 'Content-Type': 'application/json' };
+    if (env.SUPABASE_SERVICE_ROLE_KEY.startsWith('eyJ')) entetes.Authorization = 'Bearer ' + env.SUPABASE_SERVICE_ROLE_KEY;
+    return fetchFn(env.SUPABASE_URL + '/rest/v1/' + path, {
+      ...init,
+      headers: { ...entetes, ...((init.headers as Record<string, string>) || {}) },
+    });
+  };
 
   // 1. Il faut un message en attente dans la boîte.
   const rMessages = await db('messages?select=id&mailbox=eq.' + mailbox + '&limit=1');
@@ -125,13 +126,16 @@ export async function handle(req: Request, env: Env, fetchFn: Fetcher, now: numb
 if (typeof Deno !== 'undefined') {
   Deno.serve(async (req: Request) => {
     try {
+      // Clé de service : le nom de la nouvelle génération (SUPABASE_SECRET_KEY) d’abord, puis l’ancien (SUPABASE_SERVICE_ROLE_KEY).
+      const cleNouvelle = Deno.env.get('SUPABASE_SECRET_KEY') ?? '';
+      const cleAncienne = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
       const env: Env = {
         SUPABASE_URL: Deno.env.get('SUPABASE_URL') ?? '',
-        SUPABASE_SERVICE_ROLE_KEY: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+        SUPABASE_SERVICE_ROLE_KEY: cleNouvelle || cleAncienne,
         VAPID_PUBLIC_KEY: Deno.env.get('VAPID_PUBLIC_KEY') ?? '',
         VAPID_PRIVATE_KEY: Deno.env.get('VAPID_PRIVATE_KEY') ?? '',
       };
-      journal('secrets : publique', env.VAPID_PUBLIC_KEY ? 'présente' : 'MANQUANTE', '| privée', env.VAPID_PRIVATE_KEY ? 'présente' : 'MANQUANTE', '| service', env.SUPABASE_SERVICE_ROLE_KEY ? 'présente' : 'MANQUANTE');
+      journal('secrets : publique', env.VAPID_PUBLIC_KEY ? 'présente' : 'MANQUANTE', '| privée', env.VAPID_PRIVATE_KEY ? 'présente' : 'MANQUANTE', '| clé de service', cleNouvelle ? 'SUPABASE_SECRET_KEY' : cleAncienne ? 'SUPABASE_SERVICE_ROLE_KEY' : 'MANQUANTE');
       return await handle(req, env, fetch, Date.now());
     } catch (e) {
       journal('erreur :', sansAdresse(e instanceof Error ? e.message : String(e)));

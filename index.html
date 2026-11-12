@@ -240,11 +240,12 @@ button.chip{cursor:pointer;font:inherit}
   const ITER_SECRET = 200000;
   const INVITE_LIFE = 24 * 3600 * 1000;
   const REVEAL_MS = 20000;
+  const EFFACE_MS = 2 * 60 * 1000;   // une trace (« Message lu », « Message envoyé ») reste 2 minutes, puis disparaît
   const MAX_FAILS = 5;
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v43';
+  const APP_VERSION = 'v44';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -348,10 +349,17 @@ button.chip{cursor:pointer;font:inherit}
     LS.set('pending', pendingAll().filter((p) => p.peer !== c.raw));
     return c;
   }
+  // Une trace reste 2 minutes : « Message lu » (contenu effacé) ou « Message envoyé ». Ensuite elle disparaît, pour que la liste ne s’allonge pas.
+  function traceEffacee(m, now) {
+    if (m.state === 'gone') return now - (m.goneAt || m.until || 0) > EFFACE_MS;
+    return m.dir === 'out' && m.state === 'sent' && now - (m.ts || 0) > EFFACE_MS;
+  }
   function expireOpened() {
     const all = msgsAll(); let ch = false;
-    for (const m of all) if (m.state === 'open' && Date.now() > (m.until || 0)) { if (m.once === false) m.state = 'new'; else { m.state = 'gone'; m.text = ''; if (m.kind === 'voice') vdel('audio', m.mid).catch(() => {}); } ch = true; }
-    if (ch) LS.set('msgs', all);
+    for (const m of all) if (m.state === 'open' && Date.now() > (m.until || 0)) { if (m.once === false) m.state = 'new'; else { m.state = 'gone'; m.goneAt = Date.now(); m.text = ''; if (m.kind === 'voice') vdel('audio', m.mid).catch(() => {}); } ch = true; }
+    const now = Date.now();
+    const reste = all.filter((m) => { if (!traceEffacee(m, now)) return true; if (m.kind === 'voice') vdel('audio', m.mid).catch(() => {}); ch = true; return false; });
+    if (ch) LS.set('msgs', reste);
     return ch;
   }
 

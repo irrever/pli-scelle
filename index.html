@@ -234,7 +234,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v26';
+  const APP_VERSION = 'v27';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -643,7 +643,7 @@ button.chip{cursor:pointer;font:inherit}
     const c = contacts().find((x) => x.raw === m.from);
     if (!c) return false;
     removeContact(c.cid);
-    S.cut = { name: c.pseudo || c.name };
+    S.cut = { name: c.name || c.pseudo };   // le nom que la personne a donné à ce contact, pas son pseudo
     return true;
   }
   // La personne a supprimé son identité en gardant ses contacts : le lien reste en pause.
@@ -1703,7 +1703,7 @@ button.chip{cursor:pointer;font:inherit}
     if (!c) return go('accueil');
     try { await sendTo(c.raw, { kind: 'cut' }); } catch (e) {}
     removeContact(cid);
-    S.cut = { name: c.pseudo || c.name };
+    S.cut = { name: c.name || c.pseudo };   // le nom donné à ce contact, pas son pseudo
     go('lien-coupe');
   }
   // Supprimer l’identité : avec « keep », les contacts sont mis en pause (ils pourront reprendre le lien) ; sinon, les liens sont coupés.

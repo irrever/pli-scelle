@@ -223,7 +223,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v19';
+  const APP_VERSION = 'v20';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1845,8 +1845,12 @@ button.chip{cursor:pointer;font:inherit}
     } catch (e) { /* son indisponible sur ce téléphone : rien à afficher */ }
   }
   // Message reçu : la sonnerie joue si elle est activée (l’appli doit être ouverte).
+  // Une seule sonnerie pour une série de messages arrivés ensemble : au plus une toutes les 4 secondes.
+  let dernierSon = 0;
   function alertIncoming() {
     if (!getPrefs().sound) return;
+    if (Date.now() - dernierSon < 4000) return;
+    dernierSon = Date.now();
     playChime();
     if (navigator.vibrate) navigator.vibrate([300, 150, 300]);   // Android : vibration en plus du son
   }

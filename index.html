@@ -170,14 +170,16 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
 .tile.mine{margin-left:auto;background:var(--accent-soft);border-color:transparent;cursor:default;color:var(--accent)}
 .tile.mine .ico{color:var(--accent)}
 .composer{display:flex;flex-direction:column;gap:10px;padding-top:10px;border-top:1px solid var(--line-2);background:var(--bg);position:sticky;bottom:0;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
-.composer-row{display:flex;gap:8px;align-items:center}
-.composer-row .field{flex:1;min-width:0}
-.composer-row .draft{height:52px;min-height:52px;max-height:160px;resize:none;line-height:1.4;padding:13px 14px;overflow-y:auto}
-.send-icon{width:44px;min-width:44px;height:44px;min-height:44px;padding:0;border-radius:50%;display:grid;place-items:center;flex:none}
-.send-icon svg{width:20px;height:20px}
+.composer-row{display:flex;gap:8px;align-items:flex-end}
+.composer-row .btn-plus{margin-bottom:5px}
+.capsule{flex:1;min-width:0;display:flex;align-items:flex-end;background:var(--surface);border:1px solid var(--line);border-radius:26px}
+.capsule:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.capsule .draft{flex:1;min-width:0;height:52px;min-height:52px;max-height:160px;resize:none;border:0;background:transparent;color:var(--ink);outline:none;font:inherit;font-size:14px;line-height:1.4;padding:15px 6px 11px 14px;overflow-y:auto}
+.act-btn{width:36px;height:36px;min-width:36px;min-height:36px;margin:0 6px 8px 0;padding:0;border:0;border-radius:50%;display:grid;place-items:center;flex:none;cursor:pointer}
+.act-btn svg{width:18px;height:18px}
+.act-mic{background:var(--accent-soft);color:var(--accent)}
+.act-send{background:var(--accent);color:var(--on-accent)}
 .btn-plus{width:44px;height:44px;flex:none;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--accent);font-size:26px;line-height:1;cursor:pointer}
-.mic{width:44px;height:44px;flex:none;border-radius:50%;border:0;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;cursor:pointer}
-.mic svg{width:20px;height:20px}
 .plus-row{display:flex;gap:8px;flex-wrap:wrap}
 .tile.unread{background:var(--accent-soft);border:2px solid var(--accent);box-shadow:0 2px 12px rgba(0,0,0,.14)}
 .tile.unread b{color:var(--accent)}
@@ -237,7 +239,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v29';
+  const APP_VERSION = 'v30';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1195,9 +1197,10 @@ button.chip{cursor:pointer;font:inherit}
       '<div id="attachRow" class="attach-row">' + attachChipsHTML() + '</div>' +
       (S.voice ? voiceBarHTML(cid) : '<div class="composer-row">' +
         '<button class="btn-plus" type="button" data-act="plusmenu" aria-label="Ajouter une photo, un document ou un lien">+</button>' +
-        '<textarea id="draft" class="field draft" rows="2" placeholder="Votre message" autocomplete="off"></textarea>' +
-        '<button class="mic" type="button" data-act="voicerec" aria-label="Message vocal">' + I.mic + '</button>' +
-        '<button class="btn btn-primary send-icon" data-act="send" data-arg="' + esc(cid) + '" aria-label="Envoyer" title="Envoyer">' + I.send + '</button>' +
+        '<div class="capsule">' +
+          '<textarea id="draft" class="draft" rows="1" placeholder="Votre message" autocomplete="off"></textarea>' +
+          '<button id="composerAct" class="act-btn act-mic" type="button" data-act="voicerec" data-arg="' + esc(cid) + '" aria-label="Message vocal">' + I.mic + '</button>' +
+        '</div>' +
       '</div>') +
     '</div>';
   }
@@ -1214,6 +1217,7 @@ button.chip{cursor:pointer;font:inherit}
   function renderAttach() {
     const row = $('#attachRow');
     if (row) row.innerHTML = attachChipsHTML();
+    syncComposerAct();
   }
   function addLinkAttach() {
     const inp = $('#linkIn');
@@ -1431,6 +1435,17 @@ button.chip{cursor:pointer;font:inherit}
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 160) + 'px';
   }
+  // Dans la zone de saisie : le micro tant qu’il n’y a ni texte ni pièce jointe, puis le bouton d’envoi.
+  function syncComposerAct() {
+    const b = document.getElementById('composerAct');
+    const d = document.getElementById('draft');
+    if (!b || !d) return;
+    const envoi = d.value.trim() !== '' || (S.attach || []).length > 0;
+    b.dataset.act = envoi ? 'send' : 'voicerec';
+    b.className = 'act-btn ' + (envoi ? 'act-send' : 'act-mic');
+    b.innerHTML = envoi ? I.send : I.mic;
+    b.setAttribute('aria-label', envoi ? 'Envoyer' : 'Message vocal');
+  }
   function render() {
     expireOpened();
     const app = $('#app');
@@ -1450,11 +1465,12 @@ button.chip{cursor:pointer;font:inherit}
     const pres = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 160;   // l’utilisateur était en bas
     app.innerHTML = flash + html;
     hydrateVoices();
-    autoGrow();
+    Object.keys(keep).forEach((id) => { const el = document.getElementById(id); if (el) el.value = keep[id]; });
+    autoGrow();          // la zone reprend la hauteur du brouillon restauré…
+    syncComposerAct();   // …et le bon bouton : micro, ou envoi s’il y a du texte
     // Conversation : on s’ouvre sur le dernier message, et il suit les nouveaux si on était déjà en bas
     if (S.screen === 'conv' && (!same || pres)) window.scrollTo(0, document.documentElement.scrollHeight);
     app.dataset.view = key;
-    Object.keys(keep).forEach((id) => { const el = document.getElementById(id); if (el) el.value = keep[id]; });
     if (focusId) { const el = document.getElementById(focusId); if (el) el.focus(); }
   }
   // Message dans la vue en cours ; sans zone dédiée, il s’affiche en haut.
@@ -1885,7 +1901,7 @@ button.chip{cursor:pointer;font:inherit}
     render();
   });
   document.addEventListener('visibilitychange', () => { if (document.hidden) stopVoice(true); else { poll(); verifierVersion(); } });
-  document.addEventListener('input', (ev) => { if (ev.target && ev.target.id === 'draft') autoGrow(); });
+  document.addEventListener('input', (ev) => { if (ev.target && ev.target.id === 'draft') { autoGrow(); syncComposerAct(); } });
 
   function tick() {
     const cd = document.getElementById('cd');

@@ -234,7 +234,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v24';
+  const APP_VERSION = 'v25';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1051,6 +1051,7 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="screen">' +
       topbar({ titleHTML: 'Messages', right: '<button class="iconbtn" data-act="go" data-arg="identite" aria-label="Mon identité">' + I.user + '</button><button class="iconbtn" data-act="lock" aria-label="Verrouiller">' + I.lock + '</button>' }) +
       (notices ? '<div class="pending-stack">' + notices + '</div>' : '') +
+      (versionNouvelle ? '<div class="pending-stack"><button class="notice warn" data-act="recharger">' + I.refresh + '<span class="grow">Nouvelle version (' + esc(versionNouvelle) + ') disponible<br><span class="more">Touchez pour la charger. Vos données restent sur cet appareil.</span></span>' + I.chev + '</button></div>' : '') +
       (getPrefs().sound && !sonPret() ? notice('info', 'La sonnerie est en pause. Touchez l’écran une fois pour la réactiver.') : '') +
       (cs.length && !(getPrefs().notif && getPrefs().push) ? '<div class="pending-stack"><button class="notice warn" data-act="togglenotif">' + I.msg + '<span class="grow">Notifications quand l’appli est fermée : ' + (getPrefs().notif ? 'pas encore prêtes' : 'désactivées') + '<br><span class="more">Touchez pour ' + (getPrefs().notif ? 'réessayer' : 'les activer sur cet appareil') + '.</span></span>' + I.chev + '</button></div>' : '') +
       (cs.some((c) => c.pend) ? '<div class="pending-stack"><button class="notice warn" data-act="reactiver">' + I.link + '<span class="grow">Réactiver les liens<br><span class="more">Vos contacts sont installés. Touchez pour leur envoyer la demande de reprise.</span></span>' + I.chev + '</button></div>' : '') +
@@ -1098,7 +1099,7 @@ button.chip{cursor:pointer;font:inherit}
         ? '<div class="row-between"><span class="badge badge-ok">En attente</span><span class="hint">Valable jusqu’au ' + esc(until) + '</span></div>' +
           (S.invQR ? '<div class="qr-frame"><img alt="QR code d’invitation" src="' + S.invQR + '"></div>' : notice('err', 'Le QR code ne peut pas s’afficher ici. Utilisez le texte, plus bas.')) +
           '<div class="card code-card"><span class="code-label">Code à donner à part</span><div class="code">' + esc(fmtCode(inv.code)) + '</div><p class="hint">Par appel ou de vive voix. Jamais dans le même message que le QR code.</p></div>' +
-          '<div class="stack"><button class="btn btn-primary" data-act="sharelink" data-arg="' + esc(inv.id) + '">' + I.send + '<span>Envoyer le lien</span></button></div>' +
+          '<div class="stack"><button class="btn btn-primary" data-act="sharelink" data-arg="' + esc(inv.id) + '">' + I.send + '<span>Envoyer le lien et le QR code</span></button></div>' +
           '<p class="hint center">Face à face : la personne scanne ce QR code. À distance : envoyez-lui le lien. Dans les deux cas, elle entre le code ci-dessus.</p>' +
           '<details class="fallback"><summary>Le QR code ne s’affiche pas ? Copiez son texte.</summary><div class="stack"><textarea id="invtextout" class="field" readonly>' + esc(invTextFor(inv)) + '</textarea><button class="btn btn-secondary" data-act="copyinv">' + I.copy + '<span>Copier le texte</span></button></div></details>' +
           '<div class="dock"><button class="btn btn-danger" data-act="cancelinv" data-arg="' + esc(inv.id) + '">Annuler l’invitation</button></div>'
@@ -1557,14 +1558,37 @@ button.chip{cursor:pointer;font:inherit}
     try { S.invQR = makeQR(invTextFor(entry)); } catch (e) { S.invQR = null; }
     go('inviter', id);
   }
-  // Le lien d’invitation est envoyé tel quel : il est cliquable dans la messagerie et ouvre l’appli chez la personne.
+  // Image du QR code en PNG (fond blanc), pour être scannée par une caméra.
+  function qrPngBlob() {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth; c.height = img.naturalHeight;
+        const g = c.getContext('2d');
+        g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, c.width, c.height);
+        g.drawImage(img, 0, 0);
+        c.toBlob((b) => (b ? resolve(b) : reject(new Error('png'))), 'image/png');
+      };
+      img.onerror = () => reject(new Error('image'));
+      img.src = S.invQR;
+    });
+  }
+  // Une image n’est pas cliquable dans une messagerie : le lien part donc en texte, sur sa propre ligne (cliquable partout),
+  // et l’image du QR code part avec lui quand le téléphone sait partager des fichiers.
   async function actShareLink(id) {
     const inv = invitesAll().find((i) => i.id === id);
     if (!inv) return;
     const lien = invTextFor(inv);
+    const texte = 'Ajoutez-moi sur Pli Scellé. Touchez ce lien, puis entrez le code que je vous donne à part :\n' + lien;
     if (navigator.share) {
-      try { await navigator.share({ title: 'Pli Scellé', text: 'Ajoutez-moi sur Pli Scellé. Touchez le lien, puis entrez le code que je vous donne à part.', url: lien }); return; }
-      catch (e) { if (e && e.name === 'AbortError') return; }
+      let fichiers = [];
+      try { if (S.invQR) fichiers = [new File([await qrPngBlob()], 'invitation-pli-scelle.png', { type: 'image/png' })]; } catch (e) { fichiers = []; }
+      const avecImage = fichiers.length > 0 && !!navigator.canShare && navigator.canShare({ files: fichiers });
+      try {
+        await navigator.share(avecImage ? { files: fichiers, title: 'Pli Scellé', text: texte } : { title: 'Pli Scellé', text: texte });
+        return;
+      } catch (e) { if (e && e.name === 'AbortError') return; }
     }
     copyText(lien, 'Lien copié. Collez-le dans la messagerie de votre choix.');
   }
@@ -1762,6 +1786,7 @@ button.chip{cursor:pointer;font:inherit}
     deletekeep: () => actDeleteMe(true),
     install: () => actInstall(),
     reactiver: () => actReactivate(),
+    recharger: recharger,
     togglemode: () => { S.once = S.once === false; updateOnceChip(); },
     voicerec: () => startVoice(true),
     plusmenu: () => { S.plusOpen = !S.plusOpen; render(); },
@@ -1833,7 +1858,7 @@ button.chip{cursor:pointer;font:inherit}
     S.plusOpen = false;   // le menu « + » se referme après le choix
     render();
   });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) stopVoice(true); else poll(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stopVoice(true); else { poll(); verifierVersion(); } });
 
   function tick() {
     const cd = document.getElementById('cd');
@@ -1980,6 +2005,19 @@ button.chip{cursor:pointer;font:inherit}
       : { t: 'Notifications activées, mais l’envoi quand l’appli est fermée n’est pas encore prêt. Touchez la ligne « Notifications » pour réessayer.', ok: true };
     go('identite');
   }
+  // Mise à jour : l’appli compare sa version à celle du site. Une version plus récente fait apparaître un bandeau pour recharger.
+  let versionNouvelle = null;
+  const numeroVersion = (v) => parseInt(String(v).replace(/\D/g, ''), 10) || 0;
+  async function verifierVersion() {
+    try {
+      const r = await fetch(APP_URL + '?v=' + Date.now(), { cache: 'no-store' });
+      if (!r.ok) return;
+      const m = (await r.text()).match(/APP_VERSION = '([^']+)'/);
+      if (m && numeroVersion(m[1]) > numeroVersion(APP_VERSION) && m[1] !== versionNouvelle) { versionNouvelle = m[1]; S.needRender = true; }
+    } catch (e) { /* hors ligne : on réessaiera */ }
+  }
+  // Recharge la dernière version sans passer par le cache du navigateur. Les données restent sur cet appareil.
+  function recharger() { location.replace(APP_URL + '?v=' + Date.now()); }
   // Inscription de l’appareil quand les notifications sont voulues. Sans nouveau geste : seulement si la permission est déjà donnée.
   async function retryPush() {
     if (!getPrefs().notif || !S.me || !S.me.secret) return;
@@ -2091,6 +2129,10 @@ button.chip{cursor:pointer;font:inherit}
       }
     }
     S.bioAvail = await bioAvailable();
+    // Versions : au démarrage, au retour sur la fenêtre, puis toutes les 10 minutes (une fenêtre d’appli reste souvent ouverte longtemps)
+    verifierVersion();
+    setInterval(verifierVersion, 10 * 60 * 1000);
+    window.addEventListener('focus', verifierVersion);
     // Au démarrage : l’abonnement est vérifié et réenregistré (il peut avoir changé).
     cleanupNotifications();
     if (getPrefs().notif) registerWorker().then(retryPush).catch(() => {});

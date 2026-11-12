@@ -223,7 +223,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v17';
+  const APP_VERSION = 'v18';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1782,7 +1782,7 @@ button.chip{cursor:pointer;font:inherit}
     t.value = '';
     renderAttach();
   });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) stopVoice(); else poll(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stopVoice(); else { unlockSound(); poll(); } });
 
   function tick() {
     const cd = document.getElementById('cd');
@@ -1808,10 +1808,11 @@ button.chip{cursor:pointer;font:inherit}
   function unlockSound() {
     try {
       if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
-      if (audio.state === 'suspended') audio.resume();
+      if (audio.state === 'suspended' || audio.state === 'interrupted') audio.resume();
     } catch (e) { /* son indisponible sur ce téléphone */ }
   }
-  ['pointerdown', 'touchend', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, unlockSound, { once: true }));
+  // À chaque toucher, pas une seule fois : iOS met le son en veille quand l’appli quitte le premier plan.
+  ['pointerdown', 'touchend', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, unlockSound));
   // Sonneries au choix : suites de notes générées sur place, sans fichier.
   const TONES = {
     carillon: { label: 'Carillon', type: 'sine', gain: 0.4, len: 0.3, notes: [[1046, 0], [1318, 0.18], [1568, 0.36], [1046, 0.75], [1318, 0.93], [1568, 1.11]] },

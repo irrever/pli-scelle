@@ -243,7 +243,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v36';
+  const APP_VERSION = 'v37';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -771,10 +771,45 @@ button.chip{cursor:pointer;font:inherit}
           '<p class="hint">Le navigateur de l’iPhone ne peut pas lire vos contacts. Enregistrez la fiche en fichier .vcf (Contacts, Partager le contact, Enregistrer dans Fichiers), puis choisissez-la ici. Sinon, tapez le nom.</p>') +
       '<p class="hint">Vous seul le voyez. Il ne quitte pas cet appareil.</p>' + formStatus() + '</div>';
   }
+  // Emblème « empreinte » des maquettes : des anneaux irréguliers, toujours dessinés de la même façon (graine fixe).
+  // Il marque une conversation vérifiée et accompagne les mots d’empreinte. Les six mots, eux, sont propres à chaque contact.
+  function empreinteChemin() {
+    const TAU = Math.PI * 2, tilt = -0.42, cosT = Math.cos(tilt), sinT = Math.sin(tilt);
+    const rot = (x, y) => { const dx = x - 50, dy = y - 50; return [50 + dx * cosT - dy * sinT, 50 + dx * sinT + dy * cosT]; };
+    let graine = 7;
+    const rnd = () => { graine = (graine * 16807) % 2147483647; return graine / 2147483647; };
+    const anneaux = [];
+    for (let i = 0; i < 13; i++) {
+      const f = 1 - i / 13;
+      const rx = 38 * f + 1.2, ry = 46 * f + 1.2;
+      const cx = 50 + (1 - f) * 2.5, cy = 50 + (1 - f) * 1.5;
+      const gapC = Math.PI / 2 + (rnd() - 0.5) * 0.44, gapW = 0.5 + rnd() * 0.25;
+      const a1 = gapC + gapW / 2;
+      const jitter = rnd() * 0.3;
+      const breakAt = rnd() * TAU;
+      let d = '', pen = false;
+      for (let k = 0; k <= 110; k++) {
+        const t = a1 + (k / 110) * (TAU - gapW);
+        let rel = t - breakAt;
+        while (rel < 0) rel += TAU;
+        while (rel >= TAU) rel -= TAU;
+        if (i % 3 === 1 && rel < 0.07) { pen = false; continue; }
+        const wob = 1 + 0.035 * Math.sin(2 * t + i * 0.9 + jitter) + 0.02 * Math.sin(5 * t - i);
+        const p = rot(cx + rx * wob * Math.cos(t), cy + ry * wob * Math.sin(t));
+        d += (pen ? ' L' : ' M') + p[0].toFixed(2) + ' ' + p[1].toFixed(2);
+        pen = true;
+      }
+      anneaux.push(d);
+    }
+    return anneaux.join(' ');
+  }
+  function empreinteIcone(taille) {
+    return '<svg viewBox="0 0 100 100" width="' + taille + '" height="' + taille + '" fill="none" stroke="currentColor" stroke-width="' + (70 / taille).toFixed(2) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" style="flex:none"><path d="' + empreinteChemin() + '"/></svg>';
+  }
   function wordsBlock(title, text, mots) {
     const w = mots || S.words || [];
     const paragraphes = Array.isArray(text) ? text : [text];
-    return '<section class="card"><div class="section-title" style="margin:0">' + esc(title) + '</div><div class="words-grid">' + w.map((x, i) => '<div class="word"><span class="word-n">' + (i + 1) + '</span><span>' + esc(x) + '</span></div>').join('') + '</div>' + paragraphes.map((p) => '<p class="hint">' + esc(p) + '</p>').join('') + '</section>';
+    return '<section class="card"><div class="section-title" style="margin:0;display:flex;align-items:center;gap:8px"><span style="color:var(--accent);display:inline-flex">' + empreinteIcone(44) + '</span><span>' + esc(title) + '</span></div><div class="words-grid">' + w.map((x, i) => '<div class="word"><span class="word-n">' + (i + 1) + '</span><span>' + esc(x) + '</span></div>').join('') + '</div>' + paragraphes.map((p) => '<p class="hint">' + esc(p) + '</p>').join('') + '</section>';
   }
   function progressStep(n, label, state, hint) {
     return '<div class="pstep ' + state + '"><span class="dot">' + (state === 'done' ? I.check.replace('class="ico"', 'class="ico" style="width:14px;height:14px"') : n) + '</span><div><b>' + esc(label) + '</b>' + (hint ? '<span>' + esc(hint) + '</span>' : '') + '</div></div>';
@@ -1119,7 +1154,7 @@ button.chip{cursor:pointer;font:inherit}
   }
   function viewAttente() {
     // Les 6 mots se calculent des deux côtés à partir des deux clés : le scanneur les voit dès l’envoi, en même temps que la personne.
-    const words = S.words && S.words.length ? wordsBlock('Empreinte à comparer', 'Ils doivent être identiques sur l’écran de la personne. Comparez-les dès maintenant.') : '';
+    const words = S.words && S.words.length ? wordsBlock('Mots d’empreinte à comparer','Ils doivent être identiques sur l’écran de la personne. Comparez-les dès maintenant.') : '';
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Demande envoyée' }) +
       '<div class="progress"><div class="pstep done"><span class="dot">' + '✓' + '</span><div><b>Demande envoyée</b><span>Votre demande a bien été transmise.</span></div></div>' +
         '<div class="pstep now"><span class="dot">2</span><div><b>Confirmation de la personne</b><span>Elle vérifie les mots de son côté.</span></div></div>' +
@@ -1135,7 +1170,7 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Demande reçue' }) +
       '<div><h1>Une personne a scanné votre identité</h1><p class="lead" style="margin-top:6px">Vérifiez qu’elle est bien devant vous, puis comparez les mots.</p></div>' +
       personCard(p.peerPseudo, 'Code vérifié') + nameField() +
-      wordsBlock('Empreinte à comparer', 'Ils doivent être identiques sur l’écran de la personne.') +
+      wordsBlock('Mots d’empreinte à comparer','Ils doivent être identiques sur l’écran de la personne.') +
       '<div class="dock stack"><button class="btn btn-primary" data-act="acceptff" data-arg="' + esc(p.pid) + '">Les mots sont identiques</button><button class="btn btn-danger" data-act="refuseff" data-arg="' + esc(p.pid) + '">Refuser</button></div>' +
     '</div>';
   }
@@ -1145,7 +1180,7 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Ajouter ce contact' }) +
       '<div><h1>Ajouter ce contact</h1><p class="lead" style="margin-top:6px">La personne a accepté. Comparez les mots avant de continuer.</p></div>' +
       personCard(p.peerPseudo, 'Accepté') + nameField() +
-      wordsBlock('Empreinte à comparer', 'Ils doivent être identiques sur l’écran de la personne.') +
+      wordsBlock('Mots d’empreinte à comparer','Ils doivent être identiques sur l’écran de la personne.') +
       '<div class="dock stack"><button class="btn btn-primary" data-act="confirmff" data-arg="' + esc(p.pid) + '">Les mots sont identiques</button><button class="btn btn-danger" data-act="drop" data-arg="' + esc(p.pid) + '">Ce n’est pas la bonne personne</button></div>' +
     '</div>';
   }
@@ -1155,7 +1190,7 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) +
       '<div><h1>Quelqu’un a rejoint votre invitation</h1><p class="lead" style="margin-top:6px">Le code d’invitation est juste. Comparez les mots, puis donnez un nom pour ajouter ce contact.</p></div>' +
       personCard(p.peerPseudo, 'Code vérifié') +
-      (S.words && S.words.length ? wordsBlock('Empreinte à comparer', 'Ils doivent être identiques sur l’écran de la personne.') : '') +
+      (S.words && S.words.length ? wordsBlock('Mots d’empreinte à comparer','Ils doivent être identiques sur l’écran de la personne.') : '') +
       nameField() +
       '<div class="dock stack"><button class="btn btn-primary" data-act="acceptremote" data-arg="' + esc(p.pid) + '">Ajouter ce contact</button><button class="btn btn-danger" data-act="refuseremote" data-arg="' + esc(p.pid) + '">Refuser</button></div>' +
     '</div>';
@@ -1165,7 +1200,7 @@ button.chip{cursor:pointer;font:inherit}
     if (!p) return viewAccueil();
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation acceptée' }) +
       '<div><h1>Vous pouvez écrire à ' + esc(p.peerPseudo) + '</h1><p class="lead" style="margin-top:6px">Le code a été vérifié à la connexion. Comparez les mots, puis donnez un nom pour ajouter ce contact.</p></div>' +
-      (S.words && S.words.length ? wordsBlock('Empreinte à comparer', 'Ils doivent être identiques sur l’écran de la personne.') : '') +
+      (S.words && S.words.length ? wordsBlock('Mots d’empreinte à comparer','Ils doivent être identiques sur l’écran de la personne.') : '') +
       nameField() +
       '<div class="dock"><button class="btn btn-primary" data-act="confirmremote" data-arg="' + esc(p.pid) + '">Ajouter ce contact</button></div>' +
     '</div>';
@@ -1174,7 +1209,7 @@ button.chip{cursor:pointer;font:inherit}
     const c = contacts().find((x) => x.cid === S.arg);
     if (!c) return viewAccueil();
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Contact', right: '<button class="iconbtn" data-act="reglages" data-arg="' + esc(c.cid) + '" aria-label="Réglages du contact">' + I.more + '</button>' }) +
-      '<div class="contact-hero"><span class="avatar xl">' + esc(initial(c.name)) + '</span><div class="row-title" style="font-size:20px">' + esc(c.name) + '</div><span class="hint">' + esc(c.pseudo) + '</span><span class="badge badge-ok">' + I.check + 'Vérifié</span></div>' +
+      '<div class="contact-hero"><span class="avatar xl">' + esc(initial(c.name)) + '</span><div class="row-title" style="font-size:20px">' + esc(c.name) + '</div><span class="hint">' + esc(c.pseudo) + '</span><span class="badge badge-ok">' + empreinteIcone(16) + 'Vérifié</span></div>' +
       '<div class="card code-card"><span class="code-label">Code de ce contact</span><div class="code">' + esc(c.label) + '</div><p class="hint">Dans les conversations, seul ce code apparaît.</p></div>' +
       '<section class="card"><h2>Prêt à écrire</h2><p class="hint">Le message est chiffré. Seule cette personne peut le lire.</p></section>' +
       '<div class="dock stack"><button class="btn btn-primary" data-act="conv" data-arg="' + esc(c.cid) + '">' + I.msg + '<span>Écrire</span></button><button class="btn btn-secondary" data-act="savecontact" data-arg="' + esc(c.cid) + '">' + I.user + '<span>Ajouter à mes contacts</span></button><button class="btn btn-danger" data-act="cut" data-arg="' + esc(c.cid) + '">' + I.unlink + '<span>Couper le lien</span></button></div>' +
@@ -1301,7 +1336,7 @@ button.chip{cursor:pointer;font:inherit}
     if (!c) return viewAccueil();
     const thread = msgsAll().filter((m) => m.cid === c.cid).sort((a, b) => (a.ts || 0) - (b.ts || 0)).map(msgHTML).join('');
     return '<div class="screen" style="gap:12px">' +
-      topbar({ backAct: 'go', backArg: 'accueil', titleHTML: '<span class="conv-title"><span class="code code-sm">' + esc(c.label) + '</span><span class="hint">Vérifié</span></span>', right: '<button class="iconbtn" data-act="reglages" data-arg="' + esc(c.cid) + '" aria-label="Réglages du contact">' + I.more + '</button>' }) +
+      topbar({ backAct: 'go', backArg: 'accueil', titleHTML: '<span class="conv-title"><span class="code code-sm">' + esc(c.label) + '</span><span class="hint" style="display:inline-flex;align-items:center;gap:4px;color:var(--accent)">' + empreinteIcone(14) + 'Vérifié</span></span>', right: '<button class="iconbtn" data-act="reglages" data-arg="' + esc(c.cid) + '" aria-label="Réglages du contact">' + I.more + '</button>' }) +
       '<div class="thread">' + (thread || '<p class="hint center" style="padding-top:24px">Aucun message. Écrivez le premier.</p>') + '</div>' +
       '' + composerHTML(c.cid) + '' +
     '</div>';
@@ -1311,7 +1346,7 @@ button.chip{cursor:pointer;font:inherit}
     if (!c) return viewAccueil();
     return '<div class="screen">' + topbar({ backAct: 'conv', backArg: c.cid, title: 'Réglages' }) +
       '<div class="card code-card"><span class="code-label">Code de ce contact</span><div class="code">' + esc(c.label) + '</div></div>' +
-      (S.motsCle && S.motsCle.cid === c.cid ? wordsBlock('Empreinte de la conversation', [
+      (S.motsCle && S.motsCle.cid === c.cid ? wordsBlock('Mots d’empreinte', [
         'Cette empreinte est faite de six mots. Elle est calculée à partir des clés de chiffrement de vous deux : chaque téléphone la calcule de son côté et doit obtenir exactement les mêmes mots.',
         'Si l’empreinte est identique sur vos deux écrans, la conversation reste uniquement entre vous deux : personne ne s’est intercalé pour lire ou modifier vos messages.',
         'Pour vérifier, comparez-les de vive voix ou au téléphone, dans le même ordre. Évitez de les comparer par message écrit : un message peut lui aussi être modifié en chemin.',

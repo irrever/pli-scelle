@@ -168,6 +168,14 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
 .composer{display:flex;flex-direction:column;gap:10px;padding-top:10px;border-top:1px solid var(--line-2);background:var(--bg);position:sticky;bottom:0;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
 .composer-row{display:flex;gap:8px;align-items:center}
 .composer-row .field{flex:1;min-width:0}
+.btn-plus{width:44px;height:44px;flex:none;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--accent);font-size:26px;line-height:1;cursor:pointer}
+.mic{width:44px;height:44px;flex:none;border-radius:50%;border:0;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;cursor:pointer}
+.mic svg{width:20px;height:20px}
+.plus-row{display:flex;gap:8px;flex-wrap:wrap}
+.tile.unread{background:var(--accent-soft);border:2px solid var(--accent);box-shadow:0 2px 12px rgba(0,0,0,.14)}
+.tile.unread b{color:var(--accent)}
+.tile.read{opacity:.6;box-shadow:none}
+.nouveau{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;background:var(--accent);color:var(--on-accent);font-size:11px;font-weight:700;vertical-align:middle}
 .btn-send{width:auto;min-width:96px;min-height:50px;padding:0 16px;border-radius:14px}
 .chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:12px;font-weight:600;color:var(--ink-2);align-self:flex-start}
 .chip.on{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
@@ -223,7 +231,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v20';
+  const APP_VERSION = 'v21';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -745,7 +753,7 @@ button.chip{cursor:pointer;font:inherit}
     const l = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
     return l.find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || '';
   }
-  async function startVoice() {
+  async function startVoice(direct) {
     if (S.voice) return;
     if (!window.MediaRecorder || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return flashNow({ t: 'Le message vocal n’est pas disponible sur ce téléphone.' });
     let stream;
@@ -756,13 +764,14 @@ button.chip{cursor:pointer;font:inherit}
     let rec;
     try { rec = new MediaRecorder(stream, mime ? { mimeType: mime, audioBitsPerSecond: 16000 } : { audioBitsPerSecond: 16000 }); }
     catch (e) { stream.getTracks().forEach((t) => t.stop()); return flashNow({ t: 'Enregistrement impossible sur ce téléphone.' }); }
-    const v = { phase: 'rec', rec: rec, stream: stream, chunks: [], start: Date.now(), timer: null, cid: S.arg };
+    const v = { phase: 'rec', rec: rec, stream: stream, chunks: [], start: Date.now(), timer: null, cid: S.arg, direct: !!direct };
     rec.ondataavailable = (e) => { if (e.data && e.data.size) v.chunks.push(e.data); };
     rec.onstop = () => {
       stream.getTracks().forEach((t) => t.stop());
       clearInterval(v.timer);
       const blob = new Blob(v.chunks, { type: rec.mimeType || mime || 'audio/webm' });
       S.voice = { phase: 'ready', blob: blob, url: URL.createObjectURL(blob), dur: Math.max(1, Math.round((Date.now() - v.start) / 1000)), cid: v.cid };
+      if (v.direct) return actSendVoice(v.cid);   // micro du champ : le vocal part dès l’arrêt
       if (S.screen === 'conv') render();
     };
     S.voice = v;
@@ -775,9 +784,12 @@ button.chip{cursor:pointer;font:inherit}
     }, 500);
     render();
   }
-  function stopVoice() {
+  // Arrêt normal : le vocal part tout de suite. Appli quittée : il reste en attente (bouton « Envoyer le vocal »), rien ne part seul.
+  function stopVoice(sansEnvoi) {
     const v = S.voice;
-    if (v && v.phase === 'rec' && v.rec.state !== 'inactive') v.rec.stop();
+    if (!v || v.phase !== 'rec' || v.rec.state === 'inactive') return;
+    if (sansEnvoi) v.direct = false;
+    v.rec.stop();
   }
   function cancelVoice() {
     const v = S.voice;
@@ -793,7 +805,7 @@ button.chip{cursor:pointer;font:inherit}
   }
   function voiceBarHTML(cid) {
     const v = S.voice;
-    if (v.phase === 'rec') return '<div class="voice-bar"><span class="voice-dot"></span><span id="voicetimer" class="mono">0:00</span><span style="flex:1"></span><button class="btn btn-ghost" type="button" data-act="voicecancel">Annuler</button><button class="btn btn-primary" type="button" data-act="voicestop">Arrêter</button></div>';
+    if (v.phase === 'rec') return '<div class="voice-bar"><span class="voice-dot"></span><span id="voicetimer" class="mono">0:00</span><span style="flex:1"></span><button class="btn btn-ghost" type="button" data-act="voicecancel">Annuler</button><button class="btn btn-primary" type="button" data-act="voicestop">Envoyer</button></div>';
     if (v.phase === 'ready') return '<div class="voice-bar"><audio controls src="' + esc(v.url) + '"></audio><div class="row-between" style="width:100%"><button class="btn btn-ghost" type="button" data-act="voicecancel">Annuler</button><button class="btn btn-primary" type="button" data-act="voicesend" data-arg="' + esc(cid) + '">Envoyer le vocal</button></div></div>';
     return '<div class="voice-bar"><span id="voiceprog" class="hint">Envoi du vocal en cours…</span></div>';
   }
@@ -856,16 +868,16 @@ button.chip{cursor:pointer;font:inherit}
     const d = m.dur ? ' · ' + m.dur + ' s' : '';
     const vignette = '<img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '">';
     if (m.dir === 'out') return '<div class="tile mine">' + vignette + '<span class="tt"><b>Message vocal envoyé</b><span class="hint">' + (m.once === false ? 'Relisible' : 'Lecture unique') + d + '</span></span></div>';
-    if (m.state === 'new') return '<button class="tile" data-act="reveal" data-arg="' + esc(m.mid) + '">' + vignette + '<span class="tt">' + (m.seen ? '<b>Message vocal relisible</b><span class="hint">Toucher pour réécouter' + d + '</span>' : '<b>Message vocal reçu</b><span class="hint">Toucher pour écouter' + d + '</span>') + '</span></button>';
+    if (m.state === 'new') return '<button class="tile ' + (m.seen ? 'read' : 'unread') + '" data-act="reveal" data-arg="' + esc(m.mid) + '">' + vignette + '<span class="tt">' + (m.seen ? '<b>Message vocal relisible</b><span class="hint">Toucher pour réécouter' + d + '</span>' : '<b>Message vocal reçu</b><span class="hint">Toucher pour écouter' + d + '</span><span class="nouveau">Nouveau</span>') + '</span></button>';
     if (m.state === 'open') return '<div class="bubble"><audio controls preload="auto" data-voice="' + esc(m.mid) + '"></audio><div class="bubble-timer">Reste ouvert pendant l’écoute, puis se referme ' + REVEAL_MS / 1000 + ' s après.</div></div>';
-    return '<div class="tile" style="color:var(--muted)">' + vignette.replace('class="qr-thumb"', 'class="qr-thumb faded"') + '<span class="tt"><b>Message vocal lu</b><span class="hint">Le contenu a été effacé</span></span></div>';
+    return '<div class="tile read">' + vignette.replace('class="qr-thumb"', 'class="qr-thumb faded"') + '<span class="tt"><b>Message vocal lu</b><span class="hint">Le contenu a été effacé</span></span></div>';
   }
   function msgHTML(m) {
     if (m.kind === 'voice') return msgVoiceHTML(m);
     if (m.dir === 'out') return '<div class="tile mine"><img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt"><b>Message envoyé</b><span class="hint">' + (m.once === false ? 'Relisible' : 'Lecture unique') + '</span></span></div>';
-    if (m.state === 'new') return '<button class="tile" data-act="reveal" data-arg="' + esc(m.mid) + '"><img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt">' + (m.seen ? '<b>Message relisible</b><span class="hint">Toucher pour revoir</span>' : '<b>QR code reçu</b><span class="hint">Toucher pour lire</span>') + '</span></button>';
+    if (m.state === 'new') return '<button class="tile ' + (m.seen ? 'read' : 'unread') + '" data-act="reveal" data-arg="' + esc(m.mid) + '"><img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt">' + (m.seen ? '<b>Message relisible</b><span class="hint">Toucher pour revoir</span>' : '<b>QR code reçu</b><span class="hint">Toucher pour lire</span><span class="nouveau">Nouveau</span>') + '</span></button>';
     if (m.state === 'open') return '<div class="bubble">' + esc(m.text) + '<div class="bubble-timer" data-until="' + esc(m.until) + '">Se referme dans ' + Math.max(0, Math.ceil((m.until - Date.now()) / 1000)) + ' s</div></div>';
-    return '<div class="tile" style="color:var(--muted)"><img class="qr-thumb faded" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt"><b>Message lu</b><span class="hint">Le contenu a été effacé</span></span></div>';
+    return '<div class="tile read"><img class="qr-thumb faded" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt"><b>Message lu</b><span class="hint">Le contenu a été effacé</span></span></div>';
   }
   function emptyState() {
     return '<div class="list"><div class="empty">' + I.user + '<b>Aucun contact pour l’instant</b><span>Ajoutez une personne, face à face ou à distance.</span></div></div>';
@@ -950,7 +962,7 @@ button.chip{cursor:pointer;font:inherit}
     const ms = msgsAll();
     const cs = contacts();
     const list = cs.length ? '<div class="list">' + cs.map((c) => {
-      const n = ms.filter((m) => m.cid === c.cid && m.dir === 'in' && m.state === 'new').length;
+      const n = ms.filter((m) => m.cid === c.cid && m.dir === 'in' && m.state === 'new' && !m.seen).length;
       return '<button class="row-item conv" data-act="conv" data-arg="' + esc(c.cid) + '"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · Vérifié</span></span>' + (n ? '<span class="count">' + n + '</span>' : '') + I.chev + '</button>';
     }).join('') + '</div>' : emptyState();
     return '<div class="screen">' +
@@ -1110,15 +1122,21 @@ button.chip{cursor:pointer;font:inherit}
     const on = S.once !== false;
     return '<div class="composer">' +
       '<div class="composer-tools">' +
+        '<button id="onceChip" class="chip' + (on ? ' on' : '') + '" type="button" data-act="togglemode">' + (on ? 'Lecture unique' : 'Relisible') + '</button>' +
+      '</div>' +
+      (S.plusOpen ? '<div class="plus-row">' +
         '<label class="tool">' + I.camera + '<span>Photo</span><input id="pickPhoto" class="sr-only" type="file" accept="image/*"></label>' +
         '<label class="tool">' + I.file + '<span>Document</span><input id="pickDoc" class="sr-only" type="file"></label>' +
         '<button class="tool" type="button" data-act="showlink">' + I.link + '<span>Lien</span></button>' +
-        '<button class="tool" type="button" data-act="voicerec">' + I.mic + '<span>Vocal</span></button>' +
-        '<button id="onceChip" class="chip' + (on ? ' on' : '') + '" type="button" data-act="togglemode">' + (on ? 'Lecture unique' : 'Relisible') + '</button>' +
-      '</div>' +
+      '</div>' : '') +
       '<div id="linkRow" class="link-row"' + (S.linkOpen ? '' : ' hidden') + '><input id="linkIn" class="field" placeholder="Adresse du lien" inputmode="url" autocomplete="off"><button class="btn btn-secondary btn-send" type="button" data-act="addlink">Ajouter</button></div>' +
       '<div id="attachRow" class="attach-row">' + attachChipsHTML() + '</div>' +
-      (S.voice ? voiceBarHTML(cid) : '<div class="composer-row"><input id="draft" class="field" placeholder="Votre message" autocomplete="off"><button class="btn btn-primary btn-send" data-act="send" data-arg="' + esc(cid) + '">Envoyer</button></div>') +
+      (S.voice ? voiceBarHTML(cid) : '<div class="composer-row">' +
+        '<button class="btn-plus" type="button" data-act="plusmenu" aria-label="Ajouter une photo, un document ou un lien">+</button>' +
+        '<input id="draft" class="field" placeholder="Votre message" autocomplete="off">' +
+        '<button class="mic" type="button" data-act="voicerec" aria-label="Message vocal">' + I.mic + '</button>' +
+        '<button class="btn btn-primary btn-send" data-act="send" data-arg="' + esc(cid) + '">Envoyer</button>' +
+      '</div>') +
     '</div>';
   }
   function updateOnceChip() {
@@ -1343,7 +1361,7 @@ button.chip{cursor:pointer;font:inherit}
     // Même écran et même contact : brouillon, lien en cours et focus survivent au redessin.
     const key = S.screen + ':' + S.arg;
     const same = app.dataset.view === key;
-    if (!same) { S.attach = []; S.linkOpen = false; }
+    if (!same) { S.attach = []; S.linkOpen = false; S.plusOpen = false; }
     const keep = {};
     if (same) ['draft', 'linkIn'].forEach((id) => { const el = document.getElementById(id); if (el) keep[id] = el.value; });
     const act = document.activeElement;
@@ -1352,8 +1370,11 @@ button.chip{cursor:pointer;font:inherit}
     try { html = fn(); } catch (e) { console.error(e); html = '<div class="screen">' + notice('err', 'Affichage impossible : ' + esc(e.message)) + '</div>'; }
     const flash = S.flash ? notice(S.flash.ok ? 'ok' : 'info', esc(S.flash.t)) : '';
     S.flash = null; S.needRender = false;
+    const pres = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 160;   // l’utilisateur était en bas
     app.innerHTML = flash + html;
     hydrateVoices();
+    // Conversation : on s’ouvre sur le dernier message, et il suit les nouveaux si on était déjà en bas
+    if (S.screen === 'conv' && (!same || pres)) window.scrollTo(0, document.documentElement.scrollHeight);
     app.dataset.view = key;
     Object.keys(keep).forEach((id) => { const el = document.getElementById(id); if (el) el.value = keep[id]; });
     if (focusId) { const el = document.getElementById(focusId); if (el) el.focus(); }
@@ -1708,11 +1729,12 @@ button.chip{cursor:pointer;font:inherit}
     cut: actCut,
     deleteme: actDeleteMe,
     togglemode: () => { S.once = S.once === false; updateOnceChip(); },
-    voicerec: () => startVoice(),
+    voicerec: () => startVoice(true),
+    plusmenu: () => { S.plusOpen = !S.plusOpen; render(); },
     voicestop: () => stopVoice(),
     voicecancel: () => { cancelVoice(); render(); },
     voicesend: (cid) => actSendVoice(cid),
-    showlink: () => { S.linkOpen = !S.linkOpen; const r = $('#linkRow'); if (r) { r.hidden = !S.linkOpen; if (S.linkOpen) $('#linkIn').focus(); } },
+    showlink: () => { S.linkOpen = !S.linkOpen; S.plusOpen = false; render(); const r = $('#linkRow'); if (r) { r.hidden = !S.linkOpen; if (S.linkOpen) $('#linkIn').focus(); } },
     addlink: addLinkAttach,
     rmattach: (i) => { S.attach = S.attach || []; S.attach.splice(Number(i), 1); renderAttach(); },
     savecontact: saveContactFile,
@@ -1780,9 +1802,10 @@ button.chip{cursor:pointer;font:inherit}
     S.attach = S.attach || [];
     S.attach.push({ kind: t.id === 'pickPhoto' ? 'photo' : 'document', label: t.files[0].name });
     t.value = '';
-    renderAttach();
+    S.plusOpen = false;   // le menu « + » se referme après le choix
+    render();
   });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) stopVoice(); else { unlockSound(); poll(); } });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stopVoice(true); else { unlockSound(); poll(); } });
 
   function tick() {
     const cd = document.getElementById('cd');

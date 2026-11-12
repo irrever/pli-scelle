@@ -245,7 +245,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v44';
+  const APP_VERSION = 'v45';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -618,7 +618,7 @@ button.chip{cursor:pointer;font:inherit}
   async function onRemoteClaim(m) {
     const invs = invitesAll();
     const inv = invs.find((i) => i.id === m.inv);
-    if (!inv || inv.status !== 'open' || Date.now() > inv.exp) { await sendTo(m.from, { kind: 'refuse', inv: m.inv }); return false; }
+    if (!inv || inv.status !== 'open' || Date.now() > inv.exp) { await sendTo(m.from, { kind: 'refuse', inv: m.inv, why: !inv ? 'unknown' : inv.status !== 'open' ? 'used' : 'expired' }); return false; }
     const expected = await proofFor(unb64u(inv.K), m.from);
     if (expected !== m.proof) {
       inv.fails = (inv.fails || 0) + 1;
@@ -646,7 +646,7 @@ button.chip{cursor:pointer;font:inherit}
     const idx = pend.findIndex((p) => (p.type === 'ff-sent' && p.peer === m.from) || (p.type === 'remote-sent' && p.invId === m.inv));
     if (idx < 0) return false;
     pend.splice(idx, 1); LS.set('pending', pend);
-    S.flash = { t: 'La demande a été refusée, ou le code est incorrect.' };
+    S.flash = { t: m.why === 'used' ? 'Cette invitation a déjà été acceptée pour quelqu’un d’autre.' : m.why === 'expired' ? 'Cette invitation a expiré.' : 'La demande a été refusée, ou le code est incorrect.' };
     return true;
   }
   async function onMsg(m, docId) {
@@ -738,7 +738,7 @@ button.chip{cursor:pointer;font:inherit}
     if (racc) { S.routed.add(racc.pid); return openPending(racc.pid, 'nommer'); }
     if (S.screen === 'attente' && !pend.some((p) => p.type === 'ff-sent' || p.type === 'remote-sent')) {
       S.words = null;
-      S.flash = { t: 'La demande a été refusée, ou le code est incorrect.' };
+      S.flash = S.flash || { t: 'La demande a été refusée, ou le code est incorrect.' };
       return go('accueil');
     }
     if (S.needRender && !isTyping() && !voicePlaying()) render();
@@ -1132,12 +1132,21 @@ button.chip{cursor:pointer;font:inherit}
     '</div>';
   }
   // Un seul endroit pour ajouter quelqu’un : scanner le QR code d’une personne, ou montrer le sien.
+  // Les invitations encore ouvertes : une par personne, chacune avec son QR code, son code et son délai.
+  function invitationsEnAttenteHTML() {
+    const ouvertes = invitesAll().filter((i) => i.status === 'open' && Date.now() < i.exp).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    if (!ouvertes.length) return '';
+    const date = (t) => esc(new Date(t).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }));
+    return '<section class="stack"><div class="section-title">Invitations en attente</div><div class="list">' +
+      ouvertes.map((i) => '<button class="rowlink" data-act="voirinv" data-arg="' + esc(i.id) + '"><span><b>Valable jusqu’au ' + date(i.exp) + '</b><br><span class="hint">Créée le ' + date(i.createdAt || i.exp) + '</span></span>' + I.chev + '</button>').join('') +
+      '</div></section>';
+  }
   function viewAjouter() {
     return '<div class="screen">' + topbar({ backAct: 'go', backArg: 'accueil', title: 'Ajouter une personne' }) +
       '<section class="stack">' +
         choice('go', 'scanner', I.camera, 'Scanner un QR code', 'Photographiez le QR code de la personne, ou choisissez son image.') +
-        choice('newinvite', null, I.qr, 'Mon QR code', 'Montrez-le face à face, ou envoyez-lui le lien. Le code se donne à part.') +
-      '</section></div>';
+        choice('newinvite', null, I.qr, 'Mon QR code', 'Un QR code et son code pour une personne. Plusieurs peuvent être en attente.') +
+      '</section>' + invitationsEnAttenteHTML() + '</div>';
   }
   // Un seul écran pour recevoir : le QR code lu (photo ou appareil photo) donne soit une invitation, soit une identité.
   function viewScanner() {
@@ -1667,12 +1676,9 @@ button.chip{cursor:pointer;font:inherit}
     try { S.invQR = makeQR(invTextFor(entry)); } catch (e) { S.invQR = null; }
     go('inviter', id);
   }
-  // « Mon QR code » : réutilise l’invitation encore valable, au lieu d’en créer une à chaque fois.
+  // « Mon QR code » : une invitation nouvelle pour chaque personne. Les autres restent en attente, chacune avec son QR code et son code.
   async function actMonQR() {
-    const ouverte = invitesAll().filter((i) => i.status === 'open' && Date.now() < i.exp).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
-    if (!ouverte) return actNewInvite();
-    try { S.invQR = makeQR(invTextFor(ouverte)); } catch (e) { S.invQR = null; }
-    go('inviter', ouverte.id);
+    return actNewInvite();
   }
   // « Nouveau QR code » : l’ancienne invitation est annulée (son QR code ne marche plus), puis une nouvelle est créée.
   async function actRenouveler(id) {
@@ -1760,9 +1766,21 @@ button.chip{cursor:pointer;font:inherit}
     if (!name) return setStatus('formstatus', 'err', 'Donnez un nom à ce contact.');
     const p = pendingById(pid);
     if (!p) return go('accueil');
+    const inv = invitesAll().find((i) => i.id === p.invId);
+    if (!inv || inv.status !== 'open') {
+      try { await sendTo(p.peer, { kind: 'refuse', inv: p.invId, why: 'used' }); } catch (e) {}
+      dropPending(pid);
+      S.flash = { t: 'Cette invitation a déjà été acceptée pour quelqu’un d’autre.' };
+      return go('accueil');
+    }
     await sendTo(p.peer, { kind: 'accept', pseudo: S.me.pseudo, inv: p.invId });
     const c = addContact(p.peer, p.peerPseudo, name);
     await closeInviteDoc(p.invId); markInviteClosed(p.invId);
+    // Une invitation n’accepte qu’une personne : les autres demandes reçues avec ce même code sont refusées.
+    for (const o of pendingAll().filter((x) => x.type === 'remote-claim' && x.invId === p.invId && x.pid !== pid)) {
+      try { await sendTo(o.peer, { kind: 'refuse', inv: o.invId, why: 'used' }); } catch (e) {}
+      dropPending(o.pid);
+    }
     dropPending(pid);
     go('contact', c.cid);
   }
@@ -1899,6 +1917,7 @@ button.chip{cursor:pointer;font:inherit}
     confirmff: actConfirmFF,
     drop: (pid) => { dropPending(pid); go('accueil'); },
     newinvite: actMonQR,
+    voirinv: (id) => go('inviter', id),
     renewinv: actRenouveler,
     sharelink: actShareLink,
     saveqr: actSaveQR,

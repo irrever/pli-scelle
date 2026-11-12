@@ -231,7 +231,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v21';
+  const APP_VERSION = 'v22';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -397,6 +397,23 @@ button.chip{cursor:pointer;font:inherit}
     const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64u(iv) }, key, unb64u(ct));
     return JSON.parse(dec.decode(pt));
   }
+  // Lien avec un contact : clé de 256 bits partagée, qu'on peut mettre dans la sauvegarde (chiffrée par le code secret).
+  async function sharedBits(peerRaw) {
+    const pub = await crypto.subtle.importKey('raw', unb64u(peerRaw), ECDH, false, []);
+    return new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: pub }, S.priv, 256));
+  }
+  function importLinkKey(bits) { return crypto.subtle.importKey('raw', bits, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']); }
+  // Message authentifié : seul le contact, qui partage la clé du lien, peut le lire.
+  async function sendAuth(peerRaw, kind, obj) {
+    const body = await encryptFor(await sharedKey(peerRaw), obj);
+    await S.db.collection('box').add({ to: await mailboxOf(peerRaw), from: S.me.raw, kind: kind, ts: Date.now(), iv: body.iv, ct: body.ct });
+  }
+  // Reprise du lien : chiffrée avec la clé de l’ancien lien, et adressée avec l’ancienne identité.
+  async function sendReprise(c) {
+    const body = await encryptFor(await importLinkKey(unb64u(c.pend.lk)), { raw: S.me.raw, pseudo: S.me.pseudo, ts: Date.now() });
+    await S.db.collection('box').add({ to: await mailboxOf(c.raw), from: S.me.raw, kind: 'reprise', old: c.pend.old, ts: Date.now(), iv: body.iv, ct: body.ct });
+  }
+  const PAUSE_MS = 30 * 24 * 3600 * 1000;
 
   // ---------- QR codes ----------
   function makeQR(text) {
@@ -559,6 +576,9 @@ button.chip{cursor:pointer;font:inherit}
       case 'msg': return onMsg(m, docId);
       case 'voicepart': return onVoicePart(m);
       case 'cut': return onCut(m);
+      case 'pause': return onPause(m);
+      case 'reprise': return onReprise(m);
+      case 'reprise-ok': return onRepriseOk(m);
       default: return false;
     }
   }
@@ -624,6 +644,56 @@ button.chip{cursor:pointer;font:inherit}
     S.cut = { name: c.pseudo || c.name };
     return true;
   }
+  // La personne a supprimé son identité en gardant ses contacts : le lien reste en pause.
+  async function onPause(m) {
+    const c = contacts().find((x) => x.raw === m.from);
+    if (!c) return false;
+    let p;
+    try { p = await decryptFrom(await sharedKey(c.raw), m.iv, m.ct); } catch (e) { return false; }
+    if (c.rts && Number(p.ts) <= c.rts) return false;
+    const all = contacts(); const x = all.find((y) => y.cid === c.cid);
+    x.pause = { since: Date.now() }; x.rts = Number(p.ts) || Date.now();
+    LS.set('contacts', all);
+    S.flash = { t: (x.name || x.pseudo) + ' a supprimé son identité. Le lien reste en pause pendant 30 jours.' };
+    return true;
+  }
+  // Reprise : la personne a installé ses contacts avec sa nouvelle identité. Le lien repart, sans nouveau QR code.
+  async function onReprise(m) {
+    if (typeof m.old !== 'string') return false;
+    const c = contacts().find((x) => x.raw === m.old || x.prev === m.old);
+    if (!c) return false;
+    let p;
+    try { p = await decryptFrom(await sharedKey(m.old), m.iv, m.ct); } catch (e) { return false; }
+    if (!p || typeof p.raw !== 'string' || p.raw.length < 40) return false;
+    if (c.rts && Number(p.ts) <= c.rts) return false;
+    const all = contacts(); const x = all.find((y) => y.cid === c.cid);
+    if (x.raw === m.old) { x.prev = m.old; x.raw = p.raw; }
+    x.pseudo = String(p.pseudo || x.pseudo || '');
+    x.rts = Number(p.ts) || Date.now();
+    delete x.pause;
+    LS.set('contacts', all);
+    try { await sendAuth(x.raw, 'reprise-ok', { ts: Date.now() }); } catch (e) { /* renvoyé à la prochaine reprise */ }
+    S.flash = { t: (x.name || x.pseudo) + ' a repris le lien avec vous.', ok: true };
+    return true;
+  }
+  // Confirmation : le lien est rétabli de notre côté aussi.
+  async function onRepriseOk(m) {
+    const c = contacts().find((x) => x.raw === m.from);
+    if (!c || !c.pend) return false;
+    try { await decryptFrom(await sharedKey(c.raw), m.iv, m.ct); } catch (e) { return false; }
+    const all = contacts(); const x = all.find((y) => y.cid === c.cid);
+    delete x.pend; LS.set('contacts', all);
+    S.flash = { t: (x.name || x.pseudo) + ' : lien rétabli.', ok: true };
+    return true;
+  }
+  // Pause expirée (30 jours sans reprise) : le lien est retiré.
+  function expirePauses() {
+    const limite = Date.now() - PAUSE_MS;
+    const perdus = contacts().filter((c) => c.pause && c.pause.since < limite);
+    perdus.forEach((c) => removeContact(c.cid));
+    if (perdus.length) S.flash = { t: 'Le lien avec ' + (perdus[0].name || perdus[0].pseudo) + ' a expiré : la pause a duré 30 jours.' };
+    return perdus.length > 0;
+  }
 
   // ---------- après un relevé ----------
   async function openPending(pid, screen) {
@@ -634,6 +704,7 @@ button.chip{cursor:pointer;font:inherit}
   }
   async function afterPoll() {
     if (!S.me || !S.priv) return;
+    if (expirePauses()) S.needRender = true;
     const pend = pendingAll();
     if (S.cut && S.screen !== 'lien-coupe') return go('lien-coupe');
     // Demande reçue : sa page s’ouvre toute seule, sauf si on est en train de taper quelque chose.
@@ -890,7 +961,7 @@ button.chip{cursor:pointer;font:inherit}
     montrer: viewMontrer, scanner: viewScanner, rejoindre: viewRejoindre, reclamer: viewReclamer,
     inviter: viewInviter, attente: viewAttente, demande: viewDemande, 'verifier-ff': viewVerifierFF,
     'lien-ouvert': viewLienOuvert, nommer: viewNommer, contact: viewContact, conv: viewConv,
-    reglages: viewReglages, 'lien-coupe': viewLienCoupe, identite: viewIdentite, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, restaurer: viewRestaurer,
+    reglages: viewReglages, 'lien-coupe': viewLienCoupe, identite: viewIdentite, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre,
     invalide: viewInvalide
   };
 
@@ -943,7 +1014,7 @@ button.chip{cursor:pointer;font:inherit}
         formStatus() +
       '</div>' +
       qrDecorCard() +
-      '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="create">Créer mon identité</button><button class="btn btn-ghost" data-act="go" data-arg="restaurer">J’ai une sauvegarde à restaurer</button></div>' +
+      '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="create">Créer mon identité</button></div>' +
     '</div>';
   }
   function viewVerrouille() {
@@ -963,11 +1034,12 @@ button.chip{cursor:pointer;font:inherit}
     const cs = contacts();
     const list = cs.length ? '<div class="list">' + cs.map((c) => {
       const n = ms.filter((m) => m.cid === c.cid && m.dir === 'in' && m.state === 'new' && !m.seen).length;
-      return '<button class="row-item conv" data-act="conv" data-arg="' + esc(c.cid) + '"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · Vérifié</span></span>' + (n ? '<span class="count">' + n + '</span>' : '') + I.chev + '</button>';
+      return '<button class="row-item conv" data-act="conv" data-arg="' + esc(c.cid) + '"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · ' + (c.pause ? 'En pause' : c.pend ? 'À réactiver' : 'Vérifié') + '</span></span>' + (n ? '<span class="count">' + n + '</span>' : '') + I.chev + '</button>';
     }).join('') + '</div>' : emptyState();
     return '<div class="screen">' +
       topbar({ titleHTML: 'Messages', right: '<button class="iconbtn" data-act="go" data-arg="identite" aria-label="Mon identité">' + I.user + '</button><button class="iconbtn" data-act="lock" aria-label="Verrouiller">' + I.lock + '</button>' }) +
       (notices ? '<div class="pending-stack">' + notices + '</div>' : '') +
+      (cs.some((c) => c.pend) ? '<div class="pending-stack"><button class="notice warn" data-act="reactiver">' + I.link + '<span class="grow">Réactiver les liens<br><span class="more">Vos contacts sont installés. Touchez pour leur envoyer la demande de reprise.</span></span>' + I.chev + '</button></div>' : '') +
       (cs.length && !LS.get('lastBackup', 0) ? '<div class="pending-stack"><button class="notice warn" data-act="go" data-arg="sauvegarde">' + I.shield + '<span class="grow">Sauvegardez vos contacts<br><span class="more">Sans sauvegarde, ils restent dans ce navigateur seulement.</span></span>' + I.chev + '</button></div>' : '') +
       '<section><div class="section-title">Contacts</div>' + list + '</section>' +
       qrDecorCard({ caption: false, plain: true }) +
@@ -1119,6 +1191,12 @@ button.chip{cursor:pointer;font:inherit}
   }
   // ---------- composeur : photo, document, lien, lecture unique ----------
   function composerHTML(cid) {
+    const lien = contacts().find((x) => x.cid === cid);
+    if (lien && (lien.pause || lien.pend)) {
+      return '<div class="composer">' + notice('info', lien.pause
+        ? esc(lien.name) + ' a supprimé son identité : le lien est en pause. Vous pourrez écrire dès qu’il aura repris le lien.'
+        : 'Lien à réactiver : touchez « Réactiver les liens » dans l’accueil avant d’écrire.') + '</div>';
+    }
     const on = S.once !== false;
     return '<div class="composer">' +
       '<div class="composer-tools">' +
@@ -1260,7 +1338,7 @@ button.chip{cursor:pointer;font:inherit}
       '<div class="stack"><button class="btn btn-primary" data-act="montrer" data-arg="identite">' + I.qr + '<span>Montrer mon identité</span></button><button class="btn btn-secondary" data-act="newinvite">' + I.link + '<span>Inviter à distance</span></button></div>' +
       (S.bioAvail ? '<section><div class="section-title">Déverrouillage</div><div class="list"><button class="rowlink" data-act="go" data-arg="biometrie"><span>Empreinte ou Face ID</span><span class="state">' + (LS.get('bio', null) ? 'Activé' : 'Désactivé') + '</span>' + I.chev + '</button></div></section>' : '') +
       '<section><div class="section-title">Alertes</div><div class="list"><button class="rowlink" data-act="togglesound"><span>Sonnerie à la réception</span><span class="state">' + (getPrefs().sound ? 'Activée' : 'Désactivée') + '</span>' + I.chev + '</button></div>' + toneChipsHTML() + '<div class="list" style="margin-top:12px"><button class="rowlink" data-act="togglenotif"><span>Notifications quand l’appli est fermée</span><span class="state">' + (getPrefs().notif ? (getPrefs().push ? 'Activées' : 'En attente') : 'Désactivées') + '</span>' + I.chev + '</button></div>' + notifHintHTML() + '<p class="hint">La sonnerie joue à chaque message ou demande reçus, tant que l’appli est ouverte (et vibre sur Android).</p></section>' +
-      '<section><div class="section-title">Sauvegarde</div><div class="list"><button class="rowlink" data-act="go" data-arg="sauvegarde"><span>Sauvegarder mes contacts</span>' + I.chev + '</button></div><p class="hint">' + (LS.get('lastBackup', 0) ? 'Dernière sauvegarde : ' + esc(new Date(LS.get('lastBackup', 0)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })) : 'Pas encore de sauvegarde. Sans elle, vos contacts ne sont que dans ce navigateur.') + '</p></section>' +
+      '<section><div class="section-title">Sauvegarde</div><div class="list"><button class="rowlink" data-act="go" data-arg="sauvegarde"><span>Sauvegarder mes contacts</span>' + I.chev + '</button><button class="rowlink" data-act="go" data-arg="installer"><span>Installer une sauvegarde</span>' + I.chev + '</button></div><p class="hint">' + (LS.get('lastBackup', 0) ? 'Dernière sauvegarde : ' + esc(new Date(LS.get('lastBackup', 0)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })) : 'Pas encore de sauvegarde. Sans elle, vos contacts ne sont que dans ce navigateur.') + '</p></section>' +
       '<section><div class="section-title">Sécurité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="supprimer"><span style="display:flex;gap:10px;align-items:center">' + I.trash + 'Supprimer mon identité</span>' + I.chev + '</button></div></section>' +
       '<p class="hint center" style="padding-top:8px">Version ' + APP_VERSION + '</p>' +
     '</div>';
@@ -1268,9 +1346,9 @@ button.chip{cursor:pointer;font:inherit}
   function viewSupprimer() {
     return '<div class="screen">' + topbar({ back: 'identite', title: 'Supprimer mon identité' }) +
       '<div class="hero-icon danger">' + I.alert + '</div>' +
-      '<div><h1>Tout disparaît</h1><p class="lead" style="margin-top:8px">Votre identité, vos contacts et vos messages sont supprimés de cet appareil. Chaque lien est coupé, et les personnes concernées sont prévenues.</p></div>' +
-      notice('err', 'Cette action est définitive. Pour écrire de nouveau, il faudra créer une identité et refaire chaque invitation.') +
-      '<div class="dock stack"><button class="btn btn-danger-solid" data-act="deleteme">Supprimer définitivement</button><button class="btn btn-secondary" data-act="go" data-arg="identite">Garder mon identité</button></div>' +
+      '<div><h1>Supprimer mon identité</h1><p class="lead" style="margin-top:8px">Vos messages sont effacés de cet appareil. Vous pouvez garder vos contacts : chacun reste en pause pendant 30 jours, le temps de reprendre le lien avec votre nouvelle identité.</p></div>' +
+      notice('info', 'Avec « Tout supprimer », chaque lien est coupé tout de suite, et les personnes concernées sont prévenues.') +
+      '<div class="dock stack"><button class="btn btn-primary" data-act="supprimerkeep">Garder mes contacts et supprimer</button><button class="btn btn-danger-solid" data-act="deleteme">Tout supprimer</button><button class="btn btn-secondary" data-act="go" data-arg="identite">Garder mon identité</button></div>' +
     '</div>';
   }
   function viewInvalide() {
@@ -1300,19 +1378,17 @@ button.chip{cursor:pointer;font:inherit}
     catch (e) { throw new Error('Code secret incorrect, ou sauvegarde abîmée.'); }
     return JSON.parse(dec.decode(pt));
   }
-  function backupPayload() {
-    return {
-      v: 1, at: Date.now(),
-      me: { pseudo: S.me.pseudo, raw: S.me.raw, wrap: S.me.wrap, secret: S.me.secret || '', created: S.me.created || Date.now() },
-      contacts: contacts().map((c) => ({ cid: c.cid, name: c.name, pseudo: c.pseudo, raw: c.raw, label: c.label, since: c.since }))
-    };
+  // Sauvegarde des contacts : pour chaque lien, l’adresse de la personne, l’ancienne adresse et la clé du lien. Jamais la clé de votre identité.
+  async function backupPayloadV2() {
+    const liste = [];
+    for (const c of contacts()) {
+      const lien = c.pend ? { old: c.pend.old, lk: c.pend.lk } : { old: S.me.raw, lk: b64u(await sharedBits(c.raw)) };
+      liste.push({ name: c.name, pseudo: c.pseudo || '', raw: c.raw, label: c.label, since: c.since, old: lien.old, lk: lien.lk });
+    }
+    return { v: 2, at: Date.now(), contacts: liste };
   }
-  function validBackup(o) {
-    if (!o || o.v !== 1 || !o.me || !o.me.pseudo || !o.me.raw || !o.me.wrap || !o.me.wrap.salt || !Array.isArray(o.contacts)) return false;
-    let k = null;
-    try { k = unb64u(o.me.raw); } catch (e) { return false; }
-    if (k.length !== 65 || k[0] !== 4) return false;
-    return o.contacts.every((c) => c && c.cid && c.raw && c.name);
+  function validContacts(o) {
+    return !!o && o.v === 2 && Array.isArray(o.contacts) && o.contacts.every((c) => c && typeof c.raw === 'string' && typeof c.old === 'string' && typeof c.lk === 'string' && c.raw.length > 40 && c.old.length > 40 && c.lk.length > 20);
   }
   // Lien ouvert depuis l’appareil photo : on passe directement à la saisie du code.
   function afterFF() {
@@ -1325,24 +1401,33 @@ button.chip{cursor:pointer;font:inherit}
   function viewSauvegarde() {
     const last = LS.get('lastBackup', 0);
     const when = last ? new Date(last).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '';
-    return '<div class="screen">' + topbar({ back: 'identite', title: 'Sauvegarder mes contacts' }) +
-      '<div><h1>Sauvegarde chiffrée</h1><p class="lead" style="margin-top:6px">Elle contient votre identité et vos contacts. Votre code secret la protège : sans lui, le fichier ne s’ouvre pas.</p></div>' +
+    const del = S.delMode === true;
+    return '<div class="screen">' + topbar({ back: del ? 'supprimer' : 'identite', title: del ? 'Supprimer mon identité' : 'Sauvegarder mes contacts' }) +
+      '<div><h1>' + (del ? 'Gardez vos contacts' : 'Sauvegarde de vos contacts') + '</h1><p class="lead" style="margin-top:6px">' + (del ? 'Avant de supprimer votre identité, copiez cette sauvegarde. Elle permet de reprendre le lien avec chaque contact.' : 'Elle contient vos contacts et de quoi reprendre le lien avec chacun. Votre code secret la protège : sans lui, le fichier ne s’ouvre pas.') + '</p></div>' +
       (when ? notice('ok', 'Dernière sauvegarde : ' + esc(when)) : '') +
       (S.backupText ? '<section class="card form"><span class="label">Copiez ce texte et gardez-le en lieu sûr</span><textarea id="btext" class="field" rows="6" readonly>' + esc(S.backupText) + '</textarea><button class="btn btn-secondary" data-act="copybackup">' + I.copy + '<span>Copier la sauvegarde</span></button></section>' : '') +
-      '<section class="card form"><label class="label" for="bcode">Code secret</label><input id="bcode" class="field" type="password" autocomplete="off">' + formStatus() +
-        '<p class="hint">Le fichier reste entre vos mains. L’application ne l’envoie nulle part.</p></section>' +
-      '<div class="dock"><button class="btn btn-primary" data-act="backup">Enregistrer la sauvegarde</button></div>' +
+      (del && S.backupDone
+        ? '<div class="dock stack" style="position:static"><button class="btn btn-danger-solid" data-act="deletekeep">J’ai copié la sauvegarde : supprimer mon identité</button><button class="btn btn-ghost" data-act="go" data-arg="identite">Annuler</button></div>'
+        : '<section class="card form"><label class="label" for="bcode">Code secret</label><input id="bcode" class="field" type="password" autocomplete="off">' + formStatus() +
+          '<p class="hint">Le fichier reste entre vos mains. L’application ne l’envoie nulle part.</p></section>' +
+          '<div class="dock"><button class="btn btn-primary" data-act="backup">Enregistrer la sauvegarde</button></div>') +
     '</div>';
   }
-  function viewRestaurer() {
-    return '<div class="screen">' + topbar({ back: 'creer', title: 'Restaurer une sauvegarde' }) +
-      '<div><h1>Restaurer une sauvegarde</h1><p class="lead" style="margin-top:6px">Retrouvez votre identité et vos contacts sur ce téléphone. Les personnes qui vous ont ajouté vous reconnaissent toujours.</p></div>' +
+  function viewReprendre() {
+    return '<div class="screen">' + topbar({ back: 'accueil', title: 'Vos contacts' }) +
+      '<div><h1>Reprendre vos contacts ?</h1><p class="lead" style="margin-top:6px">Si vous avez une sauvegarde de vos contacts, installez-la maintenant. Les personnes qui ont gardé le lien le retrouvent avec votre nouvelle identité.</p></div>' +
+      '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="go" data-arg="installer">Installer ma sauvegarde</button><button class="btn btn-ghost" data-act="go" data-arg="accueil">Pas maintenant</button></div>' +
+    '</div>';
+  }
+  function viewInstaller() {
+    return '<div class="screen">' + topbar({ back: 'accueil', title: 'Installer mes contacts' }) +
+      '<div><h1>Installer mes contacts</h1><p class="lead" style="margin-top:6px">Chaque contact apparaît en « À réactiver ». Touchez ensuite « Réactiver les liens » dans l’accueil.</p></div>' +
       '<section class="card form"><span class="label">Fichier de sauvegarde</span>' +
         '<label class="btn btn-secondary file-btn">' + I.download + '<span>Choisir le fichier</span><input id="restorefile" class="sr-only" type="file" accept=".json,application/json"></label>' +
         '<details class="fallback"><summary>Je n’arrive pas à choisir le fichier</summary><div class="stack" style="margin-top:10px"><textarea id="rtext" class="field" rows="4" placeholder="Collez ici le contenu de la sauvegarde"></textarea></div></details>' +
         '<label class="label" for="rcode">Code secret de la sauvegarde</label><input id="rcode" class="field" type="password" autocomplete="off">' + formStatus() +
       '</section>' +
-      '<div class="dock"><button class="btn btn-primary" data-act="restore">Restaurer</button></div>' +
+      '<div class="dock"><button class="btn btn-primary" data-act="install">Installer</button></div>' +
     '</div>';
   }
 
@@ -1350,6 +1435,7 @@ button.chip{cursor:pointer;font:inherit}
   function go(screen, arg) {
     cancelVoice();   // quitter l’écran arrête le micro et jette l’enregistrement en cours
     if (screen !== 'lien-coupe') S.cut = null;
+    if (screen !== 'sauvegarde') { S.delMode = false; S.backupText = null; S.backupDone = false; }
     S.screen = screen;
     S.arg = (arg == null ? null : arg);
     render();
@@ -1413,6 +1499,7 @@ button.chip{cursor:pointer;font:inherit}
     try { await createIdentity(pseudo, s1); }
     catch (e) { return setStatus('formstatus', 'err', 'Création impossible : le relais ne répond pas. Réessayez.'); }
     S.draftPseudo = null;
+    S.afterCreate = true;   // après une nouvelle identité, on propose de reprendre ses contacts
     afterAuth();
   }
   async function actUnlock() {
@@ -1431,6 +1518,7 @@ button.chip{cursor:pointer;font:inherit}
       try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
       return go(S.invite ? 'reclamer' : 'invalide');
     }
+    if (S.afterCreate) { S.afterCreate = false; return go('reprendre'); }
     return go('accueil');
   }
   async function ensureDisplay(regen) {
@@ -1607,6 +1695,8 @@ button.chip{cursor:pointer;font:inherit}
     go('contact', c.cid);
   }
   async function actSend(cid) {
+    const lien = contacts().find((x) => x.cid === cid);
+    if (lien && (lien.pause || lien.pend)) return flashNow({ t: 'Le lien n’est pas actif : écrire est impossible pour l’instant.' });
     const inp = $('#draft');
     const text = (inp.value || '').trim();
     if (!text) { if ((S.attach || []).length) flashNow({ t: 'Photos, documents et liens : envoi pas encore disponible. Ajoutez un message.' }); return; }
@@ -1637,8 +1727,9 @@ button.chip{cursor:pointer;font:inherit}
     S.cut = { name: c.pseudo || c.name };
     go('lien-coupe');
   }
-  async function actDeleteMe() {
-    for (const c of contacts()) { try { await sendTo(c.raw, { kind: 'cut' }); } catch (e) {} }
+  // Supprimer l’identité : avec « keep », les contacts sont mis en pause (ils pourront reprendre le lien) ; sinon, les liens sont coupés.
+  async function actDeleteMe(keep) {
+    for (const c of contacts()) { try { if (keep === true) await sendAuth(c.raw, 'pause', { ts: Date.now() }); else await sendTo(c.raw, { kind: 'cut' }); } catch (e) {} }
     for (const i of invitesAll()) { if (i.status === 'open') await closeInviteDoc(i.id); }
     LS.clearAll();
     try { indexedDB.deleteDatabase('pli-voix'); vdbP = null; } catch (e) { /* rien à effacer */ }
@@ -1651,43 +1742,47 @@ button.chip{cursor:pointer;font:inherit}
     const code = $('#bcode').value || '';
     if (!code) return setStatus('formstatus', 'err', 'Entrez votre code secret.');
     try { await unwrapPriv(S.me.wrap, code); } catch (e) { return setStatus('formstatus', 'err', 'Code secret incorrect.'); }
-    const text = await sealWithCode(code, backupPayload());
+    const text = await sealWithCode(code, await backupPayloadV2());
     if (S.downloads) {
       try {
         await S.downloads.save({ filename: 'pli-sauvegarde-' + new Date().toISOString().slice(0, 10) + '.json', data: enc.encode(text) });
-        LS.set('lastBackup', Date.now()); S.backupText = null;
+        LS.set('lastBackup', Date.now()); S.backupText = null; S.backupDone = true;
         go('sauvegarde');
         return flashNow({ t: 'Sauvegarde enregistrée. Gardez ce fichier en lieu sûr.', ok: true });
       } catch (e) {
         if (e && e.code === 'declined') return setStatus('formstatus', 'info', 'Enregistrement annulé.');
       }
     }
-    LS.set('lastBackup', Date.now()); S.backupText = text;
+    LS.set('lastBackup', Date.now()); S.backupText = text; S.backupDone = true;
     go('sauvegarde');
     flashNow({ t: 'Copiez le texte de la sauvegarde et gardez-le en lieu sûr.', ok: true });
   }
-  async function actRestore() {
+  // Installer la sauvegarde des contacts : ils apparaissent « À réactiver » jusqu’à la réponse de chaque personne.
+  async function actInstall() {
     const code = $('#rcode').value || '';
     const text = ($('#rtext').value || '').trim();
     if (!text) return setStatus('formstatus', 'err', 'Choisissez le fichier de sauvegarde.');
     if (!code) return setStatus('formstatus', 'err', 'Entrez le code secret de la sauvegarde.');
-    if (LS.get('me', null)) return setStatus('formstatus', 'err', 'Une identité existe déjà sur ce téléphone.');
     let o;
     try { o = await openWithCode(code, text); } catch (e) { return setStatus('formstatus', 'err', e.message); }
-    if (!validBackup(o)) return setStatus('formstatus', 'err', 'Sauvegarde incomplète.');
-    let priv;
-    try { priv = await unwrapPriv(o.me.wrap, code); } catch (e) { return setStatus('formstatus', 'err', 'Sauvegarde abîmée : la clé ne s’ouvre pas.'); }
-    // Secret de la boîte : celui de la sauvegarde (même identité, même boîte). Une ancienne sauvegarde en reçoit un nouveau.
-    const secret = /^[0-9a-f]{64}$/.test(o.me.secret || '') ? o.me.secret : hex(rand(32));
-    try { await registerBox(await mailboxOf(o.me.raw), secret); }
-    catch (e) { return setStatus('formstatus', 'err', 'Cette sauvegarde ne peut pas être restaurée ici : sa boîte est déjà prise. Créez une nouvelle identité.'); }
-    LS.set('me', { pseudo: String(o.me.pseudo).slice(0, 24), raw: o.me.raw, wrap: o.me.wrap, secret: secret, created: o.me.created || Date.now() });
-    LS.set('bio', null); // la biométrie est propre à chaque téléphone : on la réactive ici si besoin
-    LS.set('contacts', o.contacts.map((c) => ({ cid: String(c.cid), name: String(c.name).slice(0, 40), pseudo: String(c.pseudo || ''), raw: String(c.raw), label: String(c.label || randCode().slice(0, 3)), since: c.since || Date.now() })));
-    LS.set('lastBackup', o.at || Date.now());
-    S.me = LS.get('me', null);
-    S.priv = priv;
-    afterAuth();
+    if (!validContacts(o)) return setStatus('formstatus', 'err', 'Cette sauvegarde ne peut pas être installée. Refaites-la avec la version actuelle de l’appli.');
+    let n = 0;
+    for (const item of o.contacts) {
+      if (contacts().some((c) => c.raw === item.raw)) continue;
+      const c = addContact(item.raw, String(item.pseudo || ''), String(item.name || item.pseudo || 'Contact').slice(0, 40));
+      const all = contacts(); const x = all.find((y) => y.cid === c.cid);
+      if (x) x.pend = { old: item.old, lk: item.lk };
+      LS.set('contacts', all);
+      n++;
+    }
+    S.flash = { t: n ? (n + (n > 1 ? ' contacts installés' : ' contact installé') + '. Touchez « Réactiver les liens » dans l’accueil.') : 'Ces contacts sont déjà dans votre liste.', ok: true };
+    go('accueil');
+  }
+  // Envoie la demande de reprise à chaque contact en attente. Le lien revient quand la personne répond.
+  async function actReactivate() {
+    let envoyes = 0;
+    for (const c of contacts().filter((x) => x.pend)) { try { await sendReprise(c); envoyes++; } catch (e) { /* réessayé au prochain appui */ } }
+    flashNow({ t: envoyes ? 'Demande envoyée. Chaque lien revient dès que la personne répond.' : 'Envoi impossible pour l’instant. Réessayez.', ok: envoyes > 0 });
   }
 
   const ACTS = {
@@ -1727,7 +1822,11 @@ button.chip{cursor:pointer;font:inherit}
     send: actSend,
     reveal: actReveal,
     cut: actCut,
-    deleteme: actDeleteMe,
+    deleteme: () => actDeleteMe(false),
+    supprimerkeep: () => { S.delMode = true; go('sauvegarde'); },
+    deletekeep: () => actDeleteMe(true),
+    install: () => actInstall(),
+    reactiver: () => actReactivate(),
     togglemode: () => { S.once = S.once === false; updateOnceChip(); },
     voicerec: () => startVoice(true),
     plusmenu: () => { S.plusOpen = !S.plusOpen; render(); },
@@ -1741,7 +1840,6 @@ button.chip{cursor:pointer;font:inherit}
     pickcontact: pickContactName,
     setname: (a) => { const el = $('#cname'); if (el) el.value = String(a || '').slice(0, 40); const l = $('#vcardlist'); if (l) l.innerHTML = ''; },
     backup: actMakeBackup,
-    restore: actRestore,
     copybackup: () => copyText(S.backupText || '', 'Sauvegarde copiée.')
   };
 

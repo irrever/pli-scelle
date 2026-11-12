@@ -223,7 +223,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v18';
+  const APP_VERSION = 'v19';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1804,11 +1804,14 @@ button.chip{cursor:pointer;font:inherit}
   function getPrefs() { const p = LS.get('prefs', null) || {}; return { sound: !!p.sound, tone: (p.tone && TONES[p.tone]) ? p.tone : 'carillon', notif: !!p.notif, push: !!p.push }; }
   function setPref(k, v) { LS.set('prefs', Object.assign(getPrefs(), { [k]: v })); }
   let audio = null;
-  // Le son se crée au premier toucher : sans cela, le téléphone le bloque.
+  // Le son doit être (re)créé pendant un toucher : iOS le met en veille après une interruption (verrouillage, notification,
+  // autre appli), et seul un son créé pendant un toucher repart à coup sûr. Un seul son est gardé, en marche.
   function unlockSound() {
     try {
-      if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
-      if (audio.state === 'suspended' || audio.state === 'interrupted') audio.resume();
+      if (audio && audio.state === 'running') return;
+      const ancien = audio;
+      audio = new (window.AudioContext || window.webkitAudioContext)();
+      if (ancien && ancien.close) ancien.close().catch(() => {});
     } catch (e) { /* son indisponible sur ce téléphone */ }
   }
   // À chaque toucher, pas une seule fois : iOS met le son en veille quand l’appli quitte le premier plan.

@@ -140,6 +140,7 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
 .words-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .word{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line-2);font-weight:600}
 .word-n{font:500 11px "IBM Plex Mono",ui-monospace,monospace;color:var(--muted);min-width:14px}
+.eyebrow{font:500 12px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 /* carte d’identité */
 .id-card{background:var(--id-bg);color:var(--id-ink);border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:10px;box-shadow:0 12px 28px rgba(16,35,58,.25)}
 .id-top{display:flex;justify-content:space-between;font:500 11px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;color:var(--id-accent)}
@@ -243,7 +244,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v40';
+  const APP_VERSION = 'v41';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1024,7 +1025,7 @@ button.chip{cursor:pointer;font:inherit}
     scanner: viewScanner,
     inviter: viewInviter, attente: viewAttente, demande: viewDemande, 'verifier-ff': viewVerifierFF,
     'lien-ouvert': viewLienOuvert, nommer: viewNommer, contact: viewContact, conv: viewConv,
-    reglages: viewReglages, 'lien-coupe': viewLienCoupe, identite: viewIdentite, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre,
+    reglages: viewReglages, 'lien-coupe': viewLienCoupe, identite: viewIdentite, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, 'identite-prete': viewIdentitePrete,
     invalide: viewInvalide
   };
 
@@ -1462,6 +1463,15 @@ button.chip{cursor:pointer;font:inherit}
           '<div class="dock"><button class="btn btn-primary" data-act="backup">Enregistrer la sauvegarde</button></div>') +
     '</div>';
   }
+  // Juste après la création : l’identité, le pseudo, et ce qui reste privé. Rien de nouveau à voir ici : tout se fait ensuite.
+  function viewIdentitePrete() {
+    return '<div class="screen">' +
+      '<div><p class="eyebrow">Étape 2 sur 4</p><h1>Votre identité est prête</h1><p class="lead" style="margin-top:6px">C’est le seul nom que les autres voient.</p></div>' +
+      '<div class="id-card"><div class="id-top"><span>PLI SCELLÉ</span><span>IDENTITÉ</span></div><div class="id-label">Mon pseudo</div><div class="id-name">' + esc(S.me.pseudo) + '</div><div class="id-foot">Ni numéro, ni e-mail. Ce pseudo permet seulement de vous écrire.</div></div>' +
+      '<section class="card"><h2>Vos messages restent privés</h2><p class="hint">Pli Scellé chiffre vos messages sur ce téléphone : seuls vous et votre contact pouvez les lire. Vos clés restent sur cet appareil, protégées par votre code secret, qui ne se récupère pas.</p></section>' +
+      '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="go" data-arg="reprendre">Continuer</button></div>' +
+    '</div>';
+  }
   function viewReprendre() {
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Vos contacts' }) +
       '<div><h1>Reprendre vos contacts ?</h1><p class="lead" style="margin-top:6px">Si vous avez une sauvegarde de vos contacts, installez-la maintenant. Les personnes qui ont gardé le lien le retrouvent avec votre nouvelle identité.</p></div>' +
@@ -1592,7 +1602,7 @@ button.chip{cursor:pointer;font:inherit}
       S.scanKind = 'inv'; S.scanText = invTextFor(S.invite);
       return go('scanner');
     }
-    if (S.afterCreate) { S.afterCreate = false; return go('reprendre'); }
+    if (S.afterCreate) { S.afterCreate = false; return go('identite-prete'); }
     return go('accueil');
   }
   async function actSendFF() {

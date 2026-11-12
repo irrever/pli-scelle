@@ -243,7 +243,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v35';
+  const APP_VERSION = 'v36';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1119,7 +1119,7 @@ button.chip{cursor:pointer;font:inherit}
   }
   function viewAttente() {
     // Les 6 mots se calculent des deux côtés à partir des deux clés : le scanneur les voit dès l’envoi, en même temps que la personne.
-    const words = S.words && S.words.length ? wordsBlock('Mots à comparer', 'Ils doivent être identiques sur l’écran de la personne. Comparez-les dès maintenant.') : '';
+    const words = S.words && S.words.length ? wordsBlock('Empreinte à comparer', 'Ils doivent être identiques sur l’écran de la personne. Comparez-les dès maintenant.') : '';
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Demande envoyée' }) +
       '<div class="progress"><div class="pstep done"><span class="dot">' + '✓' + '</span><div><b>Demande envoyée</b><span>Votre demande a bien été transmise.</span></div></div>' +
         '<div class="pstep now"><span class="dot">2</span><div><b>Confirmation de la personne</b><span>Elle vérifie les mots de son côté.</span></div></div>' +
@@ -1135,7 +1135,7 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Demande reçue' }) +
       '<div><h1>Une personne a scanné votre identité</h1><p class="lead" style="margin-top:6px">Vérifiez qu’elle est bien devant vous, puis comparez les mots.</p></div>' +
       personCard(p.peerPseudo, 'Code vérifié') + nameField() +
-      wordsBlock('Mots à comparer', 'Ils doivent être identiques sur l’écran de la personne.') +
+      wordsBlock('Empreinte à comparer', 'Ils doivent être identiques sur l’écran de la personne.') +
       '<div class="dock stack"><button class="btn btn-primary" data-act="acceptff" data-arg="' + esc(p.pid) + '">Les mots sont identiques</button><button class="btn btn-danger" data-act="refuseff" data-arg="' + esc(p.pid) + '">Refuser</button></div>' +
     '</div>';
   }
@@ -1145,7 +1145,7 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Ajouter ce contact' }) +
       '<div><h1>Ajouter ce contact</h1><p class="lead" style="margin-top:6px">La personne a accepté. Comparez les mots avant de continuer.</p></div>' +
       personCard(p.peerPseudo, 'Accepté') + nameField() +
-      wordsBlock('Mots à comparer', 'Ils doivent être identiques sur l’écran de la personne.') +
+      wordsBlock('Empreinte à comparer', 'Ils doivent être identiques sur l’écran de la personne.') +
       '<div class="dock stack"><button class="btn btn-primary" data-act="confirmff" data-arg="' + esc(p.pid) + '">Les mots sont identiques</button><button class="btn btn-danger" data-act="drop" data-arg="' + esc(p.pid) + '">Ce n’est pas la bonne personne</button></div>' +
     '</div>';
   }
@@ -1155,7 +1155,7 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) +
       '<div><h1>Quelqu’un a rejoint votre invitation</h1><p class="lead" style="margin-top:6px">Le code d’invitation est juste. Comparez les mots, puis donnez un nom pour ajouter ce contact.</p></div>' +
       personCard(p.peerPseudo, 'Code vérifié') +
-      (S.words && S.words.length ? wordsBlock('Mots à comparer', 'Ils doivent être identiques sur l’écran de la personne.') : '') +
+      (S.words && S.words.length ? wordsBlock('Empreinte à comparer', 'Ils doivent être identiques sur l’écran de la personne.') : '') +
       nameField() +
       '<div class="dock stack"><button class="btn btn-primary" data-act="acceptremote" data-arg="' + esc(p.pid) + '">Ajouter ce contact</button><button class="btn btn-danger" data-act="refuseremote" data-arg="' + esc(p.pid) + '">Refuser</button></div>' +
     '</div>';
@@ -1165,7 +1165,7 @@ button.chip{cursor:pointer;font:inherit}
     if (!p) return viewAccueil();
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation acceptée' }) +
       '<div><h1>Vous pouvez écrire à ' + esc(p.peerPseudo) + '</h1><p class="lead" style="margin-top:6px">Le code a été vérifié à la connexion. Comparez les mots, puis donnez un nom pour ajouter ce contact.</p></div>' +
-      (S.words && S.words.length ? wordsBlock('Mots à comparer', 'Ils doivent être identiques sur l’écran de la personne.') : '') +
+      (S.words && S.words.length ? wordsBlock('Empreinte à comparer', 'Ils doivent être identiques sur l’écran de la personne.') : '') +
       nameField() +
       '<div class="dock"><button class="btn btn-primary" data-act="confirmremote" data-arg="' + esc(p.pid) + '">Ajouter ce contact</button></div>' +
     '</div>';
@@ -1311,12 +1311,12 @@ button.chip{cursor:pointer;font:inherit}
     if (!c) return viewAccueil();
     return '<div class="screen">' + topbar({ backAct: 'conv', backArg: c.cid, title: 'Réglages' }) +
       '<div class="card code-card"><span class="code-label">Code de ce contact</span><div class="code">' + esc(c.label) + '</div></div>' +
-      (S.motsCle && S.motsCle.cid === c.cid ? wordsBlock('Mots à comparer', [
-        'Ces six mots sont calculés à partir des clés de chiffrement de vous deux. Chaque téléphone les calcule de son côté et doit obtenir exactement les mêmes.',
-        'Si les mots sont identiques sur vos deux écrans, la conversation reste uniquement entre vous deux : personne ne s’est intercalé pour lire ou modifier vos messages.',
+      (S.motsCle && S.motsCle.cid === c.cid ? wordsBlock('Empreinte de la conversation', [
+        'Cette empreinte est faite de six mots. Elle est calculée à partir des clés de chiffrement de vous deux : chaque téléphone la calcule de son côté et doit obtenir exactement les mêmes mots.',
+        'Si l’empreinte est identique sur vos deux écrans, la conversation reste uniquement entre vous deux : personne ne s’est intercalé pour lire ou modifier vos messages.',
         'Pour vérifier, comparez-les de vive voix ou au téléphone, dans le même ordre. Évitez de les comparer par message écrit : un message peut lui aussi être modifié en chemin.',
-        'Si un seul mot diffère, ne vous fiez pas à ce lien. Coupez-le, puis recréez-le ensemble, en vous voyant ou en vous entendant.',
-        'Pli Scellé chiffre les messages sur votre téléphone : seuls vous et ce contact pouvez les lire. Il n’y a ni compte, ni numéro de téléphone, et le serveur qui transporte les messages ne voit que du contenu chiffré. Les mots ne changent que si l’un de vous recrée son identité.'
+        'Si un seul mot de l’empreinte diffère, ne vous fiez pas à ce lien. Coupez-le, puis recréez-le ensemble, en vous voyant ou en vous entendant.',
+        'Pli Scellé chiffre les messages sur votre téléphone : seuls vous et ce contact pouvez les lire. Il n’y a ni compte, ni numéro de téléphone, et le serveur qui transporte les messages ne voit que du contenu chiffré. L’empreinte ne change que si l’un de vous recrée son identité.'
       ], S.motsCle.mots) : '') +
       '<section class="list"><button class="rowlink" data-act="go" data-arg="verrouille"><span>Verrouiller l’application</span>' + I.chev + '</button>' +
       '<button class="rowlink danger" data-act="cut" data-arg="' + esc(c.cid) + '"><span>Couper le lien</span>' + I.chev + '</button></section>' +

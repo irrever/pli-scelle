@@ -8,6 +8,14 @@ Ouvrez https://irrever.github.io/pli-scelle/ sur votre téléphone.
 
 Sur iPhone, pour recevoir les notifications quand l'appli est fermée : Safari → Partager → Sur l'écran d'accueil, puis ouvrez l'appli depuis cette icône (iOS 16.4 ou plus récent).
 
+## Ajouter une personne
+
+Tout se passe dans un seul écran, « Ajouter une personne » :
+
+- **Scanner un QR code** : photographiez le QR code de la personne, ou choisissez son image. L’appli reconnaît seule une invitation ou une identité. Entrez le code, puis « Envoyer ma demande ».
+- **Mon QR code** : montrez-le à la personne, face à face, ou touchez « Envoyer le lien » pour le lui envoyer à distance. Le code se donne à part, ou se dit de vive voix.
+- Les six mots affichés des deux côtés doivent être identiques avant d’ajouter le contact.
+
 ## Le relais
 
 Les invitations et les messages passent par un relais Supabase. Les scripts se lancent dans l'éditeur SQL du projet, dans cet ordre, une fois chacun :

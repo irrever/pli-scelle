@@ -230,12 +230,11 @@ button.chip{cursor:pointer;font:inherit}
   const ID_CHARS = 'abcdefghijkmnpqrstuvwxyz23456789';
   const ITER_CODE = 100000;
   const ITER_SECRET = 200000;
-  const CODE_LIFE = 5 * 60 * 1000;
   const INVITE_LIFE = 24 * 3600 * 1000;
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v23';
+  const APP_VERSION = 'v24';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -428,7 +427,6 @@ button.chip{cursor:pointer;font:inherit}
     return q.createDataURL(8, 32);
   }
   // Texte du QR : clé et sel en base64, sans pseudo (il voyage avec la demande). Plus court = QR plus gros, donc plus facile à lire sur une photo.
-  function qrTextFor(d) { return APP_URL + '#ff-' + S.me.raw + d.salt; }
   function invTextFor(inv) { return APP_URL + '#inv-' + inv.id; }
   function isInvText(t) { return /#inv-[a-z0-9]{8,24}/.test(t) || t.indexOf('PLI1:INV:') === 0; }
   function parseFF(h) {
@@ -703,7 +701,7 @@ button.chip{cursor:pointer;font:inherit}
   async function openPending(pid, screen) {
     const p = pendingById(pid);
     if (!p) return go('accueil');
-    S.words = (screen === 'demande' || screen === 'verifier-ff') ? await wordsFor(unb64u(S.me.raw), unb64u(p.peer)) : null;
+    S.words = (screen === 'demande' || screen === 'verifier-ff' || screen === 'lien-ouvert' || screen === 'nommer') ? await wordsFor(unb64u(S.me.raw), unb64u(p.peer)) : null;
     go(screen, pid);
   }
   async function afterPoll() {
@@ -962,7 +960,7 @@ button.chip{cursor:pointer;font:inherit}
   const VIEWS = {
     boot: () => '<div class="screen"><p class="lead" style="padding-top:24px">Chargement…</p></div>',
     creer: viewCreer, verrouille: viewVerrouille, accueil: viewAccueil, ajouter: viewAjouter,
-    montrer: viewMontrer, scanner: viewScanner, rejoindre: viewRejoindre, reclamer: viewReclamer,
+    scanner: viewScanner,
     inviter: viewInviter, attente: viewAttente, demande: viewDemande, 'verifier-ff': viewVerifierFF,
     'lien-ouvert': viewLienOuvert, nommer: viewNommer, contact: viewContact, conv: viewConv,
     reglages: viewReglages, 'lien-coupe': viewLienCoupe, identite: viewIdentite, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre,
@@ -1053,6 +1051,8 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="screen">' +
       topbar({ titleHTML: 'Messages', right: '<button class="iconbtn" data-act="go" data-arg="identite" aria-label="Mon identité">' + I.user + '</button><button class="iconbtn" data-act="lock" aria-label="Verrouiller">' + I.lock + '</button>' }) +
       (notices ? '<div class="pending-stack">' + notices + '</div>' : '') +
+      (getPrefs().sound && !sonPret() ? notice('info', 'La sonnerie est en pause. Touchez l’écran une fois pour la réactiver.') : '') +
+      (cs.length && !(getPrefs().notif && getPrefs().push) ? '<div class="pending-stack"><button class="notice warn" data-act="togglenotif">' + I.msg + '<span class="grow">Notifications quand l’appli est fermée : ' + (getPrefs().notif ? 'pas encore prêtes' : 'désactivées') + '<br><span class="more">Touchez pour ' + (getPrefs().notif ? 'réessayer' : 'les activer sur cet appareil') + '.</span></span>' + I.chev + '</button></div>' : '') +
       (cs.some((c) => c.pend) ? '<div class="pending-stack"><button class="notice warn" data-act="reactiver">' + I.link + '<span class="grow">Réactiver les liens<br><span class="more">Vos contacts sont installés. Touchez pour leur envoyer la demande de reprise.</span></span>' + I.chev + '</button></div>' : '') +
       (cs.length && !LS.get('lastBackup', 0) ? '<div class="pending-stack"><button class="notice warn" data-act="go" data-arg="sauvegarde">' + I.shield + '<span class="grow">Sauvegardez vos contacts<br><span class="more">Sans sauvegarde, ils restent dans ce navigateur seulement.</span></span>' + I.chev + '</button></div>' : '') +
       '<section><div class="section-title">Contacts</div>' + list + '</section>' +
@@ -1060,69 +1060,32 @@ button.chip{cursor:pointer;font:inherit}
       '<div class="dock"><button class="btn btn-primary" data-act="go" data-arg="ajouter">' + I.plus + '<span>Ajouter une personne</span></button></div>' +
     '</div>';
   }
+  // Un seul endroit pour ajouter quelqu’un : scanner le QR code d’une personne, ou montrer le sien.
   function viewAjouter() {
     return '<div class="screen">' + topbar({ backAct: 'go', backArg: 'accueil', title: 'Ajouter une personne' }) +
-      '<section class="stack"><div><div class="section-title">Face à face</div><p class="hint">Vous êtes côte à côte.</p></div>' +
-        choice('montrer', 'ajouter', I.qr, 'Montrer mon identité', 'La personne scanne votre identité, puis tape le code affiché.') +
-        choice('go', 'scanner', I.camera, 'Scanner l’identité de la personne', 'Scannez son identité, puis tapez le code affiché sur son écran.') +
-      '</section>' +
-      '<section class="stack"><div><div class="section-title">À distance</div><p class="hint">Vous envoyez un QR code par la messagerie de votre choix. Le code se donne à part.</p></div>' +
-        choice('newinvite', null, I.send, 'Inviter quelqu’un', 'Envoyez-lui un QR code. Le code se donne à part.') +
-        choice('go', 'rejoindre', I.camera, 'Rejoindre une invitation', 'Scannez l’invitation reçue, puis entrez le code donné à part.') +
+      '<section class="stack">' +
+        choice('go', 'scanner', I.camera, 'Scanner un QR code', 'Photographiez le QR code de la personne, ou choisissez son image.') +
+        choice('newinvite', null, I.qr, 'Mon QR code', 'Montrez-le face à face, ou envoyez-lui le lien. Le code se donne à part.') +
       '</section></div>';
   }
-  function viewMontrer() {
-    const d = LS.get('display', null);
-    const live = !!d && Date.now() < d.exp;
-    const text = live ? qrTextFor(d) : '';
-    return '<div class="screen">' + topbar({ back: S.origin || 'ajouter', title: 'Montrer mon identité' }) + pendingBanner() +
-      '<p class="lead">Face à face : la personne scanne cette identité, puis tape le code affiché ci-dessous.</p>' +
-      (S.qr ? '<div class="qr-frame"><img alt="Mon identité" src="' + S.qr + '"></div>' : notice('err', 'Cette identité ne peut pas s’afficher ici. Utilisez le texte, plus bas.')) +
-      (live
-        ? '<div class="card code-card"><span class="code-label">Code à taper</span><div class="code" id="codeshow">' + esc(fmtCode(d.code)) + '</div><div class="row-between" style="width:100%"><span class="hint">Valable encore <span id="cd" class="mono"></span></span><button class="btn btn-ghost" data-act="copycode" data-arg="' + esc(d.code) + '">' + I.copy + '<span>Copier</span></button></div></div>'
-        : notice('info', 'Ce code a expiré. Créez-en un nouveau.')) +
-      '<button class="btn btn-secondary" data-act="newdisplay">' + I.refresh + '<span>Nouveau code</span></button>' +
-      '<details class="fallback"><summary>L’identité ne s’affiche pas ? Copiez son texte.</summary><div class="stack"><textarea id="qrtextout" class="field" readonly>' + esc(text) + '</textarea><button class="btn btn-secondary" data-act="copyqr">' + I.copy + '<span>Copier le texte</span></button></div></details>' +
-    '</div>';
-  }
+  // Un seul écran pour recevoir : le QR code lu (photo ou appareil photo) donne soit une invitation, soit une identité.
   function viewScanner() {
-    return '<div class="screen">' + topbar({ back: 'ajouter', title: 'Scanner une identité' }) +
-      '<p class="lead">Face à face : photographiez l’identité affichée sur l’écran de la personne, puis tapez le code affiché à côté.</p>' +
-      '<section class="card step-card"><div class="step-head"><span class="step-n">1</span><b>Scanner son identité</b></div>' +
+    const inv = S.scanKind === 'inv';
+    return '<div class="screen">' + topbar({ back: 'ajouter', title: 'Scanner un QR code' }) +
+      '<p class="lead">Photographiez le QR code de la personne, ou choisissez son image. L’appli reconnaît seule s’il s’agit d’une personne présente ou d’une invitation.</p>' +
+      (inv ? notice('info', 'Invitation reçue. Entrez le code donné à part, puis envoyez votre demande.') : '') +
+      '<section class="card step-card"><div class="step-head"><span class="step-n">1</span><b>Lire le QR code</b></div>' +
         '<label class="btn btn-primary file-btn">' + I.camera + '<span>Ouvrir l’appareil photo</span><input id="photo" class="sr-only" type="file" accept="image/*" capture="environment"></label>' +
-        '<p class="hint">Visez le QR code, rapprochez-vous, puis prenez la photo : l’appli la lit toute seule.</p>' +
         '<label class="btn btn-secondary file-btn">' + I.file + '<span>Choisir une photo</span><input id="photogal" class="sr-only" type="file" accept="image/*"></label>' +
         '<div id="scanstatus" class="status status-ok" hidden></div>' +
       '</section>' +
-      '<section class="card step-card"><div class="step-head"><span class="step-n">2</span><b>Taper le code affiché</b></div>' +
+      '<section class="card step-card"><div class="step-head"><span class="step-n">2</span><b>Entrer le code</b></div>' +
         '<input id="fcode" class="field code-input" placeholder="K7P 2Q9" maxlength="8" autocomplete="off" autocapitalize="characters">' +
-        '<p class="hint">Il expire au bout de quelques minutes.</p>' +
+        '<p class="hint">Affiché à côté du QR code sur l’écran de la personne, ou donné à part pour une invitation.</p>' +
       '</section>' +
-      '<details class="fallback"><summary>Je n’arrive pas à scanner : coller le texte de l’identité</summary><div class="stack" style="margin-top:10px"><textarea id="qrtext" class="field" rows="3" placeholder="Collez ici le texte de l’identité">' + esc(S.qrText || '') + '</textarea></div></details>' +
+      '<details class="fallback"><summary>Je n’arrive pas à scanner : coller le lien ou le texte</summary><div class="stack" style="margin-top:10px"><textarea id="qrtext" class="field" rows="3" placeholder="Collez ici le lien ou le texte du QR code">' + esc(S.scanText || '') + '</textarea></div></details>' +
       formStatus() +
-      '<div class="dock"><button class="btn btn-primary" data-act="sendff">Envoyer la demande</button></div>' +
-    '</div>';
-  }
-  function viewRejoindre() {
-    return '<div class="screen">' + topbar({ back: 'ajouter', title: 'Rejoindre une invitation' }) +
-      '<p class="lead">Photographiez l’invitation reçue avec l’appareil photo, ou choisissez l’image dans vos photos. Le code, lui, vous a été donné à part.</p>' +
-      '<section class="card step-card"><div class="step-head"><span class="step-n">1</span><b>Scanner l’invitation</b></div>' +
-        '<label class="btn btn-primary file-btn">' + I.camera + '<span>Ouvrir l’appareil photo</span><input id="photoinv" class="sr-only" type="file" accept="image/*" capture="environment"></label>' +
-        '<p class="hint">Visez le QR code, rapprochez-vous, puis prenez la photo : l’appli la lit toute seule.</p>' +
-        '<label class="btn btn-secondary file-btn">' + I.file + '<span>Choisir une photo</span><input id="photoinvgal" class="sr-only" type="file" accept="image/*"></label>' +
-        '<div id="scanstatus" class="status status-ok" hidden></div>' +
-      '</section>' +
-      '<details class="fallback"><summary>Je n’arrive pas à scanner : coller le texte de l’invitation</summary><div class="stack" style="margin-top:10px"><textarea id="invtext" class="field" rows="3" placeholder="Collez ici le lien ou le texte de l’invitation">' + esc(S.invText || '') + '</textarea></div></details>' +
-      formStatus() +
-      '<div class="dock"><button class="btn btn-primary" data-act="readinv">Continuer</button></div>' +
-    '</div>';
-  }
-  function viewReclamer() {
-    if (!S.invite) return viewInvalide();
-    return '<div class="screen">' + topbar({ back: 'ajouter', title: 'Invitation' }) +
-      '<div><h1>Entrez le code</h1><p class="lead" style="margin-top:6px">Le code vous a été donné à part, par appel ou de vive voix.</p></div>' +
-      '<div class="card form"><label class="label" for="icode">Code d’invitation</label><input id="icode" class="field code-input" placeholder="K7P 2Q9" maxlength="8" autocomplete="off" autocapitalize="characters"><p class="hint">Il ne marche qu’une fois, pendant 24 heures.</p>' + formStatus() + '</div>' +
-      '<div class="dock"><button class="btn btn-primary" data-act="claim">Envoyer ma demande</button></div>' +
+      '<div class="dock"><button class="btn btn-primary" data-act="sendscan">Envoyer ma demande</button></div>' +
     '</div>';
   }
   function viewInviter() {
@@ -1135,9 +1098,8 @@ button.chip{cursor:pointer;font:inherit}
         ? '<div class="row-between"><span class="badge badge-ok">En attente</span><span class="hint">Valable jusqu’au ' + esc(until) + '</span></div>' +
           (S.invQR ? '<div class="qr-frame"><img alt="QR code d’invitation" src="' + S.invQR + '"></div>' : notice('err', 'Le QR code ne peut pas s’afficher ici. Utilisez le texte, plus bas.')) +
           '<div class="card code-card"><span class="code-label">Code à donner à part</span><div class="code">' + esc(fmtCode(inv.code)) + '</div><p class="hint">Par appel ou de vive voix. Jamais dans le même message que le QR code.</p></div>' +
-          '<div class="stack"><button class="btn btn-primary" data-act="sendqr">' + I.send + '<span>Envoyer le QR code</span></button>' +
-                    '</div>' +
-          '<p class="hint center">Envoyez ce QR code. La personne le scanne, puis entre le code ci-dessus.</p>' +
+          '<div class="stack"><button class="btn btn-primary" data-act="sharelink" data-arg="' + esc(inv.id) + '">' + I.send + '<span>Envoyer le lien</span></button></div>' +
+          '<p class="hint center">Face à face : la personne scanne ce QR code. À distance : envoyez-lui le lien. Dans les deux cas, elle entre le code ci-dessus.</p>' +
           '<details class="fallback"><summary>Le QR code ne s’affiche pas ? Copiez son texte.</summary><div class="stack"><textarea id="invtextout" class="field" readonly>' + esc(invTextFor(inv)) + '</textarea><button class="btn btn-secondary" data-act="copyinv">' + I.copy + '<span>Copier le texte</span></button></div></details>' +
           '<div class="dock"><button class="btn btn-danger" data-act="cancelinv" data-arg="' + esc(inv.id) + '">Annuler l’invitation</button></div>'
         : notice('info', 'Cette invitation n’est plus valable.') + '<div class="dock"><button class="btn btn-secondary" data-act="go" data-arg="accueil">Retour aux messages</button></div>') +
@@ -1179,8 +1141,10 @@ button.chip{cursor:pointer;font:inherit}
     const p = pendingById(S.arg);
     if (!p) return viewAccueil();
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) +
-      '<div><h1>Quelqu’un a rejoint votre invitation</h1><p class="lead" style="margin-top:6px">Le code d’invitation est juste. Donnez un nom pour ajouter ce contact.</p></div>' +
-      personCard(p.peerPseudo, 'Code vérifié') + nameField() +
+      '<div><h1>Quelqu’un a rejoint votre invitation</h1><p class="lead" style="margin-top:6px">Le code d’invitation est juste. Comparez les mots, puis donnez un nom pour ajouter ce contact.</p></div>' +
+      personCard(p.peerPseudo, 'Code vérifié') +
+      (S.words && S.words.length ? wordsBlock('Mots à comparer', 'Ils doivent être identiques sur l’écran de la personne.') : '') +
+      nameField() +
       '<div class="dock stack"><button class="btn btn-primary" data-act="acceptremote" data-arg="' + esc(p.pid) + '">Ajouter ce contact</button><button class="btn btn-danger" data-act="refuseremote" data-arg="' + esc(p.pid) + '">Refuser</button></div>' +
     '</div>';
   }
@@ -1188,7 +1152,8 @@ button.chip{cursor:pointer;font:inherit}
     const p = pendingById(S.arg);
     if (!p) return viewAccueil();
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation acceptée' }) +
-      '<div><h1>Vous pouvez écrire à ' + esc(p.peerPseudo) + '</h1><p class="lead" style="margin-top:6px">Le code a été vérifié à la connexion. Donnez un nom pour ajouter ce contact.</p></div>' +
+      '<div><h1>Vous pouvez écrire à ' + esc(p.peerPseudo) + '</h1><p class="lead" style="margin-top:6px">Le code a été vérifié à la connexion. Comparez les mots, puis donnez un nom pour ajouter ce contact.</p></div>' +
+      (S.words && S.words.length ? wordsBlock('Mots à comparer', 'Ils doivent être identiques sur l’écran de la personne.') : '') +
       nameField() +
       '<div class="dock"><button class="btn btn-primary" data-act="confirmremote" data-arg="' + esc(p.pid) + '">Ajouter ce contact</button></div>' +
     '</div>';
@@ -1349,7 +1314,6 @@ button.chip{cursor:pointer;font:inherit}
   function viewIdentite() {
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Mon identité' }) +
       '<div class="id-card"><div class="id-top"><span>PLI SCELLÉ</span><span>IDENTITÉ</span></div><div class="id-body"><div class="id-main"><div class="id-label">Mon pseudo</div><div class="id-name">' + esc(S.me.pseudo) + '</div></div><div class="id-qr" aria-hidden="true"><div class="qr-build">' + qrDecorCells() + '</div></div></div><div class="id-foot">Ni numéro, ni e-mail. Ce pseudo permet seulement de vous écrire.</div></div>' +
-      '<div class="stack"><button class="btn btn-primary" data-act="montrer" data-arg="identite">' + I.qr + '<span>Montrer mon identité</span></button><button class="btn btn-secondary" data-act="newinvite">' + I.link + '<span>Inviter à distance</span></button></div>' +
       (S.bioAvail ? '<section><div class="section-title">Déverrouillage</div><div class="list"><button class="rowlink" data-act="go" data-arg="biometrie"><span>Empreinte ou Face ID</span><span class="state">' + (LS.get('bio', null) ? 'Activé' : 'Désactivé') + '</span>' + I.chev + '</button></div></section>' : '') +
       '<section><div class="section-title">Alertes</div><div class="list"><button class="rowlink" data-act="togglesound"><span>Sonnerie à la réception</span><span class="state">' + (getPrefs().sound ? 'Activée' : 'Désactivée') + '</span>' + I.chev + '</button></div>' + toneChipsHTML() + '<div class="list" style="margin-top:12px"><button class="rowlink" data-act="togglenotif"><span>Notifications quand l’appli est fermée</span><span class="state">' + (getPrefs().notif ? (getPrefs().push ? 'Activées' : 'En attente') : 'Désactivées') + '</span>' + I.chev + '</button></div>' + notifHintHTML() + '<p class="hint">La sonnerie joue à chaque message ou demande reçus, tant que l’appli est ouverte (et vibre sur Android).</p></section>' +
       '<section><div class="section-title">Sauvegarde</div><div class="list"><button class="rowlink" data-act="go" data-arg="sauvegarde"><span>Sauvegarder mes contacts</span>' + I.chev + '</button><button class="rowlink" data-act="go" data-arg="installer"><span>Installer une sauvegarde</span>' + I.chev + '</button></div><p class="hint">' + (LS.get('lastBackup', 0) ? 'Dernière sauvegarde : ' + esc(new Date(LS.get('lastBackup', 0)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })) : 'Pas encore de sauvegarde. Sans elle, vos contacts ne sont que dans ce navigateur.') + '</p></section>' +
@@ -1408,7 +1372,7 @@ button.chip{cursor:pointer;font:inherit}
   function afterFF() {
     startPolling();
     const t = S.ffText;
-    S.ffText = null; S.qrText = t;
+    S.ffText = null; S.scanKind = 'ff'; S.scanText = t;
     go('scanner');
     try { const p = parseQR(t).p; setStatus('scanstatus', 'ok', (p ? 'Identité reçue de ' + p : 'Identité reçue') + '. Tapez le code affiché sur son écran.'); } catch (e) { /* QR illisible : le champ reste disponible */ }
   }
@@ -1450,6 +1414,7 @@ button.chip{cursor:pointer;font:inherit}
     cancelVoice();   // quitter l’écran arrête le micro et jette l’enregistrement en cours
     if (screen !== 'lien-coupe') S.cut = null;
     if (screen !== 'sauvegarde') { S.delMode = false; S.backupText = null; S.backupDone = false; }
+    if (screen !== 'scanner') { S.scanKind = null; S.scanText = ''; }
     S.screen = screen;
     S.arg = (arg == null ? null : arg);
     render();
@@ -1463,7 +1428,7 @@ button.chip{cursor:pointer;font:inherit}
     const same = app.dataset.view === key;
     if (!same) { S.attach = []; S.linkOpen = false; S.plusOpen = false; }
     const keep = {};
-    if (same) ['draft', 'linkIn'].forEach((id) => { const el = document.getElementById(id); if (el) keep[id] = el.value; });
+    if (same) ['draft', 'linkIn', 'fcode', 'qrtext'].forEach((id) => { const el = document.getElementById(id); if (el) keep[id] = el.value; });
     const act = document.activeElement;
     const focusId = same && act && (act.id === 'draft' || act.id === 'linkIn') ? act.id : null;
     let html;
@@ -1524,27 +1489,19 @@ button.chip{cursor:pointer;font:inherit}
     afterAuth();
   }
   function afterAuth() {
-    if (getPrefs().notif && getPrefs().push) subscribePush().catch(() => {});
+    if (getPrefs().notif) retryPush();
     if (S.ffText) return afterFF();
     startPolling();
     if (S.inviteId) {
       S.inviteId = null;
       try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
-      return go(S.invite ? 'reclamer' : 'invalide');
+      if (!S.invite) return go('invalide');
+      // Lien d’invitation ouvert : même écran que « Scanner un QR code », avec le code à entrer.
+      S.scanKind = 'inv'; S.scanText = invTextFor(S.invite);
+      return go('scanner');
     }
     if (S.afterCreate) { S.afterCreate = false; return go('reprendre'); }
     return go('accueil');
-  }
-  async function ensureDisplay(regen) {
-    let d = LS.get('display', null);
-    if (regen || !d || Date.now() > d.exp) {
-      const code = randCode(), salt = rand(16);
-      const K = await pbkdf2(code, salt, ITER_CODE);
-      d = { code: code, salt: b64u(salt), K: b64u(K), exp: Date.now() + CODE_LIFE };
-      LS.set('display', d);
-    }
-    try { S.qr = makeQR(qrTextFor(d)); } catch (e) { S.qr = null; }
-    return d;
   }
   async function actSendFF() {
     const text = ($('#qrtext').value || '').trim();
@@ -1598,46 +1555,18 @@ button.chip{cursor:pointer;font:inherit}
     setInvites(l);
     S.invQR = null;
     try { S.invQR = makeQR(invTextFor(entry)); } catch (e) { S.invQR = null; }
-    S.invPng = null;
-    try { S.invPng = await qrPngBlob(); } catch (e) { S.invPng = null; }
     go('inviter', id);
   }
-  // Le QR code est copié en image PNG, à coller dans la messagerie (la conversion se fait pendant le clic).
-  function qrPngBlob() {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        const c = document.createElement('canvas');
-        c.width = img.naturalWidth; c.height = img.naturalHeight;
-        const g = c.getContext('2d');
-        g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, c.width, c.height);
-        g.drawImage(img, 0, 0);
-        c.toBlob((b) => (b ? resolve(b) : reject(new Error('png'))), 'image/png');
-      };
-      img.onerror = () => reject(new Error('image'));
-      img.src = S.invQR;
-    });
-  }
-  async function actSendQR() {
-    // 1. Partage natif : la messagerie du téléphone s'ouvre avec l'image (quand l'appareil le permet).
-    const blob = S.invPng;
-    if (blob && navigator.share && navigator.canShare && navigator.canShare({ files: [new File([blob], 'invitation-pli-scelle.png', { type: 'image/png' })] })) {
-      try { await navigator.share({ files: [new File([blob], 'invitation-pli-scelle.png', { type: 'image/png' })], title: 'Invitation Pli Scellé' }); return flashNow({ t: 'Invitation envoyée. Donnez le code à part.', ok: true }); }
+  // Le lien d’invitation est envoyé tel quel : il est cliquable dans la messagerie et ouvre l’appli chez la personne.
+  async function actShareLink(id) {
+    const inv = invitesAll().find((i) => i.id === id);
+    if (!inv) return;
+    const lien = invTextFor(inv);
+    if (navigator.share) {
+      try { await navigator.share({ title: 'Pli Scellé', text: 'Ajoutez-moi sur Pli Scellé. Touchez le lien, puis entrez le code que je vous donne à part.', url: lien }); return; }
       catch (e) { if (e && e.name === 'AbortError') return; }
     }
-    if (!S.invQR) return flashNow({ t: 'Le QR code ne peut pas être copié ici. Faites une capture d’écran.' });
-    try {
-      if (!navigator.clipboard || !window.ClipboardItem) throw new Error('clipboard');
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': qrPngBlob() })]);
-      flashNow({ t: 'QR code copié. Collez-le dans la messagerie de votre choix.', ok: true });
-    } catch (e) {
-      // 3. Dernier recours : enregistrer le fichier, si le téléchargement est accordé.
-        if (S.downloads && blob) {
-          try { await S.downloads.save({ filename: 'invitation-pli-scelle.png', data: new Uint8Array(await blob.arrayBuffer()) }); return flashNow({ t: 'QR code enregistré. Envoyez-le depuis vos fichiers.', ok: true }); }
-          catch (e) { /* message ci-dessous */ }
-        }
-        flashNow({ t: 'Envoi impossible ici. Faites une capture d’écran du QR code.' });
-    }
+    copyText(lien, 'Lien copié. Collez-le dans la messagerie de votre choix.');
   }
     async function actSaveQR(id) {
     const inv = invitesAll().find((i) => i.id === id);
@@ -1658,28 +1587,26 @@ button.chip{cursor:pointer;font:inherit}
     S.flash = { t: 'Invitation annulée.', ok: true };
     go('accueil');
   }
-  async function actReadInv(given) {
-    const text = String(given || $('#invtext').value || '').trim();
-    if (!text) return setStatus('formstatus', 'err', 'Scannez ou collez le texte.');
+  // Envoi depuis « Scanner un QR code » : invitation (QR de « Mon QR code ») ou identité, selon ce qui a été lu.
+  async function actSendScan() {
+    const box = $('#qrtext');
+    const text = String((box && box.value) || S.scanText || '').trim();
+    if (!isInvText(text)) return actSendFF();
+    const code = normCode($('#fcode').value);
+    if (!text) return setStatus('formstatus', 'err', 'Scannez le QR code ou collez le lien.');
+    if (code.length !== 6) return setStatus('formstatus', 'err', 'Entrez le code donné à part (6 caractères).');
     let o;
     try { o = parseInvText(text); } catch (e) { return setStatus('formstatus', 'err', e.message); }
     const snap = await S.db.doc('inv/' + o.i).get();
     if (!snap.exists) return setStatus('formstatus', 'err', 'Cette invitation n’existe plus.');
     const d = snap.data();
     if (Date.now() > d.exp) return setStatus('formstatus', 'err', 'Cette invitation a expiré.');
-    S.invite = { id: o.i, from: d.from, salt: d.salt, exp: d.exp, pseudo: o.p };
-    go('reclamer');
-  }
-  async function actClaim() {
-    const code = normCode($('#icode').value);
-    if (code.length !== 6) return setStatus('formstatus', 'err', 'Le code d’invitation compte 6 caractères.');
-    const inv = S.invite;
-    const K = await pbkdf2(code, unb64u(inv.salt), ITER_CODE);
+    const K = await pbkdf2(code, unb64u(d.salt), ITER_CODE);
     const proof = await proofFor(K, S.me.raw);
-    await sendTo(inv.from, { kind: 'remote-claim', inv: inv.id, pseudo: S.me.pseudo, proof: proof });
-    pushPending({ type: 'remote-sent', peer: inv.from, invId: inv.id, peerPseudo: '' });
-    S.invite = null;
-    S.words = null;
+    await sendTo(d.from, { kind: 'remote-claim', inv: o.i, pseudo: S.me.pseudo, proof: proof });
+    pushPending({ type: 'remote-sent', peer: d.from, invId: o.i, peerPseudo: '' });
+    S.words = await wordsFor(unb64u(S.me.raw), unb64u(d.from));   // mêmes 6 mots que chez la personne : on les compare
+    S.scanKind = null; S.scanText = ''; S.invite = null;
     go('attente');
   }
   async function actAcceptRemote(pid) {
@@ -1806,7 +1733,7 @@ button.chip{cursor:pointer;font:inherit}
     reglages: (cid) => go('reglages', cid),
     lock: () => { S.priv = null; stopPolling(); go('verrouille'); },
     togglesound: actToggleSound,
-    settone: (t) => { setPref('tone', t); unlockSound(); playChime(t); go('identite'); },
+    settone: (t) => { setPref('tone', t); playChime(t, true); go('identite'); },
     togglenotif: actToggleNotif,
     enablebio: actEnableBio,
     disablebio: () => { LS.set('bio', null); S.flash = { t: 'Déverrouillage biométrique désactivé.', ok: true }; go('identite'); },
@@ -1814,22 +1741,16 @@ button.chip{cursor:pointer;font:inherit}
     unlock: actUnlock,
     create: actCreate,
     regen: () => { S.draftPseudo = genPseudo(); go('creer', S.arg); },
-    montrer: async (from) => { await ensureDisplay(false); S.origin = from || 'ajouter'; go('montrer'); },
-    newdisplay: async () => { await ensureDisplay(true); go('montrer'); },
-    copycode: (code) => copyText(String(code).replace(/\s/g, ''), 'Code copié.'),
-    copyqr: () => copyText(($('#qrtextout') || {}).value || '', 'Texte de l’identité copié.'),
     copyinv: () => copyText(($('#invtextout') || {}).value || '', 'Texte copié. Collez-le dans la messagerie de votre choix.'),
-    sendff: actSendFF,
+    sendscan: actSendScan,
     acceptff: actAcceptFF,
     refuseff: actRefuseFF,
     confirmff: actConfirmFF,
     drop: (pid) => { dropPending(pid); go('accueil'); },
     newinvite: actNewInvite,
-    sendqr: actSendQR,
+    sharelink: actShareLink,
     saveqr: actSaveQR,
     cancelinv: actCancelInv,
-    readinv: actReadInv,
-    claim: actClaim,
     acceptremote: actAcceptRemote,
     refuseremote: actRefuseRemote,
     confirmremote: actConfirmRemote,
@@ -1875,29 +1796,24 @@ button.chip{cursor:pointer;font:inherit}
     const st = $('#scanstatus');
     if (st) { st.classList.add('big'); st.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
   }
-  async function handleScan(txt, inv) {
-    if (inv) {
-      if (!isInvText(txt)) return scanMsg('err', 'Ce n’est pas une invitation. Pour une personne présente, utilisez « Scanner l’identité de la personne ».');
-      const box = $('#invtext'); if (box) box.value = txt;
-      S.invText = txt;
-      scanMsg('ok', 'Invitation lue.');
-      return actReadInv(txt);
-    }
-    const o = parseQR(txt);
-    const box = $('#qrtext'); if (box) box.value = txt;
-    S.qrText = txt;
-    scanMsg('ok', 'Identité lue' + (o.p ? ' : ' + o.p : '') + '. Tapez maintenant le code affiché sur son écran.');
+  // Un QR code lu (photo ou appareil photo) : l’appli reconnaît seule l’invitation ou l’identité.
+  async function handleScan(txt) {
+    const t = String(txt || '').trim();
+    let kind = null;
+    if (isInvText(t)) kind = 'inv';
+    else if (t.indexOf('PLI1:') === 0 || /#ff-/.test(t)) kind = 'ff';
+    if (!kind) return scanMsg('err', 'Ce QR code n’est pas celui de Pli Scellé.');
+    if (kind === 'ff') { try { parseQR(t); } catch (e) { return scanMsg('err', e.message); } }
+    S.scanKind = kind; S.scanText = t;
+    const box = $('#qrtext'); if (box) box.value = t;
+    scanMsg('ok', kind === 'inv' ? 'Invitation lue. Entrez maintenant le code donné à part.' : 'Identité lue. Entrez maintenant le code affiché sur son écran.');
   }
   document.addEventListener('change', async (ev) => {
     const t = ev.target;
-    if (!t || !['photo', 'photogal', 'photoinv', 'photoinvgal'].includes(t.id) || !t.files || !t.files[0]) return;
-    const inv = t.id === 'photoinv' || t.id === 'photoinvgal';
+    if (!t || !['photo', 'photogal'].includes(t.id) || !t.files || !t.files[0]) return;
     scanMsg('ok', 'Lecture de la photo…');
-    try {
-      await handleScan(await decodeFile(t.files[0]), inv);
-    } catch (e) {
-      scanMsg('err', e.message);
-    }
+    try { await handleScan(await decodeFile(t.files[0])); }
+    catch (e) { scanMsg('err', e.message); }
     t.value = '';
   });
   document.addEventListener('change', async (ev) => {
@@ -1917,7 +1833,7 @@ button.chip{cursor:pointer;font:inherit}
     S.plusOpen = false;   // le menu « + » se referme après le choix
     render();
   });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) stopVoice(true); else { unlockSound(); poll(); } });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stopVoice(true); else poll(); });
 
   function tick() {
     const cd = document.getElementById('cd');
@@ -1938,19 +1854,23 @@ button.chip{cursor:pointer;font:inherit}
   // ---------- alertes : sonnerie à la réception (facultative, réglée dans « Mon identité ») ----------
   function getPrefs() { const p = LS.get('prefs', null) || {}; return { sound: !!p.sound, tone: (p.tone && TONES[p.tone]) ? p.tone : 'carillon', notif: !!p.notif, push: !!p.push }; }
   function setPref(k, v) { LS.set('prefs', Object.assign(getPrefs(), { [k]: v })); }
-  let audio = null;
-  // Le son doit être (re)créé pendant un toucher : iOS le met en veille après une interruption (verrouillage, notification,
-  // autre appli), et seul un son créé pendant un toucher repart à coup sûr. Un seul son est gardé, en marche.
-  function unlockSound() {
+  // Son : un seul contexte audio pour toute la session, jamais recréé (iOS en limite le nombre et cesse de jouer).
+  // iOS le suspend hors d’un toucher : on le reprend à chaque toucher, ce qui est le seul moment où il accepte le son.
+  let ctxSon = null;
+  function sonContexte() {
+    if (!ctxSon) { try { ctxSon = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ctxSon = null; } }
+    return ctxSon;
+  }
+  function sonPret() { const c = sonContexte(); return !!c && c.state === 'running'; }
+  function touchSon() {
+    const c = sonContexte();
+    if (!c || c.state === 'running') return;
     try {
-      if (audio && audio.state === 'running') return;
-      const ancien = audio;
-      audio = new (window.AudioContext || window.webkitAudioContext)();
-      if (ancien && ancien.close) ancien.close().catch(() => {});
+      c.resume().then(() => { S.needRender = true; }).catch(() => {});
+      const s = c.createBufferSource(); s.buffer = c.createBuffer(1, 1, 22050); s.connect(c.destination); s.start(0);
     } catch (e) { /* son indisponible sur ce téléphone */ }
   }
-  // À chaque toucher, pas une seule fois : iOS met le son en veille quand l’appli quitte le premier plan.
-  ['pointerdown', 'touchend', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, unlockSound));
+  ['pointerdown', 'touchend', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, touchSon));
   // Sonneries au choix : suites de notes générées sur place, sans fichier.
   const TONES = {
     carillon: { label: 'Carillon', type: 'sine', gain: 0.4, len: 0.3, notes: [[1046, 0], [1318, 0.18], [1568, 0.36], [1046, 0.75], [1318, 0.93], [1568, 1.11]] },
@@ -1963,18 +1883,22 @@ button.chip{cursor:pointer;font:inherit}
       Object.keys(TONES).map((k) => '<button class="chip' + (getPrefs().tone === k ? ' on' : '') + '" type="button" data-act="settone" data-arg="' + k + '">' + TONES[k].label + '</button>').join('') +
       '</div></div>';
   }
-  function playChime(tone) {
+  // « geste » est vrai quand la sonnerie est demandée par un toucher (essai, réglage). Hors toucher, iOS refuse le son :
+  // on ne le joue pas en retard, l’accueil signale que la sonnerie est en pause.
+  function playChime(tone, geste) {
     try {
-      unlockSound();
+      const c = sonContexte();
+      if (!c) return;
+      if (c.state !== 'running') { if (!geste) return; touchSon(); }
       const def = TONES[tone || getPrefs().tone] || TONES.carillon;
-      const t0 = audio.currentTime + 0.02;
+      const t0 = c.currentTime + 0.02;
       def.notes.forEach(([f, dt]) => {
-        const o = audio.createOscillator(), g = audio.createGain();
+        const o = c.createOscillator(), g = c.createGain();
         o.type = def.type; o.frequency.value = f;
         g.gain.setValueAtTime(0.0001, t0 + dt);
         g.gain.exponentialRampToValueAtTime(def.gain, t0 + dt + 0.02);
         g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + def.len);
-        o.connect(g); g.connect(audio.destination);
+        o.connect(g); g.connect(c.destination);
         o.start(t0 + dt); o.stop(t0 + dt + def.len + 0.02);
       });
     } catch (e) { /* son indisponible sur ce téléphone : rien à afficher */ }
@@ -2036,7 +1960,11 @@ button.chip{cursor:pointer;font:inherit}
     if (S.me && S.me.secret) await rpc('pli_push_delete', { p_mailbox: await mailboxOf(S.me.raw), p_secret: S.me.secret }).catch(() => {});
   }
   async function actToggleNotif() {
-    if (getPrefs().notif) { await unsubscribePush().catch(() => {}); setPref('notif', false); setPref('push', false); return go('identite'); }
+    // Activées : on coupe. Désactivées ou en attente : on (ré)essaie de les activer.
+    if (getPrefs().notif && getPrefs().push) { await unsubscribePush().catch(() => {}); setPref('notif', false); setPref('push', false); return go('identite'); }
+    return actEnableNotif();
+  }
+  async function actEnableNotif() {
     if (surIphone() && !standalone()) { S.flash = { t: 'Sur iPhone, ajoutez d’abord l’appli à l’écran d’accueil (Partager → Sur l’écran d’accueil), puis ouvrez-la depuis cette icône.' }; return go('identite'); }
     if (!('Notification' in window) || !('PushManager' in window)) { S.flash = { t: 'Les notifications ne sont pas disponibles dans ce navigateur.' }; return go('identite'); }
     let perm = Notification.permission;
@@ -2049,18 +1977,25 @@ button.chip{cursor:pointer;font:inherit}
     setPref('push', push);
     S.flash = push
       ? { t: 'Notifications activées. Elles arrivent aussi quand l’appli est fermée.', ok: true }
-      : { t: 'Notifications activées, mais l’envoi quand l’appli est fermée n’est pas encore prêt. Déverrouillez l’appli une fois, puis réessayez.', ok: true };
+      : { t: 'Notifications activées, mais l’envoi quand l’appli est fermée n’est pas encore prêt. Touchez la ligne « Notifications » pour réessayer.', ok: true };
     go('identite');
+  }
+  // Inscription de l’appareil quand les notifications sont voulues. Sans nouveau geste : seulement si la permission est déjà donnée.
+  async function retryPush() {
+    if (!getPrefs().notif || !S.me || !S.me.secret) return;
+    let ok = false;
+    try { ok = typeof Notification !== 'undefined' && Notification.permission === 'granted' && await subscribePush(); } catch (e) { ok = false; }
+    if (!!ok !== getPrefs().push) { setPref('push', !!ok); S.needRender = true; }
   }
   function notifHintHTML() {
     if (surIphone() && !standalone()) return '<p class="hint">Sur iPhone, ajoutez d’abord l’appli à l’écran d’accueil : Partager → Sur l’écran d’accueil. Ouvrez-la ensuite depuis cette icône pour activer les notifications.</p>';
-    if (getPrefs().notif && !getPrefs().push) return '<p class="hint">L’envoi quand l’appli est fermée n’est pas encore prêt. Déverrouillez l’appli une fois, puis réessayez.</p>';
+    if (getPrefs().notif && !getPrefs().push) return '<p class="hint">L’envoi quand l’appli est fermée n’est pas encore prêt. Touchez la ligne « Notifications » pour réessayer.</p>';
     return '<p class="hint">La notification affiche seulement « Une nouvelle activité vous attend. ». Son : celui des notifications de votre téléphone, qui ne change pas avec le choix ci-dessus.</p>';
   }
   async function actToggleSound() {
     if (getPrefs().sound) { setPref('sound', false); return go('identite'); }
     setPref('sound', true);
-    playChime();
+    playChime(undefined, true);
     S.flash = { t: 'Sonnerie activée. Elle sonne à l’arrivée d’un message, tant que l’appli est ouverte.', ok: true };
     go('identite');
   }
@@ -2158,7 +2093,7 @@ button.chip{cursor:pointer;font:inherit}
     S.bioAvail = await bioAvailable();
     // Au démarrage : l’abonnement est vérifié et réenregistré (il peut avoir changé).
     cleanupNotifications();
-    if (getPrefs().notif) registerWorker().then(() => (getPrefs().push && S.me && S.me.secret ? subscribePush() : null)).catch(() => {});
+    if (getPrefs().notif) registerWorker().then(retryPush).catch(() => {});
     if (!S.me) return go('creer', S.inviteId ? 'invite' : null);
     return go('verrouille', S.inviteId ? 'invite' : null);
   }

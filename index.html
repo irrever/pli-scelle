@@ -173,6 +173,8 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
 .composer-row{display:flex;gap:8px;align-items:center}
 .composer-row .field{flex:1;min-width:0}
 .composer-row .draft{height:52px;min-height:52px;max-height:160px;resize:none;line-height:1.4;padding:13px 14px;overflow-y:auto}
+.send-icon{width:44px;min-width:44px;height:44px;min-height:44px;padding:0;border-radius:50%;display:grid;place-items:center;flex:none}
+.send-icon svg{width:20px;height:20px}
 .btn-plus{width:44px;height:44px;flex:none;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--accent);font-size:26px;line-height:1;cursor:pointer}
 .mic{width:44px;height:44px;flex:none;border-radius:50%;border:0;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;cursor:pointer}
 .mic svg{width:20px;height:20px}
@@ -235,7 +237,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v28';
+  const APP_VERSION = 'v29';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1195,7 +1197,7 @@ button.chip{cursor:pointer;font:inherit}
         '<button class="btn-plus" type="button" data-act="plusmenu" aria-label="Ajouter une photo, un document ou un lien">+</button>' +
         '<textarea id="draft" class="field draft" rows="2" placeholder="Votre message" autocomplete="off"></textarea>' +
         '<button class="mic" type="button" data-act="voicerec" aria-label="Message vocal">' + I.mic + '</button>' +
-        '<button class="btn btn-primary btn-send" data-act="send" data-arg="' + esc(cid) + '">Envoyer</button>' +
+        '<button class="btn btn-primary send-icon" data-act="send" data-arg="' + esc(cid) + '" aria-label="Envoyer" title="Envoyer">' + I.send + '</button>' +
       '</div>') +
     '</div>';
   }

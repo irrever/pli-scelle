@@ -7,10 +7,21 @@
 // Secrets du projet : VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY.
 // SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY sont fournies par Supabase.
 // Déployée sans vérification de jeton (verify_jwt = false) : le relais l’appelle sans authentification.
+//
+// Journal : chaque étape écrit une ligne dans les journaux de la fonction (Supabase → Edge Functions → push → Logs).
+// Aucune adresse de boîte ni d’appareil n’y figure.
 
 const RATE_LIMIT_MS = 15000;                              // au plus une notification toutes les 15 s par boîte
 const SUBJECT = 'https://irrever.github.io/pli-scelle/';  // contact VAPID : l’adresse publique de l’appli
 const enc = new TextEncoder();
+
+// Journal : seulement l’étape et son résultat. Jamais d’adresse de boîte, ni d’adresse d’appareil, ni contenu.
+const journal = (...morceaux: unknown[]) => { if (typeof Deno !== 'undefined') console.log('[push]', ...morceaux); };
+const sansAdresse = (texte: string): string => texte.replace(/https?:\/\/\S+/g, '[adresse]');
+// Début de la réponse du service de notification, pour comprendre un refus.
+async function debutReponse(r: Response): Promise<string> {
+  try { return sansAdresse((await r.text()).slice(0, 120)); } catch (e) { return '(illisible)'; }
+}
 
 type Env = {
   SUPABASE_URL: string;
@@ -76,24 +87,32 @@ export async function handle(req: Request, env: Env, fetchFn: Fetcher, now: numb
   });
 
   // 1. Il faut un message en attente dans la boîte.
-  const pending = await (await db('messages?select=id&mailbox=eq.' + mailbox + '&limit=1')).json();
-  if (!Array.isArray(pending) || pending.length === 0) return json(200, { ok: true });
+  const rMessages = await db('messages?select=id&mailbox=eq.' + mailbox + '&limit=1');
+  const pending = await rMessages.json();
+  if (!Array.isArray(pending)) { journal('lecture des messages : réponse inattendue, statut', rMessages.status); return json(200, { ok: true }); }
+  if (pending.length === 0) { journal('aucun message en attente : déjà lu, ou rien à notifier'); return json(200, { ok: true }); }
 
   // 2. Il faut un abonnement, et pas une notification trop rapprochée de la précédente.
-  const rows = await (await db('push_subscriptions?select=subscription,last_push_at&mailbox=eq.' + mailbox)).json();
-  if (!Array.isArray(rows) || rows.length === 0) return json(200, { ok: true });
+  const rSubs = await db('push_subscriptions?select=subscription,last_push_at&mailbox=eq.' + mailbox);
+  const rows = await rSubs.json();
+  if (!Array.isArray(rows)) { journal('lecture des abonnements : réponse inattendue, statut', rSubs.status); return json(200, { ok: true }); }
+  if (rows.length === 0) { journal('aucun abonnement pour cette boîte : l’appareil ne s’est pas inscrit'); return json(200, { ok: true }); }
   const last = rows[0].last_push_at ? Date.parse(rows[0].last_push_at) : 0;
-  if (now - last < RATE_LIMIT_MS) return json(200, { ok: true });
+  if (now - last < RATE_LIMIT_MS) { journal('une notification a été envoyée il y a moins de 15 s : pas de nouvel envoi'); return json(200, { ok: true }); }
 
   // 3. Envoi : notification vide, en-tête signé.
   const endpoint: string = rows[0].subscription.endpoint;
+  journal('envoi au service de notification :', new URL(endpoint).host);
   const auth = await vapidAuthorization(endpoint, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY, now);
   const res = await fetchFn(endpoint, { method: 'POST', headers: { TTL: '3600', Urgency: 'normal', Authorization: auth } });
   if (res.status === 404 || res.status === 410) {
     // Abonnement périmé (appareil désinstallé, notifications retirées) : on l’oublie.
+    journal('service de notification : abonnement périmé (' + res.status + '), oublié');
     await db('push_subscriptions?mailbox=eq.' + mailbox, { method: 'DELETE' });
     return json(200, { ok: true });
   }
+  if (res.status >= 200 && res.status < 300) journal('service de notification : accepté (' + res.status + ')');
+  else journal('service de notification : refusé (' + res.status + ')', await debutReponse(res));
   await db('push_subscriptions?mailbox=eq.' + mailbox, {
     method: 'PATCH',
     headers: { Prefer: 'return=minimal' },
@@ -112,8 +131,10 @@ if (typeof Deno !== 'undefined') {
         VAPID_PUBLIC_KEY: Deno.env.get('VAPID_PUBLIC_KEY') ?? '',
         VAPID_PRIVATE_KEY: Deno.env.get('VAPID_PRIVATE_KEY') ?? '',
       };
+      journal('secrets : publique', env.VAPID_PUBLIC_KEY ? 'présente' : 'MANQUANTE', '| privée', env.VAPID_PRIVATE_KEY ? 'présente' : 'MANQUANTE', '| service', env.SUPABASE_SERVICE_ROLE_KEY ? 'présente' : 'MANQUANTE');
       return await handle(req, env, fetch, Date.now());
     } catch (e) {
+      journal('erreur :', sansAdresse(e instanceof Error ? e.message : String(e)));
       return json(500, { ok: false });
     }
   });

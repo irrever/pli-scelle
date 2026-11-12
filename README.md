@@ -40,9 +40,9 @@ Pour changer de clés, il faut refaire l'inscription de chaque appareil : désac
 ## Garder ses contacts
 
 - **Sauvegarder** : Mon identité → « Sauvegarder mes contacts ». Le fichier, chiffré par votre code secret, contient vos contacts et de quoi reprendre le lien avec chacun. Gardez-le comme un mot de passe.
-- **Supprimer son identité en gardant ses contacts** : Mon identité → Supprimer mon identité → « Garder mes contacts et supprimer ». Chaque contact passe en pause pendant 30 jours, sans être coupé.
+- **Supprimer son identité en gardant ses contacts** : Mon identité → Supprimer mon identité → « Garder mes contacts et supprimer ». Chaque contact passe en pause pendant 7 jours, sans être coupé. Il apparaît grisé dans « Liens en attente » et ne peut plus être ouvert.
 - **Reprendre** : après « Créer mon identité », l’appli propose « Installer ma sauvegarde ». Puis « Réactiver les liens » envoie la demande à chaque contact. Le lien repart sans nouveau QR code, tant que la personne n’a pas supprimé son identité de son côté.
-- **Limites** : si les deux personnes suppriment leur identité, il faut refaire un QR code. Après 30 jours de pause, le lien est retiré. Une sauvegarde faite avec une version antérieure de l’appli ne peut plus être installée.
+- **Limites** : si les deux personnes suppriment leur identité, il faut refaire un QR code. Après 7 jours de pause, le lien est retiré. Une sauvegarde faite avec une version antérieure de l’appli ne peut plus être installée.
 
 ## Fichiers
 

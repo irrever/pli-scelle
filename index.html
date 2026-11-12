@@ -69,6 +69,10 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
 .row-item{display:flex;align-items:center;gap:12px;width:100%;padding:14px 16px;border:0;border-top:1px solid var(--line-2);background:transparent;text-align:left;cursor:pointer;color:var(--ink)}
 .row-item:first-child{border-top:0}
 .row-item:hover{background:var(--surface-2)}
+.row-item.is-off{cursor:default}
+.row-item.is-off:hover{background:transparent}
+.row-item.is-off .avatar{background:var(--surface-2);color:var(--muted)}
+.row-item.is-off .row-title{color:var(--muted)}
 .row-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .row-text .row-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rowlink{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:54px;padding:0 16px;border:0;border-top:1px solid var(--line-2);background:transparent;color:var(--ink);font-weight:500;text-align:left;cursor:pointer}
@@ -231,7 +235,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v22';
+  const APP_VERSION = 'v23';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -413,7 +417,7 @@ button.chip{cursor:pointer;font:inherit}
     const body = await encryptFor(await importLinkKey(unb64u(c.pend.lk)), { raw: S.me.raw, pseudo: S.me.pseudo, ts: Date.now() });
     await S.db.collection('box').add({ to: await mailboxOf(c.raw), from: S.me.raw, kind: 'reprise', old: c.pend.old, ts: Date.now(), iv: body.iv, ct: body.ct });
   }
-  const PAUSE_MS = 30 * 24 * 3600 * 1000;
+  const PAUSE_MS = 7 * 24 * 3600 * 1000;   // pause d’un lien : 7 jours pour reprendre le contact
 
   // ---------- QR codes ----------
   function makeQR(text) {
@@ -654,7 +658,7 @@ button.chip{cursor:pointer;font:inherit}
     const all = contacts(); const x = all.find((y) => y.cid === c.cid);
     x.pause = { since: Date.now() }; x.rts = Number(p.ts) || Date.now();
     LS.set('contacts', all);
-    S.flash = { t: (x.name || x.pseudo) + ' a supprimé son identité. Le lien reste en pause pendant 30 jours.' };
+    S.flash = { t: (x.name || x.pseudo) + ' a supprimé son identité. Le lien reste en pause pendant 7 jours.' };
     return true;
   }
   // Reprise : la personne a installé ses contacts avec sa nouvelle identité. Le lien repart, sans nouveau QR code.
@@ -686,12 +690,12 @@ button.chip{cursor:pointer;font:inherit}
     S.flash = { t: (x.name || x.pseudo) + ' : lien rétabli.', ok: true };
     return true;
   }
-  // Pause expirée (30 jours sans reprise) : le lien est retiré.
+  // Pause expirée (7 jours sans reprise) : le lien est retiré.
   function expirePauses() {
     const limite = Date.now() - PAUSE_MS;
     const perdus = contacts().filter((c) => c.pause && c.pause.since < limite);
     perdus.forEach((c) => removeContact(c.cid));
-    if (perdus.length) S.flash = { t: 'Le lien avec ' + (perdus[0].name || perdus[0].pseudo) + ' a expiré : la pause a duré 30 jours.' };
+    if (perdus.length) S.flash = { t: 'Le lien avec ' + (perdus[0].name || perdus[0].pseudo) + ' a expiré : la pause a duré 7 jours.' };
     return perdus.length > 0;
   }
 
@@ -1032,10 +1036,20 @@ button.chip{cursor:pointer;font:inherit}
     const notices = pendingAll().filter((p) => ['ff-request', 'remote-claim', 'ff-accepted', 'remote-accepted'].indexOf(p.type) >= 0).map(noticeHTML).join('');
     const ms = msgsAll();
     const cs = contacts();
-    const list = cs.length ? '<div class="list">' + cs.map((c) => {
+    // Lien en pause ou à réactiver : la ligne est grisée, on ne peut plus l’ouvrir ; elle reste dans une section à part.
+    const ligne = (c) => {
       const n = ms.filter((m) => m.cid === c.cid && m.dir === 'in' && m.state === 'new' && !m.seen).length;
-      return '<button class="row-item conv" data-act="conv" data-arg="' + esc(c.cid) + '"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · ' + (c.pause ? 'En pause' : c.pend ? 'À réactiver' : 'Vérifié') + '</span></span>' + (n ? '<span class="count">' + n + '</span>' : '') + I.chev + '</button>';
-    }).join('') + '</div>' : emptyState();
+      if (c.pause || c.pend) {
+        return '<div class="row-item is-off" aria-disabled="true"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · ' + (c.pause ? 'En pause, en attente de sa reprise' : 'À réactiver') + '</span></span><button class="btn btn-secondary" style="min-height:40px;width:auto;padding:0 12px" data-act="cut" data-arg="' + esc(c.cid) + '">Couper le lien</button></div>';
+      }
+      return '<button class="row-item conv" data-act="conv" data-arg="' + esc(c.cid) + '"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · Vérifié</span></span>' + (n ? '<span class="count">' + n + '</span>' : '') + I.chev + '</button>';
+    };
+    const actifs = cs.filter((c) => !c.pause && !c.pend);
+    const attente = cs.filter((c) => c.pause || c.pend);
+    const list = cs.length
+      ? (actifs.length ? '<div class="list">' + actifs.map(ligne).join('') + '</div>' : '') +
+        (attente.length ? '<div class="section-title" style="margin-top:14px">Liens en attente</div><div class="list">' + attente.map(ligne).join('') + '</div>' : '')
+      : emptyState();
     return '<div class="screen">' +
       topbar({ titleHTML: 'Messages', right: '<button class="iconbtn" data-act="go" data-arg="identite" aria-label="Mon identité">' + I.user + '</button><button class="iconbtn" data-act="lock" aria-label="Verrouiller">' + I.lock + '</button>' }) +
       (notices ? '<div class="pending-stack">' + notices + '</div>' : '') +
@@ -1346,7 +1360,7 @@ button.chip{cursor:pointer;font:inherit}
   function viewSupprimer() {
     return '<div class="screen">' + topbar({ back: 'identite', title: 'Supprimer mon identité' }) +
       '<div class="hero-icon danger">' + I.alert + '</div>' +
-      '<div><h1>Supprimer mon identité</h1><p class="lead" style="margin-top:8px">Vos messages sont effacés de cet appareil. Vous pouvez garder vos contacts : chacun reste en pause pendant 30 jours, le temps de reprendre le lien avec votre nouvelle identité.</p></div>' +
+      '<div><h1>Supprimer mon identité</h1><p class="lead" style="margin-top:8px">Vos messages sont effacés de cet appareil. Vous pouvez garder vos contacts : chacun reste en pause pendant 7 jours, le temps de reprendre le lien avec votre nouvelle identité.</p></div>' +
       notice('info', 'Avec « Tout supprimer », chaque lien est coupé tout de suite, et les personnes concernées sont prévenues.') +
       '<div class="dock stack"><button class="btn btn-primary" data-act="supprimerkeep">Garder mes contacts et supprimer</button><button class="btn btn-danger-solid" data-act="deleteme">Tout supprimer</button><button class="btn btn-secondary" data-act="go" data-arg="identite">Garder mon identité</button></div>' +
     '</div>';

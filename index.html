@@ -242,8 +242,10 @@ button.chip{cursor:pointer;font:inherit}
   const INVITE_LIFE = 24 * 3600 * 1000;
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
+  const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
+  const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v38';
+  const APP_VERSION = 'v39';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -307,6 +309,8 @@ button.chip{cursor:pointer;font:inherit}
       acc = ((acc << 8) | h[i]) & 0xffff; nb += 8;
       while (nb >= 6 && out.length < 6) { nb -= 6; out.push(WORDS[(acc >> nb) & 63]); }
     }
+    // L’emblème de ce contact vient de la même empreinte : il est identique sur les deux téléphones.
+    out.chemin = empreinteChemin(h);
     return out;
   }
 
@@ -771,12 +775,12 @@ button.chip{cursor:pointer;font:inherit}
           '<p class="hint">Le navigateur de l’iPhone ne peut pas lire vos contacts. Enregistrez la fiche en fichier .vcf (Contacts, Partager le contact, Enregistrer dans Fichiers), puis choisissez-la ici. Sinon, tapez le nom.</p>') +
       '<p class="hint">Vous seul le voyez. Il ne quitte pas cet appareil.</p>' + formStatus() + '</div>';
   }
-  // Emblème « empreinte » des maquettes : des anneaux irréguliers, toujours dessinés de la même façon (graine fixe).
-  // Il marque une conversation vérifiée et accompagne les mots d’empreinte. Les six mots, eux, sont propres à chaque contact.
-  function empreinteChemin() {
+  // Emblème « empreinte » : des anneaux irréguliers, dans le style des maquettes. Son tracé vient de l’empreinte de la
+  // conversation : il est propre à chaque contact, et identique sur les deux téléphones.
+  function empreinteChemin(octets) {
     const TAU = Math.PI * 2, tilt = -0.42, cosT = Math.cos(tilt), sinT = Math.sin(tilt);
     const rot = (x, y) => { const dx = x - 50, dy = y - 50; return [50 + dx * cosT - dy * sinT, 50 + dx * sinT + dy * cosT]; };
-    let graine = 7;
+    let graine = (((octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8) | octets[3]) >>> 0) % 2147483646 + 1;
     const rnd = () => { graine = (graine * 16807) % 2147483647; return graine / 2147483647; };
     const anneaux = [];
     for (let i = 0; i < 13; i++) {
@@ -803,13 +807,27 @@ button.chip{cursor:pointer;font:inherit}
     }
     return anneaux.join(' ');
   }
-  function empreinteIcone(taille) {
-    return '<svg viewBox="0 0 100 100" width="' + taille + '" height="' + taille + '" fill="none" stroke="currentColor" stroke-width="' + (70 / taille).toFixed(2) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" style="flex:none"><path d="' + empreinteChemin() + '"/></svg>';
+  function empreinteIcone(taille, chemin) {
+    if (!chemin) return '';
+    return '<svg viewBox="0 0 100 100" width="' + taille + '" height="' + taille + '" fill="none" stroke="currentColor" stroke-width="' + (70 / taille).toFixed(2) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" style="flex:none"><path d="' + chemin + '"/></svg>';
+  }
+  // Emblème propre à chaque contact, calculé une fois à partir de l’empreinte commune aux deux identités.
+  function cleEmpreinte(c) { return ((S.me && S.me.raw) || '').slice(0, 24) + '|' + c.cid; }
+  function chargerEmpreintes() {
+    if (!S.me || !S.me.raw) return;
+    contacts().forEach((c) => {
+      const cle = cleEmpreinte(c);
+      if (!c.raw || EMP[cle] || EMP_EN_COURS.has(cle)) return;
+      EMP_EN_COURS.add(cle);
+      wordsFor(unb64u(S.me.raw), unb64u(c.raw)).then((w) => { EMP[cle] = w.chemin; S.needRender = true; }).catch(() => {}).finally(() => EMP_EN_COURS.delete(cle));
+    });
   }
   function wordsBlock(title, text, mots) {
-    const w = mots || S.words || [];
+    const source = mots || S.words || [];
+    const w = source;
+    const chemin = source.chemin || '';
     const paragraphes = Array.isArray(text) ? text : [text];
-    return '<section class="card"><div class="section-title" style="margin:0;display:flex;align-items:center;gap:8px"><span style="color:var(--accent);display:inline-flex">' + empreinteIcone(44) + '</span><span>' + esc(title) + '</span></div><div class="words-grid">' + w.map((x, i) => '<div class="word"><span class="word-n">' + (i + 1) + '</span><span>' + esc(x) + '</span></div>').join('') + '</div>' + paragraphes.map((p) => '<p class="hint">' + esc(p) + '</p>').join('') + '</section>';
+    return '<section class="card"><div class="section-title" style="margin:0;display:flex;align-items:center;gap:8px"><span style="color:var(--accent);display:inline-flex">' + empreinteIcone(44, chemin) + '</span><span>' + esc(title) + '</span></div><div class="words-grid">' + w.map((x, i) => '<div class="word"><span class="word-n">' + (i + 1) + '</span><span>' + esc(x) + '</span></div>').join('') + '</div>' + paragraphes.map((p) => '<p class="hint">' + esc(p) + '</p>').join('') + '</section>';
   }
   function progressStep(n, label, state, hint) {
     return '<div class="pstep ' + state + '"><span class="dot">' + (state === 'done' ? I.check.replace('class="ico"', 'class="ico" style="width:14px;height:14px"') : n) + '</span><div><b>' + esc(label) + '</b>' + (hint ? '<span>' + esc(hint) + '</span>' : '') + '</div></div>';
@@ -1209,7 +1227,7 @@ button.chip{cursor:pointer;font:inherit}
     const c = contacts().find((x) => x.cid === S.arg);
     if (!c) return viewAccueil();
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Contact', right: '<button class="iconbtn" data-act="reglages" data-arg="' + esc(c.cid) + '" aria-label="Réglages du contact">' + I.more + '</button>' }) +
-      '<div class="contact-hero"><span class="avatar xl">' + esc(initial(c.name)) + '</span><div class="row-title" style="font-size:20px">' + esc(c.name) + '</div><span class="hint">' + esc(c.pseudo) + '</span><span class="badge badge-ok">' + empreinteIcone(16) + 'Vérifié</span></div>' +
+      '<div class="contact-hero"><span class="avatar xl">' + esc(initial(c.name)) + '</span><div class="row-title" style="font-size:20px">' + esc(c.name) + '</div><span class="hint">' + esc(c.pseudo) + '</span><span class="badge badge-ok">' + empreinteIcone(16, EMP[cleEmpreinte(c)]) + 'Vérifié</span></div>' +
       '<div class="card code-card"><span class="code-label">Code de ce contact</span><div class="code">' + esc(c.label) + '</div><p class="hint">Dans les conversations, seul ce code apparaît.</p></div>' +
       '<section class="card"><h2>Prêt à écrire</h2><p class="hint">Le message est chiffré. Seule cette personne peut le lire.</p></section>' +
       '<div class="dock stack"><button class="btn btn-primary" data-act="conv" data-arg="' + esc(c.cid) + '">' + I.msg + '<span>Écrire</span></button><button class="btn btn-secondary" data-act="savecontact" data-arg="' + esc(c.cid) + '">' + I.user + '<span>Ajouter à mes contacts</span></button><button class="btn btn-danger" data-act="cut" data-arg="' + esc(c.cid) + '">' + I.unlink + '<span>Couper le lien</span></button></div>' +
@@ -1336,7 +1354,7 @@ button.chip{cursor:pointer;font:inherit}
     if (!c) return viewAccueil();
     const thread = msgsAll().filter((m) => m.cid === c.cid).sort((a, b) => (a.ts || 0) - (b.ts || 0)).map(msgHTML).join('');
     return '<div class="screen" style="gap:12px">' +
-      topbar({ backAct: 'go', backArg: 'accueil', titleHTML: '<span class="conv-title"><span class="code code-sm">' + esc(c.label) + '</span><span class="hint" style="display:inline-flex;align-items:center;gap:4px;color:var(--accent)">' + empreinteIcone(14) + 'Vérifié</span></span>', right: '<button class="iconbtn" data-act="reglages" data-arg="' + esc(c.cid) + '" aria-label="Réglages du contact">' + I.more + '</button>' }) +
+      topbar({ backAct: 'go', backArg: 'accueil', titleHTML: '<span class="conv-title"><span class="code code-sm">' + esc(c.label) + '</span><span class="hint" style="display:inline-flex;align-items:center;gap:4px;color:var(--accent)">' + empreinteIcone(14, EMP[cleEmpreinte(c)]) + 'Vérifié</span></span>', right: '<button class="iconbtn" data-act="reglages" data-arg="' + esc(c.cid) + '" aria-label="Réglages du contact">' + I.more + '</button>' }) +
       '<div class="thread">' + (thread || '<p class="hint center" style="padding-top:24px">Aucun message. Écrivez le premier.</p>') + '</div>' +
       '' + composerHTML(c.cid) + '' +
     '</div>';
@@ -1494,6 +1512,7 @@ button.chip{cursor:pointer;font:inherit}
   }
   function render() {
     expireOpened();
+    chargerEmpreintes();
     const app = $('#app');
     const fn = VIEWS[S.screen] || VIEWS.boot;
     // Même écran et même contact : brouillon, lien en cours et focus survivent au redessin.

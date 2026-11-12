@@ -234,7 +234,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v25';
+  const APP_VERSION = 'v26';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1100,6 +1100,7 @@ button.chip{cursor:pointer;font:inherit}
           (S.invQR ? '<div class="qr-frame"><img alt="QR code d’invitation" src="' + S.invQR + '"></div>' : notice('err', 'Le QR code ne peut pas s’afficher ici. Utilisez le texte, plus bas.')) +
           '<div class="card code-card"><span class="code-label">Code à donner à part</span><div class="code">' + esc(fmtCode(inv.code)) + '</div><p class="hint">Par appel ou de vive voix. Jamais dans le même message que le QR code.</p></div>' +
           '<div class="stack"><button class="btn btn-primary" data-act="sharelink" data-arg="' + esc(inv.id) + '">' + I.send + '<span>Envoyer le lien et le QR code</span></button></div>' +
+          '<div class="stack"><button class="btn btn-secondary" data-act="renewinv" data-arg="' + esc(inv.id) + '">' + I.refresh + '<span>Nouveau QR code</span></button></div>' +
           '<p class="hint center">Face à face : la personne scanne ce QR code. À distance : envoyez-lui le lien. Dans les deux cas, elle entre le code ci-dessus.</p>' +
           '<details class="fallback"><summary>Le QR code ne s’affiche pas ? Copiez son texte.</summary><div class="stack"><textarea id="invtextout" class="field" readonly>' + esc(invTextFor(inv)) + '</textarea><button class="btn btn-secondary" data-act="copyinv">' + I.copy + '<span>Copier le texte</span></button></div></details>' +
           '<div class="dock"><button class="btn btn-danger" data-act="cancelinv" data-arg="' + esc(inv.id) + '">Annuler l’invitation</button></div>'
@@ -1558,6 +1559,19 @@ button.chip{cursor:pointer;font:inherit}
     try { S.invQR = makeQR(invTextFor(entry)); } catch (e) { S.invQR = null; }
     go('inviter', id);
   }
+  // « Mon QR code » : réutilise l’invitation encore valable, au lieu d’en créer une à chaque fois.
+  async function actMonQR() {
+    const ouverte = invitesAll().filter((i) => i.status === 'open' && Date.now() < i.exp).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+    if (!ouverte) return actNewInvite();
+    try { S.invQR = makeQR(invTextFor(ouverte)); } catch (e) { S.invQR = null; }
+    go('inviter', ouverte.id);
+  }
+  // « Nouveau QR code » : l’ancienne invitation est annulée (son QR code ne marche plus), puis une nouvelle est créée.
+  async function actRenouveler(id) {
+    await closeInviteDoc(id);
+    markInviteClosed(id);
+    await actNewInvite();
+  }
   // Image du QR code en PNG (fond blanc), pour être scannée par une caméra.
   function qrPngBlob() {
     return new Promise((resolve, reject) => {
@@ -1771,7 +1785,8 @@ button.chip{cursor:pointer;font:inherit}
     refuseff: actRefuseFF,
     confirmff: actConfirmFF,
     drop: (pid) => { dropPending(pid); go('accueil'); },
-    newinvite: actNewInvite,
+    newinvite: actMonQR,
+    renewinv: actRenouveler,
     sharelink: actShareLink,
     saveqr: actSaveQR,
     cancelinv: actCancelInv,

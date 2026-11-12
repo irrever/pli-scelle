@@ -196,8 +196,6 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
 .voice-line{display:flex;align-items:center;gap:10px;min-width:0}
 .voice-actions{display:flex;gap:8px}
 .voice-actions .btn{flex:1;min-height:48px}
-.ondes{flex:1;min-width:0;height:40px;display:flex;align-items:center;justify-content:space-between}
-.ondes span{flex:none;width:3px;height:4px;border-radius:2px;background:var(--accent);transition:height .09s linear}
 @keyframes voicepulse{50%{opacity:.25}}
 .pending-stack{display:flex;flex-direction:column;gap:8px}
 /* QR code décoratif de la page de création (même principe que la maquette) */
@@ -245,7 +243,7 @@ button.chip{cursor:pointer;font:inherit}
   const REVEAL_MS = 20000;
   const MAX_FAILS = 5;
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v31';
+  const APP_VERSION = 'v32';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -794,7 +792,6 @@ button.chip{cursor:pointer;font:inherit}
   }
   // ---------- messages vocaux : enregistrés ici, chiffrés, envoyés en morceaux, écoutés dans la conversation ----------
   const VOICE_MAX_MS = 60000, VOICE_PART = 28000;   // une minute au plus ; morceaux de 28 000 caractères (le relais accepte 30 000 par message, en-tête compris)
-  const NB_ONDES = 36;   // barres des ondulations pendant l’enregistrement
   let vdbP = null;
   function vdb() {
     if (!vdbP) vdbP = new Promise((resolve, reject) => {
@@ -849,19 +846,17 @@ button.chip{cursor:pointer;font:inherit}
     let rec;
     try { rec = new MediaRecorder(stream, mime ? { mimeType: mime, audioBitsPerSecond: 16000 } : { audioBitsPerSecond: 16000 }); }
     catch (e) { stream.getTracks().forEach((t) => t.stop()); return flashNow({ t: 'Enregistrement impossible sur ce téléphone.' }); }
-    const v = { phase: 'rec', rec: rec, stream: stream, chunks: [], start: Date.now(), timer: null, cid: S.arg, direct: !!direct, arreterOndes: null };
+    const v = { phase: 'rec', rec: rec, stream: stream, chunks: [], start: Date.now(), timer: null, cid: S.arg, direct: !!direct };
     rec.ondataavailable = (e) => { if (e.data && e.data.size) v.chunks.push(e.data); };
     rec.onstop = () => {
       stream.getTracks().forEach((t) => t.stop());
       clearInterval(v.timer);
-      if (v.arreterOndes) v.arreterOndes();
       const blob = new Blob(v.chunks, { type: rec.mimeType || mime || 'audio/webm' });
       S.voice = { phase: 'ready', blob: blob, url: URL.createObjectURL(blob), dur: Math.max(1, Math.round((Date.now() - v.start) / 1000)), cid: v.cid };
       if (v.direct) return actSendVoice(v.cid);   // micro du champ : le vocal part dès l’arrêt
       if (S.screen === 'conv') render();
     };
     S.voice = v;
-    v.arreterOndes = demarrerOndes(stream);
     rec.start(1000);
     v.timer = setInterval(() => {
       const s = Math.floor((Date.now() - v.start) / 1000);
@@ -884,43 +879,15 @@ button.chip{cursor:pointer;font:inherit}
     if (v.phase === 'rec') {
       v.rec.onstop = null;
       clearInterval(v.timer);
-      if (v.arreterOndes) v.arreterOndes();
       if (v.rec.state !== 'inactive') v.rec.stop();
       v.stream.getTracks().forEach((t) => t.stop());
     }
     if (v.url) URL.revokeObjectURL(v.url);
     S.voice = null;
   }
-  // Ondulations pendant l’enregistrement : elles suivent le niveau du micro. Elles lisent le contexte audio déjà ouvert
-  // pour le son (un second contexte gênerait iOS). Le micro n’est pas relié à la sortie : il ne se réentend pas.
-  function ondesHTML() {
-    return '<div id="ondes" class="ondes" aria-hidden="true">' + new Array(NB_ONDES).fill('<span></span>').join('') + '</div>';
-  }
-  function demarrerOndes(stream) {
-    const ctx = sonContexte();
-    if (!ctx || !ctx.createMediaStreamSource || !ctx.createAnalyser) return null;
-    let src, an;
-    try {
-      src = ctx.createMediaStreamSource(stream);
-      an = ctx.createAnalyser();
-      an.fftSize = 512;
-      src.connect(an);
-    } catch (e) { return null; }
-    const donnees = new Uint8Array(an.fftSize);
-    const niveaux = new Array(NB_ONDES).fill(0);
-    const minuterie = setInterval(() => {
-      an.getByteTimeDomainData(donnees);
-      let somme = 0;
-      for (let i = 0; i < donnees.length; i++) { const x = (donnees[i] - 128) / 128; somme += x * x; }
-      niveaux.shift();
-      niveaux.push(Math.min(1, Math.sqrt(somme / donnees.length) * 6));
-      document.querySelectorAll('#ondes span').forEach((b, i) => { b.style.height = (4 + niveaux[i] * 32).toFixed(1) + 'px'; });
-    }, 90);
-    return () => { clearInterval(minuterie); try { src.disconnect(); an.disconnect(); } catch (e) { /* déjà coupé */ } };
-  }
   function voiceBarHTML(cid) {
     const v = S.voice;
-    if (v.phase === 'rec') return '<div class="voice-bar voice-rec"><div class="voice-line"><span class="voice-dot"></span><span id="voicetimer" class="mono">0:00</span>' + ondesHTML() + '</div><div class="voice-actions"><button class="btn btn-ghost" type="button" data-act="voicecancel">Annuler</button><button class="btn btn-primary" type="button" data-act="voicestop">Envoyer</button></div></div>';
+    if (v.phase === 'rec') return '<div class="voice-bar voice-rec"><div class="voice-line"><span class="voice-dot"></span><span id="voicetimer" class="mono">0:00</span></div><div class="voice-actions"><button class="btn btn-ghost" type="button" data-act="voicecancel">Annuler</button><button class="btn btn-primary" type="button" data-act="voicestop">Envoyer</button></div></div>';
     if (v.phase === 'ready') return '<div class="voice-bar"><audio controls src="' + esc(v.url) + '"></audio><div class="row-between" style="width:100%"><button class="btn btn-ghost" type="button" data-act="voicecancel">Annuler</button><button class="btn btn-primary" type="button" data-act="voicesend" data-arg="' + esc(cid) + '">Envoyer le vocal</button></div></div>';
     return '<div class="voice-bar"><span id="voiceprog" class="hint">Envoi du vocal en cours…</span></div>';
   }

@@ -244,7 +244,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v42';
+  const APP_VERSION = 'v43';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1467,7 +1467,7 @@ button.chip{cursor:pointer;font:inherit}
   function viewIdentitePrete() {
     return '<div class="screen">' +
       '<div><p class="eyebrow">Étape 2 sur 4</p><h1>Votre identité est prête</h1><p class="lead" style="margin-top:6px">Pli Scellé est une messagerie privée, sans compte ni numéro : vous reliez vos contacts un par un, puis vous écrivez.</p></div>' +
-      '<div class="id-card"><div class="id-top"><span>PLI SCELLÉ</span><span>IDENTITÉ</span></div><div class="id-label">Mon pseudo</div><div class="id-name">' + esc(S.me.pseudo) + '</div><div class="id-foot">Ni numéro, ni e-mail. Ce pseudo permet seulement de vous écrire.</div></div>' +
+      '<div class="id-card"><div class="id-top"><span>PLI SCELLÉ</span><span>IDENTITÉ</span></div><div class="id-body"><div class="id-main"><div class="id-label">Mon pseudo</div><div class="id-name">' + esc(S.me.pseudo) + '</div></div><div class="id-qr" aria-hidden="true"><div class="qr-build">' + qrDecorCells() + '</div></div></div><div class="id-foot">Ni numéro, ni e-mail. Ce pseudo permet seulement de vous écrire.</div></div>' +
       '<section class="card"><h2>Vos messages restent privés</h2><p class="hint">Pli Scellé chiffre vos messages sur ce téléphone : seuls vous et votre contact pouvez les lire. Vos clés restent sur cet appareil, protégées par votre code secret, qui ne se récupère pas.</p></section>' +
       '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="go" data-arg="reprendre">Continuer</button></div>' +
     '</div>';

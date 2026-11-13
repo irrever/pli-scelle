@@ -245,7 +245,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v47';
+  const APP_VERSION = 'v48';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -328,6 +328,7 @@ button.chip{cursor:pointer;font:inherit}
   function dropPending(pid) { LS.set('pending', pendingAll().filter((p) => p.pid !== pid)); }
   function pushPending(item) { const l = pendingAll(); const it = Object.assign({ pid: rid(10), at: Date.now() }, item); l.push(it); LS.set('pending', l); return it; }
   function setInvites(l) { LS.set('invites', l); }
+  function renommerInvitation(id, libelle) { const l = invitesAll(); const i = l.find((x) => x.id === id); if (i) { i.label = libelle; setInvites(l); } }
   function markInviteClosed(id) { const l = invitesAll(); const i = l.find((x) => x.id === id); if (i) i.status = 'closed'; setInvites(l); }
   function addContact(raw, pseudo, name) {
     const cs = contacts();
@@ -1149,8 +1150,7 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="screen">' + topbar({ backAct: 'go', backArg: 'accueil', title: 'Ajouter une personne' }) +
       '<section class="stack">' +
         choice('go', 'scanner', I.camera, 'Scanner un QR code', 'Photographiez le QR code de la personne, ou choisissez son image.') +
-        '<div class="card form"><label class="label" for="invlabel">Pour qui, cette invitation ? (facultatif)</label><input id="invlabel" class="field" maxlength="24" placeholder="Marie" autocomplete="off"><p class="hint">Ce prénom reste sur votre téléphone : il n’est jamais envoyé.</p></div>' +
-        choice('newinvite', null, I.qr, 'Mon QR code', 'Un QR code et son code pour une personne. Plusieurs peuvent être en attente.') +
+        choice('newinvite', null, I.qr, 'Inviter quelqu’un', 'Un QR code et son code pour une personne. Plusieurs peuvent être en attente.') +
       '</section>' + invitationsEnAttenteHTML() + '</div>';
   }
   // Un seul écran pour recevoir : le QR code lu (photo ou appareil photo) donne soit une invitation, soit une identité.
@@ -1180,7 +1180,7 @@ button.chip{cursor:pointer;font:inherit}
     const until = new Date(inv.exp).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) + pendingBanner() +
       (open
-        ? (inv.label ? '<p class="lead">Pour : ' + esc(inv.label) + '</p>' : '') + '<div class="row-between"><span class="badge badge-ok">En attente</span><span class="hint">Valable jusqu’au ' + esc(until) + '</span></div>' +
+        ? '<div class="card form"><label class="label" for="invlabel">Pour qui, cette invitation ? (facultatif)</label><input id="invlabel" class="field" maxlength="24" placeholder="Marie" autocomplete="off" value="' + esc(inv.label || '') + '"><p class="hint">Ce prénom reste sur votre téléphone : il n’est jamais envoyé.</p></div>' + '<div class="row-between"><span class="badge badge-ok">En attente</span><span class="hint">Valable jusqu’au ' + esc(until) + '</span></div>' +
           (S.invQR ? '<div class="qr-frame"><img alt="QR code d’invitation" src="' + S.invQR + '"></div>' : notice('err', 'Le QR code ne peut pas s’afficher ici. Utilisez le texte, plus bas.')) +
           '<div class="card code-card"><span class="code-label">Code à donner à part</span><div class="code">' + esc(fmtCode(inv.code)) + '</div><p class="hint">Par appel ou de vive voix. Jamais dans le même message que le QR code.</p></div>' +
           '<div class="stack"><button class="btn btn-primary" data-act="sharelink" data-arg="' + esc(inv.id) + '">' + I.send + '<span>Envoyer le lien et le QR code</span></button></div>' +
@@ -1683,8 +1683,7 @@ button.chip{cursor:pointer;font:inherit}
   }
   // « Mon QR code » : une invitation nouvelle pour chaque personne. Les autres restent en attente, chacune avec son QR code et son code.
   async function actMonQR() {
-    const champ = document.getElementById('invlabel');
-    return actNewInvite(champ ? champ.value.trim().slice(0, 24) : '');
+    return actNewInvite();
   }
   // « Nouveau QR code » : l’ancienne invitation est annulée (son QR code ne marche plus), puis une nouvelle est créée.
   async function actRenouveler(id) {
@@ -2266,6 +2265,8 @@ button.chip{cursor:pointer;font:inherit}
 
   async function init() {
     S.me = LS.get('me', null);
+    // Le prénom d’une invitation s’enregistre à mesure qu’on le tape : il reste sur ce téléphone, il n’est jamais envoyé.
+    document.addEventListener('input', (e) => { if (e.target && e.target.id === 'invlabel' && S.screen === 'inviter' && S.arg) renommerInvitation(S.arg, e.target.value.trim().slice(0, 24)); });
     S.db = relayDb;
     try { S.downloads = (window.claude && window.claude.use) ? await window.claude.use('downloads') : null; } catch (e) { S.downloads = null; }
     const h = String(location.hash || '');

@@ -245,7 +245,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v48';
+  const APP_VERSION = 'v49';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -626,7 +626,7 @@ button.chip{cursor:pointer;font:inherit}
       inv.fails = (inv.fails || 0) + 1;
       if (inv.fails >= MAX_FAILS) { inv.status = 'closed'; await closeInviteDoc(inv.id); S.flash = { t: 'Une invitation a été fermée après plusieurs codes incorrects.' }; }
       setInvites(invs);
-      await sendTo(m.from, { kind: 'refuse', inv: m.inv });
+      await sendTo(m.from, { kind: 'refuse', inv: m.inv, why: 'badcode' });
       return true;
     }
     if (pendingAll().some((p) => p.type === 'remote-claim' && p.peer === m.from && p.invId === m.inv)) return false;
@@ -648,7 +648,7 @@ button.chip{cursor:pointer;font:inherit}
     const idx = pend.findIndex((p) => (p.type === 'ff-sent' && p.peer === m.from) || (p.type === 'remote-sent' && p.invId === m.inv));
     if (idx < 0) return false;
     pend.splice(idx, 1); LS.set('pending', pend);
-    S.flash = { t: m.why === 'used' ? 'Cette invitation a déjà été acceptée pour quelqu’un d’autre.' : m.why === 'expired' ? 'Cette invitation a expiré.' : 'La demande a été refusée, ou le code est incorrect.' };
+    S.flash = { t: m.why === 'used' ? 'Cette invitation a déjà été acceptée pour quelqu’un d’autre.' : m.why === 'expired' ? 'Cette invitation a expiré.' : m.why === 'badcode' ? 'Code incorrect : vérifiez le code que la personne vous a donné à part.' : 'La demande a été refusée, ou le code est incorrect.' };
     return true;
   }
   async function onMsg(m, docId) {
@@ -1126,6 +1126,7 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="screen">' +
       topbar({ titleHTML: 'Messages', right: '<button class="iconbtn" data-act="go" data-arg="identite" aria-label="Mon identité">' + I.user + '</button><button class="iconbtn" data-act="lock" aria-label="Verrouiller">' + I.lock + '</button>' }) +
       (notices ? '<div class="pending-stack">' + notices + '</div>' : '') +
+      invitationsEnAttenteHTML() +
       (versionNouvelle ? '<div class="pending-stack"><button class="notice warn" data-act="recharger">' + I.refresh + '<span class="grow">Nouvelle version (' + esc(versionNouvelle) + ') disponible<br><span class="more">Touchez pour la charger. Vos données restent sur cet appareil.</span></span>' + I.chev + '</button></div>' : '') +
       (getPrefs().sound && !sonPret() ? notice('info', 'La sonnerie est en pause. Touchez l’écran une fois pour la réactiver.') : '') +
       (cs.length && !(getPrefs().notif && getPrefs().push) ? '<div class="pending-stack"><button class="notice warn" data-act="togglenotif">' + I.msg + '<span class="grow">Notifications quand l’appli est fermée : ' + (getPrefs().notif ? 'pas encore prêtes' : 'désactivées') + '<br><span class="more">Touchez pour ' + (getPrefs().notif ? 'réessayer' : 'les activer sur cet appareil') + '.</span></span>' + I.chev + '</button></div>' : '') +
@@ -1142,9 +1143,14 @@ button.chip{cursor:pointer;font:inherit}
     const ouvertes = invitesAll().filter((i) => i.status === 'open' && Date.now() < i.exp).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     if (!ouvertes.length) return '';
     const date = (t) => esc(new Date(t).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }));
-    return '<section class="stack"><div class="section-title">Invitations en attente</div><div class="list">' +
-      ouvertes.map((i) => '<button class="rowlink" data-act="voirinv" data-arg="' + esc(i.id) + '"><span><b>' + esc(i.label || 'Sans prénom') + '</b><br><span class="hint">Valable jusqu’au ' + date(i.exp) + '</span></span>' + I.chev + '</button>').join('') +
-      '</div></section>';
+    // Celle qui a déjà répondu passe en premier, en évidence, et s’ouvre directement sur la demande.
+    const aRepondu = (i) => pendingAll().some((p) => p.type === 'remote-claim' && p.invId === i.id);
+    const reponse = (i) => { const p = pendingAll().find((x) => x.type === 'remote-claim' && x.invId === i.id); return '<button class="notice alert" data-act="openp" data-arg="lien-ouvert|' + esc(p.pid) + '">' + I.inbox + '<span class="grow"><b>' + esc(i.label || 'Sans prénom') + ' a répondu</b><br><span class="more">Comparez les six mots, puis acceptez ou refusez</span></span>' + I.chev + '</button>'; };
+    const attente = (i) => '<button class="rowlink" data-act="voirinv" data-arg="' + esc(i.id) + '"><span><b>' + esc(i.label || 'Sans prénom') + '</b><br><span class="hint">En attente · valable jusqu’au ' + date(i.exp) + '</span></span>' + I.chev + '</button>';
+    const repondues = ouvertes.filter(aRepondu), enAttente = ouvertes.filter((i) => !aRepondu(i));
+    return '<section class="stack"><div class="section-title">Invitations en attente</div>' + repondues.map(reponse).join('') +
+      (enAttente.length ? '<div class="list">' + enAttente.map(attente).join('') + '</div>' : '') +
+      '</section>';
   }
   function viewAjouter() {
     return '<div class="screen">' + topbar({ backAct: 'go', backArg: 'accueil', title: 'Ajouter une personne' }) +

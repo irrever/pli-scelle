@@ -1194,7 +1194,7 @@ button.chip{cursor:pointer;font:inherit}
   // Un seul endroit pour ajouter quelqu’un : scanner le QR code d’une personne, ou montrer le sien.
   // Les invitations encore ouvertes : une par personne, chacune avec son QR code, son code et son délai.
   function invitationsEnAttenteHTML() {
-    const ouvertes = invitesAll().filter((i) => i.status === 'open' && Date.now() < i.exp).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const ouvertes = invitesAll().filter((i) => (i.status === 'open' && Date.now() < i.exp) || (i.status === 'claimed' && pendingAll().some((p) => p.type === 'remote-claim' && p.invId === i.id))).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     if (!ouvertes.length) return '';
     const date = (t) => esc(new Date(t).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }));
     // Celle qui a déjà répondu passe en premier, en évidence, et s’ouvre directement sur la demande.

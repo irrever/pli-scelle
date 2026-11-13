@@ -140,6 +140,7 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
 .words-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .word{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line-2);font-weight:600}
 .word-n{font:500 11px "IBM Plex Mono",ui-monospace,monospace;color:var(--muted);min-width:14px}
+.word.pick{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
 .eyebrow{font:500 12px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 /* carte d’identité */
 .id-card{background:var(--id-bg);color:var(--id-ink);border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:10px;box-shadow:0 12px 28px rgba(16,35,58,.25)}
@@ -245,7 +246,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v49';
+  const APP_VERSION = 'v50';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -594,6 +595,9 @@ button.chip{cursor:pointer;font:inherit}
     switch (m.kind) {
       case 'ff-request': return onFFRequest(m);
       case 'remote-claim': return onRemoteClaim(m);
+      case 'verif': return onVerif(m);
+      case 'code': return onCode(m);
+      case 'proof': return onProof(m);
       case 'accept': return onAccept(m);
       case 'refuse': return onRefuse(m);
       case 'msg': return onMsg(m, docId);
@@ -615,22 +619,62 @@ button.chip{cursor:pointer;font:inherit}
     pushPending({ type: 'ff-request', peer: m.from, peerPseudo: m.pseudo });
     return true;
   }
-  // Réponse à une invitation : même principe, avec le code d'invitation.
+  // Une personne valide l’invitation : le QR code est consommé, et l’appli choisit trois mots à lui demander.
+  function tirerPositions() {
+    const r = rand(12); const liste = [1, 2, 3, 4, 5, 6];
+    for (let i = liste.length - 1; i > 0; i--) { const j = r[i] % (i + 1); const t = liste[i]; liste[i] = liste[j]; liste[j] = t; }
+    return liste.slice(0, 3).sort((a, b) => a - b);
+  }
   async function onRemoteClaim(m) {
     const invs = invitesAll();
     const inv = invs.find((i) => i.id === m.inv);
-    // La demande compte si elle a été envoyée dans le délai : l’inviteur peut la lire plus tard, à son retour.
+    // La validation compte si elle a été envoyée dans le délai : l’inviteur peut la lire plus tard, à son retour.
     if (!inv || inv.status !== 'open' || (m.ts || Date.now()) > inv.exp) { await sendTo(m.from, { kind: 'refuse', inv: m.inv, why: !inv ? 'unknown' : inv.status !== 'open' ? 'used' : 'expired' }); return false; }
-    const expected = await proofFor(unb64u(inv.K), m.from);
-    if (expected !== m.proof) {
-      inv.fails = (inv.fails || 0) + 1;
-      if (inv.fails >= MAX_FAILS) { inv.status = 'closed'; await closeInviteDoc(inv.id); S.flash = { t: 'Une invitation a été fermée après plusieurs codes incorrects.' }; }
-      setInvites(invs);
-      await sendTo(m.from, { kind: 'refuse', inv: m.inv, why: 'badcode' });
-      return true;
-    }
-    if (pendingAll().some((p) => p.type === 'remote-claim' && p.peer === m.from && p.invId === m.inv)) return false;
-    pushPending({ type: 'remote-claim', peer: m.from, peerPseudo: m.pseudo, invId: m.inv });
+    if (pendingAll().some((p) => p.invId === m.inv)) { await sendTo(m.from, { kind: 'refuse', inv: m.inv, why: 'used' }); return false; }
+    inv.status = 'claimed';
+    setInvites(invs);
+    await closeInviteDoc(inv.id);
+    const pos = tirerPositions();
+    pushPending({ type: 'remote-claim', peer: m.from, peerPseudo: m.pseudo, invId: m.inv, pos: pos });
+    await sendTo(m.from, { kind: 'verif', inv: m.inv, pos: pos, pseudo: S.me.pseudo });
+    return true;
+  }
+  // Côté personne invitée : l’inviteur lui demande trois mots précis ; elle les lit à voix haute.
+  async function onVerif(m) {
+    const pend = pendingAll();
+    const idx = pend.findIndex((p) => p.type === 'remote-sent' && p.invId === m.inv && p.peer === m.from);
+    if (idx < 0) return false;
+    pend[idx] = Object.assign({}, pend[idx], { type: 'verif', pos: m.pos, peerPseudo: m.pseudo || pend[idx].peerPseudo });
+    LS.set('pending', pend);
+    S.routed.delete(pend[idx].pid);
+    return true;
+  }
+  // Côté personne invitée : le code arrive dans l’appli, chiffré pour elle seule.
+  async function onCode(m) {
+    const body = await decryptFrom(await sharedKey(m.from), m.iv, m.ct);
+    const pend = pendingAll();
+    const idx = pend.findIndex((p) => (p.type === 'verif' || p.type === 'remote-sent') && p.invId === body.inv && p.peer === m.from);
+    if (idx < 0) return false;
+    pend[idx] = Object.assign({}, pend[idx], { type: 'code', code: body.code, salt: body.salt });
+    LS.set('pending', pend);
+    S.routed.delete(pend[idx].pid);
+    return true;
+  }
+  // Côté personne qui invite : la personne prouve qu’elle a le code. Le contact est créé ici, puis l’acceptation part.
+  async function onProof(m) {
+    const pend = pendingAll();
+    const idx = pend.findIndex((p) => p.type === 'code-envoye' && p.invId === m.inv && p.peer === m.from);
+    if (idx < 0) return false;
+    const p = pend[idx];
+    const inv = invitesAll().find((i) => i.id === m.inv);
+    const attendu = inv ? await proofFor(unb64u(inv.K), m.from) : null;
+    pend.splice(idx, 1); LS.set('pending', pend);
+    if (attendu !== m.proof) { await sendTo(m.from, { kind: 'refuse', inv: m.inv, why: 'badcode' }); S.flash = { t: 'Le code ne correspond pas : la demande est refusée.' }; return true; }
+    const cProof = addContact(p.peer, p.peerPseudo, p.name);
+    await sendTo(p.peer, { kind: 'accept', pseudo: S.me.pseudo, inv: m.inv });
+    markInviteClosed(m.inv);
+    S.flash = { t: p.name + ' est ajoutée.', ok: true };
+    if (S.screen === 'lien-ouvert' && S.arg === p.pid) go('contact', cProof.cid);
     return true;
   }
   async function onAccept(m) {
@@ -641,14 +685,17 @@ button.chip{cursor:pointer;font:inherit}
     const p = pend[idx];
     pend[idx] = { pid: p.pid, at: Date.now(), type: p.type === 'ff-sent' ? 'ff-accepted' : 'remote-accepted', peer: m.from, peerPseudo: m.pseudo || 'Contact', invId: p.invId || null };
     LS.set('pending', pend);
+    S.routed.delete(pend[idx].pid);
     return true;
   }
   async function onRefuse(m) {
     const pend = pendingAll();
-    const idx = pend.findIndex((p) => (p.type === 'ff-sent' && p.peer === m.from) || (p.type === 'remote-sent' && p.invId === m.inv));
+    const idx = pend.findIndex((p) => (p.type === 'ff-sent' && p.peer === m.from) || ((p.type === 'remote-sent' || p.type === 'verif' || p.type === 'code') && p.invId === m.inv));
     if (idx < 0) return false;
     pend.splice(idx, 1); LS.set('pending', pend);
-    S.flash = { t: m.why === 'used' ? 'Cette invitation a déjà été acceptée pour quelqu’un d’autre.' : m.why === 'expired' ? 'Cette invitation a expiré.' : m.why === 'badcode' ? 'Code incorrect : vérifiez le code que la personne vous a donné à part.' : 'La demande a été refusée, ou le code est incorrect.' };
+    const REFUS = { used: 'Ce QR code a déjà été utilisé par quelqu’un d’autre.', expired: 'Cette invitation a expiré.', badcode: 'Le code ne correspond pas : la demande est refusée.', mismatch: 'Les mots ne correspondent pas : ne finissez pas cette invitation.', cancelled: 'La personne a annulé la demande.' };
+    S.flash = { t: REFUS[m.why] || 'La demande a été refusée.' };
+    S.needRender = true;
     return true;
   }
   async function onMsg(m, docId) {
@@ -723,7 +770,7 @@ button.chip{cursor:pointer;font:inherit}
   async function openPending(pid, screen) {
     const p = pendingById(pid);
     if (!p) return go('accueil');
-    S.words = (screen === 'demande' || screen === 'verifier-ff' || screen === 'lien-ouvert' || screen === 'nommer' || screen === 'attente') ? await wordsFor(unb64u(S.me.raw), unb64u(p.peer)) : null;
+    S.words = (screen === 'demande' || screen === 'verifier-ff' || screen === 'lien-ouvert' || screen === 'nommer' || screen === 'attente' || screen === 'verif' || screen === 'finir') ? await wordsFor(unb64u(S.me.raw), unb64u(p.peer)) : null;
     go(screen, pid);
   }
   async function afterPoll() {
@@ -738,7 +785,11 @@ button.chip{cursor:pointer;font:inherit}
     if (acc) { S.routed.add(acc.pid); return openPending(acc.pid, 'verifier-ff'); }
     const racc = pend.find((p) => p.type === 'remote-accepted' && !S.routed.has(p.pid));
     if (racc) { S.routed.add(racc.pid); return openPending(racc.pid, 'nommer'); }
-    if (S.screen === 'attente' && !pend.some((p) => p.type === 'ff-sent' || p.type === 'remote-sent')) {
+    const vf = pend.find((p) => p.type === 'verif' && !S.routed.has(p.pid));
+    if (vf && !isTyping()) { S.routed.add(vf.pid); return openPending(vf.pid, 'verif'); }
+    const cd = pend.find((p) => p.type === 'code' && !S.routed.has(p.pid));
+    if (cd && !isTyping()) { S.routed.add(cd.pid); return openPending(cd.pid, 'finir'); }
+    if (S.screen === 'attente' && !pend.some((p) => p.type === 'ff-sent' || p.type === 'remote-sent' || p.type === 'verif' || p.type === 'code')) {
       S.words = null;
       S.flash = S.flash || { t: 'La demande a été refusée, ou le code est incorrect.' };
       return go('accueil');
@@ -768,14 +819,17 @@ button.chip{cursor:pointer;font:inherit}
   function noticeHTML(p) {
     const map = {
       'ff-request': ['Une personne a scanné votre identité', 'Vérifier et répondre', 'demande'],
-      'remote-claim': [esc(libelleInvitation(p) || 'Quelqu’un') + ' a rejoint votre invitation', 'Vérifier et répondre', 'lien-ouvert'],
-      'remote-sent': ['Demande envoyée', 'Voir les six mots', 'attente'],
+      'remote-claim': [esc(libelleInvitation(p) || 'Quelqu’un') + ' a accepté votre invitation', 'Vérifier les mots', 'lien-ouvert'],
+      'remote-sent': ['Demande envoyée', 'Voir l’attente', 'attente'],
+      'verif': [esc(p.peerPseudo || 'La personne') + ' vous demande des mots', 'Les lire à voix haute', 'verif'],
+      'code': ['Code reçu', 'Finir l’invitation', 'finir'],
+      'code-envoye': [esc(p.name || 'La personne') + ' a reçu son code', 'En attente qu’elle finisse', 'lien-ouvert'],
       'ff-accepted': [esc(p.peerPseudo || 'La personne') + ' a accepté votre demande', 'Comparer les mots', 'verifier-ff'],
       'remote-accepted': [esc(p.peerPseudo || 'La personne') + ' a accepté votre invitation', 'Donner un nom', 'nommer']
     };
     const m = map[p.type];
     if (!m) return '';
-    return '<button class="notice' + (p.type === 'ff-request' || p.type === 'remote-claim' ? ' alert' : '') + '" data-act="openp" data-arg="' + m[2] + '|' + esc(p.pid) + '">' + I.inbox + '<span class="grow">' + m[0] + '<br><span class="more">' + m[1] + '</span></span>' + I.chev + '</button>';
+    return '<button class="notice' + (['ff-request', 'remote-claim', 'verif', 'code'].indexOf(p.type) >= 0 ? ' alert' : '') + '" data-act="openp" data-arg="' + m[2] + '|' + esc(p.pid) + '">' + I.inbox + '<span class="grow">' + m[0] + '<br><span class="more">' + m[1] + '</span></span>' + I.chev + '</button>';
   }
   function personCard(pseudo, badgeText) {
     return '<div class="card"><div class="row-between"><div style="display:flex;gap:12px;align-items:center;min-width:0"><span class="avatar lg">' + esc(initial(pseudo)) + '</span><div style="min-width:0"><div class="row-title">' + esc(pseudo) + '</div><span class="hint">Pseudo reçu</span></div></div><span class="badge badge-ok">' + I.check + esc(badgeText) + '</span></div></div>';
@@ -1038,7 +1092,7 @@ button.chip{cursor:pointer;font:inherit}
     scanner: viewScanner,
     inviter: viewInviter, attente: viewAttente, demande: viewDemande, 'verifier-ff': viewVerifierFF,
     'lien-ouvert': viewLienOuvert, nommer: viewNommer, contact: viewContact, conv: viewConv,
-    reglages: viewReglages, 'lien-coupe': viewLienCoupe, identite: viewIdentite, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, 'identite-prete': viewIdentitePrete,
+    reglages: viewReglages, 'lien-coupe': viewLienCoupe, identite: viewIdentite, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, 'identite-prete': viewIdentitePrete, verif: viewVerif, finir: viewFinir,
     invalide: viewInvalide
   };
 
@@ -1106,7 +1160,7 @@ button.chip{cursor:pointer;font:inherit}
     '</div>';
   }
   function viewAccueil() {
-    const notices = pendingAll().filter((p) => ['ff-request', 'remote-claim', 'ff-accepted', 'remote-accepted', 'remote-sent'].indexOf(p.type) >= 0).map(noticeHTML).join('');
+    const notices = pendingAll().filter((p) => ['ff-request', 'remote-claim', 'ff-accepted', 'remote-accepted', 'remote-sent', 'verif', 'code', 'code-envoye'].indexOf(p.type) >= 0).map(noticeHTML).join('');
     const ms = msgsAll();
     const cs = contacts();
     // Lien en pause ou à réactiver : la ligne est grisée, on ne peut plus l’ouvrir ; elle reste dans une section à part.
@@ -1145,7 +1199,7 @@ button.chip{cursor:pointer;font:inherit}
     const date = (t) => esc(new Date(t).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }));
     // Celle qui a déjà répondu passe en premier, en évidence, et s’ouvre directement sur la demande.
     const aRepondu = (i) => pendingAll().some((p) => p.type === 'remote-claim' && p.invId === i.id);
-    const reponse = (i) => { const p = pendingAll().find((x) => x.type === 'remote-claim' && x.invId === i.id); return '<button class="notice alert" data-act="openp" data-arg="lien-ouvert|' + esc(p.pid) + '">' + I.inbox + '<span class="grow"><b>' + esc(i.label || 'Sans prénom') + ' a répondu</b><br><span class="more">Comparez les six mots, puis acceptez ou refusez</span></span>' + I.chev + '</button>'; };
+    const reponse = (i) => { const p = pendingAll().find((x) => x.type === 'remote-claim' && x.invId === i.id); return '<button class="notice alert" data-act="openp" data-arg="lien-ouvert|' + esc(p.pid) + '">' + I.inbox + '<span class="grow"><b>' + esc(i.label || 'Sans prénom') + ' a répondu</b><br><span class="more">Vérifiez trois mots, puis envoyez le code, dans l’appli</span></span>' + I.chev + '</button>'; };
     const attente = (i) => '<button class="rowlink" data-act="voirinv" data-arg="' + esc(i.id) + '"><span><b>' + esc(i.label || 'Sans prénom') + '</b><br><span class="hint">En attente · valable jusqu’au ' + date(i.exp) + '</span></span>' + I.chev + '</button>';
     const repondues = ouvertes.filter(aRepondu), enAttente = ouvertes.filter((i) => !aRepondu(i));
     return '<section class="stack"><div class="section-title">Invitations en attente</div>' + repondues.map(reponse).join('') +
@@ -1164,16 +1218,16 @@ button.chip{cursor:pointer;font:inherit}
     const inv = S.scanKind === 'inv';
     return '<div class="screen">' + topbar({ back: 'ajouter', title: 'Scanner un QR code' }) +
       '<p class="lead">Photographiez le QR code de la personne, ou choisissez son image. L’appli reconnaît seule s’il s’agit d’une personne présente ou d’une invitation.</p>' +
-      (inv ? notice('info', 'Invitation reçue. Entrez le code donné à part, puis envoyez votre demande.') : '') +
+      (inv ? notice('info', 'Invitation reçue. Envoyez votre demande : la personne vous enverra son code ensuite, dans l’appli.') : '') +
       '<section class="card step-card"><div class="step-head"><span class="step-n">1</span><b>Lire le QR code</b></div>' +
         '<label class="btn btn-primary file-btn">' + I.camera + '<span>Ouvrir l’appareil photo</span><input id="photo" class="sr-only" type="file" accept="image/*" capture="environment"></label>' +
         '<label class="btn btn-secondary file-btn">' + I.file + '<span>Choisir une photo</span><input id="photogal" class="sr-only" type="file" accept="image/*"></label>' +
         '<div id="scanstatus" class="status status-ok" hidden></div>' +
       '</section>' +
-      '<section class="card step-card"><div class="step-head"><span class="step-n">2</span><b>Entrer le code</b></div>' +
+      (inv ? '' : '<section class="card step-card"><div class="step-head"><span class="step-n">2</span><b>Entrer le code</b></div>' +
         '<input id="fcode" class="field code-input" placeholder="K7P 2Q9" maxlength="8" autocomplete="off" autocapitalize="characters">' +
-        '<p class="hint">Affiché à côté du QR code sur l’écran de la personne, ou donné à part pour une invitation.</p>' +
-      '</section>' +
+        '<p class="hint">Affiché à côté du QR code sur l’écran de la personne.</p>' +
+      '</section>') +
       '<details class="fallback"><summary>Je n’arrive pas à scanner : coller le lien ou le texte</summary><div class="stack" style="margin-top:10px"><textarea id="qrtext" class="field" rows="3" placeholder="Collez ici le lien ou le texte du QR code">' + esc(S.scanText || '') + '</textarea></div></details>' +
       formStatus() +
       '<div class="dock"><button class="btn btn-primary" data-act="sendscan">Envoyer ma demande</button></div>' +
@@ -1188,10 +1242,9 @@ button.chip{cursor:pointer;font:inherit}
       (open
         ? '<div class="card form"><label class="label" for="invlabel">Pour qui, cette invitation ? (facultatif)</label><input id="invlabel" class="field" maxlength="24" placeholder="Marie" autocomplete="off" value="' + esc(inv.label || '') + '"><p class="hint">Ce prénom reste sur votre téléphone : il n’est jamais envoyé.</p></div>' + '<div class="row-between"><span class="badge badge-ok">En attente</span><span class="hint">Valable jusqu’au ' + esc(until) + '</span></div>' +
           (S.invQR ? '<div class="qr-frame"><img alt="QR code d’invitation" src="' + S.invQR + '"></div>' : notice('err', 'Le QR code ne peut pas s’afficher ici. Utilisez le texte, plus bas.')) +
-          '<div class="card code-card"><span class="code-label">Code à donner à part</span><div class="code">' + esc(fmtCode(inv.code)) + '</div><p class="hint">Par appel ou de vive voix. Jamais dans le même message que le QR code.</p></div>' +
           '<div class="stack"><button class="btn btn-primary" data-act="sharelink" data-arg="' + esc(inv.id) + '">' + I.send + '<span>Envoyer le lien et le QR code</span></button></div>' +
           '<div class="stack"><button class="btn btn-secondary" data-act="renewinv" data-arg="' + esc(inv.id) + '">' + I.refresh + '<span>Nouveau QR code</span></button></div>' +
-          '<p class="hint center">Face à face : la personne scanne ce QR code. À distance : envoyez-lui le lien. Dans les deux cas, elle entre le code ci-dessus.</p>' +
+          '<p class="hint center">Face à face : la personne scanne ce QR code. À distance : envoyez-lui le lien. Ensuite, l’appli vous demande trois mots à vérifier, puis vous envoyez le code, dans l’appli.</p>' +
           '<details class="fallback"><summary>Le QR code ne s’affiche pas ? Copiez son texte.</summary><div class="stack"><textarea id="invtextout" class="field" readonly>' + esc(invTextFor(inv)) + '</textarea><button class="btn btn-secondary" data-act="copyinv">' + I.copy + '<span>Copier le texte</span></button></div></details>' +
           '<div class="dock"><button class="btn btn-danger" data-act="cancelinv" data-arg="' + esc(inv.id) + '">Annuler l’invitation</button></div>'
         : notice('info', 'Cette invitation n’est plus valable.') + '<div class="dock"><button class="btn btn-secondary" data-act="go" data-arg="accueil">Retour aux messages</button></div>') +
@@ -1199,7 +1252,8 @@ button.chip{cursor:pointer;font:inherit}
   }
   function viewAttente() {
     // Les 6 mots se calculent des deux côtés à partir des deux clés : le scanneur les voit dès l’envoi, en même temps que la personne.
-    const words = S.words && S.words.length ? wordsBlock('Mots d’empreinte à comparer','Comparez-les une seule fois, à voix haute ou au téléphone. S’ils sont identiques sur les deux écrans, vous pouvez communiquer en toute sécurité.') : '';
+    const aInvitation = pendingAll().some((p) => p.type === 'remote-sent');
+    const words = S.words && S.words.length ? (aInvitation ? wordsBlock('Mots de vérification', 'La personne vous demandera trois de ces mots, à lire à voix haute.') : wordsBlock('Mots d’empreinte à comparer','Comparez-les une seule fois, à voix haute ou au téléphone. S’ils sont identiques sur les deux écrans, vous pouvez communiquer en toute sécurité.')) : '';
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Demande envoyée' }) +
       '<div class="progress"><div class="pstep done"><span class="dot">' + '✓' + '</span><div><b>Demande envoyée</b><span>Votre demande a bien été transmise.</span></div></div>' +
         '<div class="pstep now"><span class="dot">2</span><div><b>Confirmation de la personne</b><span>Elle vérifie les mots de son côté.</span></div></div>' +
@@ -1229,23 +1283,62 @@ button.chip{cursor:pointer;font:inherit}
       '<div class="dock stack"><button class="btn btn-primary" data-act="confirmff" data-arg="' + esc(p.pid) + '">Les mots sont identiques</button><button class="btn btn-danger" data-act="drop" data-arg="' + esc(p.pid) + '">Ce n’est pas la bonne personne</button></div>' +
     '</div>';
   }
+  // Côté personne qui invite : vérifier les trois mots, puis envoyer le code dans l’appli.
   function viewLienOuvert() {
     const p = pendingById(S.arg);
     if (!p) return viewAccueil();
+    const pos = p.pos || [];
+    const liste = pos.join(', ').replace(/, (\d)$/, ' et $1');
+    if (p.type === 'code-envoye') {
+      return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) +
+        '<div><h1>' + esc(p.name || 'La personne') + ' a reçu son code</h1><p class="lead" style="margin-top:6px">Le code est parti dans l’appli. Il reste à ce qu’elle finisse l’invitation.</p></div>' +
+        '<div class="dock stack"><button class="btn btn-danger" data-act="refuseremote" data-arg="' + esc(p.pid) + '">Annuler l’invitation</button></div>' +
+      '</div>';
+    }
+    const verifie = S.verifFait && S.verifPid === p.pid;
+    const champs = pos.map((n, k) => '<label class="label" for="v' + k + '">Mot ' + n + '</label><input id="v' + k + '" class="field" autocomplete="off" autocapitalize="none">').join('');
+    const resultat = verifie ? notice(S.verifOk ? 'ok' : 'err', S.verifOk ? 'Identiques : vous pouvez envoyer le code.' : 'Pas les mêmes : ne continuez pas.') : '';
+    const suite = verifie && S.verifOk
+      ? nameField(libelleInvitation(p)) + '<div class="dock stack"><button class="btn btn-primary" data-act="envoicode" data-arg="' + esc(p.pid) + '">Envoyer le code, dans l’appli</button><button class="btn btn-danger" data-act="refuseremote" data-arg="' + esc(p.pid) + '">Annuler la demande</button></div>'
+      : '<div class="dock stack"><button class="btn btn-danger" data-act="refuseremote" data-arg="' + esc(p.pid) + '">Annuler la demande</button></div>';
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) +
-      '<div><h1>' + esc(libelleInvitation(p) || 'Quelqu’un') + ' a rejoint votre invitation</h1><p class="lead" style="margin-top:6px">Le code d’invitation est juste. Comparez les six mots avec cette personne avant d’accepter.</p></div>' +
-      personCard(p.peerPseudo, 'Code vérifié') +
-      (S.words && S.words.length ? wordsBlock('Mots d’empreinte à comparer','Comparez-les une seule fois, à voix haute ou au téléphone. S’ils sont identiques sur les deux écrans, vous pouvez communiquer en toute sécurité.') : '') +
-      nameField(libelleInvitation(p)) +
-      '<div class="dock stack"><button class="btn btn-primary" data-act="acceptremote" data-arg="' + esc(p.pid) + '">Ajouter ce contact</button><button class="btn btn-danger" data-act="refuseremote" data-arg="' + esc(p.pid) + '">Refuser</button></div>' +
+      '<div><h1>' + esc(libelleInvitation(p) || 'Quelqu’un') + ' a accepté votre invitation</h1><p class="lead" style="margin-top:6px">Demandez-lui à voix haute les mots ' + liste + ', puis tapez ce qu’elle vous dit.</p></div>' +
+      personCard(p.peerPseudo || 'Personne', 'Invitation validée') +
+      '<section class="card form">' + champs +
+        '<div class="dock stack" style="position:static"><button class="btn btn-secondary" data-act="verifmots" data-arg="' + esc(p.pid) + '">Vérifier les mots</button></div>' +
+        resultat +
+      '</section>' + suite +
+    '</div>';
+  }
+  // Côté personne invitée : l’inviteur lui demande trois mots précis ; elle les lit à voix haute.
+  function viewVerif() {
+    const p = pendingById(S.arg);
+    if (!p || !p.pos) return viewAccueil();
+    const mots = S.words || [];
+    const liste = p.pos.join(', ').replace(/, (\d)$/, ' et $1');
+    return '<div class="screen">' + topbar({ back: 'accueil', title: 'Vérification' }) +
+      '<div><h1>Vérification des mots</h1><p class="lead" style="margin-top:6px">' + esc(p.peerPseudo || 'La personne') + ' vous demande les mots ' + liste + '. Lisez-les à voix haute, au téléphone ou en face à face.</p></div>' +
+      '<div class="words-grid">' + [0, 1, 2, 3, 4, 5].map((k) => '<div class="word' + (p.pos.indexOf(k + 1) >= 0 ? ' pick' : '') + '"><span class="word-n">' + (k + 1) + '</span><span>' + esc(mots[k] || '') + '</span></div>').join('') + '</div>' +
+      '<p class="hint" style="text-align:center">Ensuite, son code arrive ici, dans l’appli.</p>' +
+    '</div>';
+  }
+  // Côté personne invitée : le code est déjà rempli ; un seul geste pour finir.
+  function viewFinir() {
+    const p = pendingById(S.arg);
+    if (!p || p.type !== 'code') return viewAccueil();
+    return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) +
+      '<div><h1>Finir l’invitation</h1><p class="lead" style="margin-top:6px">Vous avez validé. Le code de ' + esc(p.peerPseudo || 'la personne') + ' est arrivé dans l’appli.</p></div>' +
+      '<div class="card form"><label class="label" for="codeRecu">Code reçu</label><input id="codeRecu" class="field code-input" value="' + esc(fmtCode(p.code)) + '" readonly></div>' +
+      '<p class="hint">Ce code ne sert qu’à vous : il est lié à votre demande.</p>' +
+      '<div class="dock stack"><button class="btn btn-primary" data-act="finirinvite" data-arg="' + esc(p.pid) + '">Finir l’invitation</button></div>' +
     '</div>';
   }
   function viewNommer() {
     const p = pendingById(S.arg);
     if (!p) return viewAccueil();
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation acceptée' }) +
-      '<div><h1>Vous pouvez écrire à ' + esc(p.peerPseudo) + '</h1><p class="lead" style="margin-top:6px">Le code a été vérifié à la connexion. Comparez les mots, puis donnez un nom pour ajouter ce contact.</p></div>' +
-      (S.words && S.words.length ? wordsBlock('Mots d’empreinte à comparer','Comparez-les une seule fois, à voix haute ou au téléphone. S’ils sont identiques sur les deux écrans, vous pouvez communiquer en toute sécurité.') : '') +
+      '<div><h1>Vous pouvez écrire à ' + esc(p.peerPseudo) + '</h1><p class="lead" style="margin-top:6px">' + (p.type === 'remote-accepted' ? 'Votre invitation est acceptée. Donnez un nom à cette personne pour l’ajouter à vos contacts.' : 'Le code a été vérifié à la connexion. Comparez les mots, puis donnez un nom pour ajouter ce contact.') + '</p></div>' +
+      (p.type !== 'remote-accepted' && S.words && S.words.length ? wordsBlock('Mots d’empreinte à comparer','Comparez-les une seule fois, à voix haute ou au téléphone. S’ils sont identiques sur les deux écrans, vous pouvez communiquer en toute sécurité.') : '') +
       nameField() +
       '<div class="dock"><button class="btn btn-primary" data-act="confirmremote" data-arg="' + esc(p.pid) + '">Ajouter ce contact</button></div>' +
     '</div>';
@@ -1556,7 +1649,7 @@ button.chip{cursor:pointer;font:inherit}
     const same = app.dataset.view === key;
     if (!same) { S.attach = []; S.linkOpen = false; S.plusOpen = false; }
     const keep = {};
-    if (same) ['draft', 'linkIn', 'fcode', 'qrtext', 'invlabel'].forEach((id) => { const el = document.getElementById(id); if (el) keep[id] = el.value; });
+    if (same) ['draft', 'linkIn', 'fcode', 'qrtext', 'invlabel', 'v0', 'v1', 'v2', 'cname'].forEach((id) => { const el = document.getElementById(id); if (el) keep[id] = el.value; });
     const act = document.activeElement;
     const focusId = same && act && (act.id === 'draft' || act.id === 'linkIn') ? act.id : null;
     let html;
@@ -1720,7 +1813,7 @@ button.chip{cursor:pointer;font:inherit}
     const inv = invitesAll().find((i) => i.id === id);
     if (!inv) return;
     const lien = invTextFor(inv);
-    const texte = 'Ajoutez-moi sur Pli Scellé. Touchez ce lien, puis entrez le code que je vous donne à part :\n' + lien;
+    const texte = 'Ajoutez-moi sur Pli Scellé. Touchez ce lien pour m’envoyer une demande :\n' + lien;
     if (navigator.share) {
       let fichiers = [];
       try { if (S.invQR) fichiers = [new File([await qrPngBlob()], 'invitation-pli-scelle.png', { type: 'image/png' })]; } catch (e) { fichiers = []; }
@@ -1752,54 +1845,66 @@ button.chip{cursor:pointer;font:inherit}
     go('accueil');
   }
   // Envoi depuis « Scanner un QR code » : invitation (QR de « Mon QR code ») ou identité, selon ce qui a été lu.
+  // Envoi depuis « Scanner un QR code » : la demande part sans code. Le code viendra ensuite, dans l’appli.
   async function actSendScan() {
     const box = $('#qrtext');
     const text = String((box && box.value) || S.scanText || '').trim();
     if (!isInvText(text)) return actSendFF();
-    const code = normCode($('#fcode').value);
     if (!text) return setStatus('formstatus', 'err', 'Scannez le QR code ou collez le lien.');
-    if (code.length !== 6) return setStatus('formstatus', 'err', 'Entrez le code donné à part (6 caractères).');
     let o;
     try { o = parseInvText(text); } catch (e) { return setStatus('formstatus', 'err', e.message); }
     const snap = await S.db.doc('inv/' + o.i).get();
-    if (!snap.exists) return setStatus('formstatus', 'err', 'Cette invitation n’existe plus.');
+    if (!snap.exists) return setStatus('formstatus', 'err', 'Ce QR code n’est plus valable : il a déjà été utilisé, ou l’invitation est close.');
     const d = snap.data();
     if (Date.now() > d.exp) return setStatus('formstatus', 'err', 'Cette invitation a expiré.');
-    const K = await pbkdf2(code, unb64u(d.salt), ITER_CODE);
-    const proof = await proofFor(K, S.me.raw);
-    await sendTo(d.from, { kind: 'remote-claim', inv: o.i, pseudo: S.me.pseudo, proof: proof });
+    await sendTo(d.from, { kind: 'remote-claim', inv: o.i, pseudo: S.me.pseudo });
     pushPending({ type: 'remote-sent', peer: d.from, invId: o.i, peerPseudo: '' });
-    S.words = await wordsFor(unb64u(S.me.raw), unb64u(d.from));   // mêmes 6 mots que chez la personne : on les compare
+    S.words = await wordsFor(unb64u(S.me.raw), unb64u(d.from));
     S.scanKind = null; S.scanText = ''; S.invite = null;
     go('attente');
   }
-  async function actAcceptRemote(pid) {
+  // Les mots tapés par l’inviteur sont comparés aux siens : les deux listes viennent des deux clés, rien ne transite par l’appli.
+  function normMot(s) { return String(s || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+  async function actVerifierMots(pid) {
+    const p = pendingById(pid);
+    if (!p || !p.pos) return go('accueil');
+    const mots = S.words && S.words.length ? S.words : await wordsFor(unb64u(S.me.raw), unb64u(p.peer));
+    S.words = mots;
+    S.verifPid = pid; S.verifFait = true;
+    S.verifOk = p.pos.every((n, k) => { const saisi = normMot((document.getElementById('v' + k) || {}).value); return saisi !== '' && saisi === normMot(mots[n - 1]); });
+    go('lien-ouvert', pid);
+  }
+  // Les mots correspondent : le code part dans l’appli, chiffré pour cette seule personne.
+  async function actEnvoyerCode(pid) {
     const name = nameValue();
     if (!name) return setStatus('formstatus', 'err', 'Donnez un nom à ce contact.');
     const p = pendingById(pid);
-    if (!p) return go('accueil');
+    if (!p || S.verifPid !== pid || !S.verifOk) return go('lien-ouvert', pid);
     const inv = invitesAll().find((i) => i.id === p.invId);
-    if (!inv || inv.status !== 'open') {
-      try { await sendTo(p.peer, { kind: 'refuse', inv: p.invId, why: 'used' }); } catch (e) {}
-      dropPending(pid);
-      S.flash = { t: 'Cette invitation a déjà été acceptée pour quelqu’un d’autre.' };
-      return go('accueil');
-    }
-    await sendTo(p.peer, { kind: 'accept', pseudo: S.me.pseudo, inv: p.invId });
-    const c = addContact(p.peer, p.peerPseudo, name);
-    await closeInviteDoc(p.invId); markInviteClosed(p.invId);
-    // Une invitation n’accepte qu’une personne : les autres demandes reçues avec ce même code sont refusées.
-    for (const o of pendingAll().filter((x) => x.type === 'remote-claim' && x.invId === p.invId && x.pid !== pid)) {
-      try { await sendTo(o.peer, { kind: 'refuse', inv: o.invId, why: 'used' }); } catch (e) {}
-      dropPending(o.pid);
-    }
-    dropPending(pid);
-    go('contact', c.cid);
+    if (!inv) return go('accueil');
+    await sendAuth(p.peer, 'code', { inv: p.invId, code: inv.code, salt: inv.salt });
+    LS.set('pending', pendingAll().map((x) => x.pid === pid ? { pid: x.pid, at: Date.now(), type: 'code-envoye', peer: x.peer, peerPseudo: x.peerPseudo, invId: x.invId, name: name } : x));
+    S.verifFait = false; S.verifOk = false;
+    go('lien-ouvert', pid);
   }
+  // La personne finit : elle prouve qu’elle a le code. Le code est déjà rempli, un seul geste.
+  async function actFinirInvite(pid) {
+    const p = pendingById(pid);
+    if (!p || p.type !== 'code') return go('accueil');
+    const K = await pbkdf2(p.code, unb64u(p.salt), ITER_CODE);
+    const proof = await proofFor(K, S.me.raw);
+    await sendTo(p.peer, { kind: 'proof', inv: p.invId, proof: proof });
+    LS.set('pending', pendingAll().map((x) => x.pid === pid ? { pid: x.pid, at: Date.now(), type: 'remote-sent', peer: x.peer, peerPseudo: x.peerPseudo, invId: x.invId } : x));
+    S.words = await wordsFor(unb64u(S.me.raw), unb64u(p.peer));
+    go('attente');
+  }
+  // Refus ou annulation : la personne voit pourquoi. « Les mots ne correspondent pas » si la vérification a échoué.
   async function actRefuseRemote(pid) {
     const p = pendingById(pid);
-    if (p) { try { await sendTo(p.peer, { kind: 'refuse', inv: p.invId }); } catch (e) {} }
+    const why = S.verifFait && !S.verifOk ? 'mismatch' : 'cancelled';
+    if (p) { try { await sendTo(p.peer, { kind: 'refuse', inv: p.invId, why: why }); } catch (e) {} }
     dropPending(pid);
+    S.verifFait = false; S.verifOk = false;
     go('accueil');
   }
   async function actConfirmRemote(pid) {
@@ -1934,7 +2039,9 @@ button.chip{cursor:pointer;font:inherit}
     sharelink: actShareLink,
     saveqr: actSaveQR,
     cancelinv: actCancelInv,
-    acceptremote: actAcceptRemote,
+    verifmots: actVerifierMots,
+    envoicode: actEnvoyerCode,
+    finirinvite: actFinirInvite,
     refuseremote: actRefuseRemote,
     confirmremote: actConfirmRemote,
     send: actSend,
@@ -1990,7 +2097,7 @@ button.chip{cursor:pointer;font:inherit}
     if (kind === 'ff') { try { parseQR(t); } catch (e) { return scanMsg('err', e.message); } }
     S.scanKind = kind; S.scanText = t;
     const box = $('#qrtext'); if (box) box.value = t;
-    scanMsg('ok', kind === 'inv' ? 'Invitation lue. Entrez maintenant le code donné à part.' : 'Identité lue. Entrez maintenant le code affiché sur son écran.');
+    scanMsg('ok', kind === 'inv' ? 'Invitation lue. Envoyez votre demande.' : 'Identité lue. Entrez maintenant le code affiché sur son écran.');
   }
   document.addEventListener('change', async (ev) => {
     const t = ev.target;

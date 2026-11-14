@@ -247,7 +247,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v53';
+  const APP_VERSION = 'v54';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1258,12 +1258,20 @@ button.chip{cursor:pointer;font:inherit}
   // Un seul écran pour recevoir : le QR code lu (photo ou appareil photo) donne soit une invitation, soit une identité.
   function viewScanner() {
     const inv = S.scanKind === 'inv';
-    // Lien d’invitation ouvert : l’invitation est déjà lue, il n’y a rien à scanner.
-    if (inv && S.scanLink) return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) +
-      '<div><h1>Invitation reçue</h1><p class="lead" style="margin-top:6px">Envoyez votre demande : la personne vous enverra son code ensuite, dans l’appli.</p></div>' +
-      formStatus() +
-      '<div class="dock stack"><button class="btn btn-primary" data-act="sendscan">Envoyer ma demande</button></div>' +
-    '</div>';
+    // Lien d’invitation ouvert : l’invitation est déjà lue. On dit de la part de qui elle vient, et ce qui va se passer.
+    if (inv && S.scanLink) {
+      const de = S.invite && S.invite.pseudo ? S.invite.pseudo : '';
+      return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) +
+        '<div><h1>Invitation reçue</h1><p class="lead" style="margin-top:6px">' + (de ? 'De la part de <b>' + esc(de) + '</b>. ' : '') + 'Trois étapes, toutes dans l’appli :</p></div>' +
+        '<div class="progress">' +
+          '<div class="pstep now"><span class="dot">1</span><div><b>Accepter l’invitation</b><span>Touchez le bouton ci-dessous.</span></div></div>' +
+          '<div class="pstep"><span class="dot">2</span><div><b>Toucher trois mots</b><span>Les mots demandés apparaissent sur votre écran. Vous les touchez.</span></div></div>' +
+          '<div class="pstep"><span class="dot">3</span><div><b>Recevoir le code et le finir</b><span>Rien à taper : touchez « Finir l’invitation ».</span></div></div>' +
+        '</div>' +
+        formStatus() +
+        '<div class="dock stack"><button class="btn btn-primary" data-act="sendscan">Accepter l’invitation</button></div>' +
+      '</div>';
+    }
     return '<div class="screen">' + topbar({ back: 'ajouter', title: 'Scanner un QR code' }) +
       '<p class="lead">Photographiez le QR code de la personne, ou choisissez son image. L’appli reconnaît seule s’il s’agit d’une personne présente ou d’une invitation.</p>' +
       (inv ? notice('info', 'Invitation reçue. Envoyez votre demande : la personne vous enverra son code ensuite, dans l’appli.') : '') +
@@ -1847,7 +1855,7 @@ button.chip{cursor:pointer;font:inherit}
     const id = rid(12, ID_CHARS), code = randCode(), salt = rand(16);
     const K = await pbkdf2(code, salt, ITER_CODE);
     const exp = Date.now() + INVITE_LIFE;
-    await S.db.doc('inv/' + id).set({ from: S.me.raw, salt: b64u(salt), exp: exp, ts: Date.now() });
+    await S.db.doc('inv/' + id).set({ from: S.me.raw, salt: b64u(salt), exp: exp, ts: Date.now(), pseudo: S.me.pseudo || '' });
     const l = invitesAll();
     const entry = { id: id, code: code, salt: b64u(salt), K: b64u(K), exp: exp, status: 'open', fails: 0, createdAt: Date.now(), label: libelle || '' };
     l.push(entry);
@@ -2481,7 +2489,7 @@ button.chip{cursor:pointer;font:inherit}
           const snap = await S.db.doc('inv/' + S.inviteId).get();
           if (snap.exists) {
             const d = snap.data();
-            if (Date.now() < d.exp) S.invite = { id: S.inviteId, from: d.from, salt: d.salt, exp: d.exp };
+            if (Date.now() < d.exp) S.invite = { id: S.inviteId, from: d.from, salt: d.salt, exp: d.exp, pseudo: d.pseudo || '' };
           }
         } catch (e) { S.invite = null; }
       }

@@ -247,7 +247,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v55';
+  const APP_VERSION = 'v56';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1182,7 +1182,7 @@ button.chip{cursor:pointer;font:inherit}
   }
   function viewCreer() {
     if (!S.draftPseudo) S.draftPseudo = genPseudo();
-    const note = S.arg === 'invite' ? notice('info', 'Vous répondez à une invitation. Une fois votre identité créée, vous entrerez le code reçu à part.') : '';
+    const note = S.arg === 'invite' ? notice('info', 'Vous répondez à une invitation. Une fois votre identité créée, vous pourrez accepter l’invitation.') : '';
     return '<div class="screen">' +
       '<div class="brand">' + LOGO + '<span>Pli Scellé</span></div>' +
       '<div><h1>Créer votre identité</h1><p class="lead" style="margin-top:6px">Un pseudo et un code secret. Pas de numéro, pas d’e-mail.</p></div>' +

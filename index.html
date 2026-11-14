@@ -247,7 +247,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v59';
+  const APP_VERSION = 'v60';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -668,7 +668,8 @@ button.chip{cursor:pointer;font:inherit}
     const pend = pendingAll();
     const idx = pend.findIndex((p) => (p.type === 'verif' || p.type === 'remote-sent') && p.invId === body.inv && p.peer === m.from);
     if (idx < 0) return false;
-    pend[idx] = Object.assign({}, pend[idx], { type: 'code', code: body.code, salt: body.salt });
+    // Le code n’est envoyé qu’après la confirmation des mots : l’étape « Mots confirmés » est donc cochée, même si « mots-ok » est lu après.
+    pend[idx] = Object.assign({}, pend[idx], { type: 'code', code: body.code, salt: body.salt, confirme: true });
     LS.set('pending', pend);
     S.routed.delete(pend[idx].pid);
     return true;
@@ -710,7 +711,8 @@ button.chip{cursor:pointer;font:inherit}
   // Côté personne invitée : la personne qui invite a comparé les mots et les a confirmés. Il ne reste que le code à recevoir.
   async function onMotsOk(m) {
     const pend = pendingAll();
-    const idx = pend.findIndex((p) => p.type === 'remote-sent' && p.invId === m.inv && p.peer === m.from);
+    // Le message peut être lu après le code (ordre de lecture de la boîte) : la demande est alors déjà en « code ».
+    const idx = pend.findIndex((p) => (p.type === 'remote-sent' || p.type === 'code') && p.invId === m.inv && p.peer === m.from);
     if (idx < 0) return false;
     pend[idx] = Object.assign({}, pend[idx], { confirme: true });
     LS.set('pending', pend);
@@ -737,7 +739,8 @@ button.chip{cursor:pointer;font:inherit}
   async function onAccept(m) {
     const pend = pendingAll();
     let idx = pend.findIndex((p) => p.type === 'ff-sent' && p.peer === m.from);
-    if (idx < 0 && m.inv) idx = pend.findIndex((p) => p.type === 'remote-sent' && p.invId === m.inv);
+    // L’acceptation peut arriver pendant que l’invitée termine (la demande est alors encore en « code ») : elle compte aussi.
+    if (idx < 0 && m.inv) idx = pend.findIndex((p) => (p.type === 'remote-sent' || p.type === 'code') && p.invId === m.inv);
     if (idx < 0) return false;
     const p = pend[idx];
     pend[idx] = { pid: p.pid, at: Date.now(), type: p.type === 'ff-sent' ? 'ff-accepted' : 'remote-accepted', peer: m.from, peerPseudo: m.pseudo || 'Contact', invId: p.invId || null };
@@ -1997,11 +2000,17 @@ button.chip{cursor:pointer;font:inherit}
   async function actFinirInvite(pid) {
     const p = pendingById(pid);
     if (!p || p.type !== 'code') return go('accueil');
+    const words = await wordsFor(unb64u(S.me.raw), unb64u(p.peer));
     const K = await pbkdf2(p.code, unb64u(p.salt), ITER_CODE);
     const proof = await proofFor(K, S.me.raw);
     await sendTo(p.peer, { kind: 'proof', inv: p.invId, proof: proof });
-    LS.set('pending', pendingAll().map((x) => x.pid === pid ? { pid: x.pid, at: Date.now(), type: 'remote-sent', peer: x.peer, peerPseudo: x.peerPseudo, invId: x.invId, confirme: x.confirme, fini: true } : x));
-    S.words = await wordsFor(unb64u(S.me.raw), unb64u(p.peer));
+    // Pendant l’envoi, l’acceptation peut déjà être arrivée : la demande n’est plus en « code », on ne revient pas en arrière.
+    if ((pendingById(pid) || {}).type === 'code') {
+      LS.set('pending', pendingAll().map((x) => x.pid === pid ? { pid: x.pid, at: Date.now(), type: 'remote-sent', peer: x.peer, peerPseudo: x.peerPseudo, invId: x.invId, confirme: true, fini: true } : x));
+    }
+    S.words = words;
+    // Rien d’asynchrone entre ces lignes : l’écran affiché correspond à l’état réel de la demande.
+    if ((pendingById(pid) || {}).type === 'remote-accepted') { S.routed.add(pid); return go('nommer', pid); }
     go('attente');
   }
   // Annulation par la personne qui invite : l’invitée voit « La personne a annulé la demande ».

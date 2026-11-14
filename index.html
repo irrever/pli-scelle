@@ -210,12 +210,12 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 @media (prefers-reduced-motion: reduce){.qr-build i:not(.l){animation:none;opacity:1;transform:none}}
 .qr-card.plain{background:none;border:0;box-shadow:none;padding:12px 0 4px}
 .qr-card.plain .qr-build{width:min(200px,58vw)}
-.qr-mini{display:grid;grid-template-columns:repeat(15,1fr);grid-template-rows:repeat(15,1fr);box-sizing:border-box;flex:none;width:38px;height:38px;padding:3px;background:#fff;border-radius:7px;content-visibility:auto}
-.qr-mini i{display:block}
-.qr-mini i:not(.l){background:#10233A;animation:build 3.2s ease-in-out infinite both}
-.qr-mini i.l{background:transparent}
+.qr-mini{display:block;flex:none;width:38px;height:38px;box-sizing:border-box;background:#fff;border-radius:7px}
+
+
+
 .row-item.is-off .qr-mini{opacity:.45}
-@media (prefers-reduced-motion: reduce){.qr-mini i:not(.l){animation:none;opacity:1;transform:none}}
+
 /* Aperçu QR des messages (tuiles) */
 .qr-thumb{width:52px;height:52px;flex:none;border-radius:8px;background:#fff;padding:3px;box-sizing:border-box}
 .tt{display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -254,7 +254,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v66';
+  const APP_VERSION = 'v67';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1205,6 +1205,7 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="qr-card' + (opt.plain ? ' plain' : '') + '" aria-hidden="true"><div class="qr-build">' + qrDecorCells() + '</div>' + cap + '</div>';
   }
   // QR code vivant de chaque contact : petit, décoratif, et toujours le même motif pour une même personne.
+  // Chaque case vaut « F » (repère, toujours plein), « 1 » (case qui respire) ou « 0 » (vide).
   function qrMiniCells(cid) {
     const N = 15;
     let seed = 7;
@@ -1215,17 +1216,61 @@ button.chip{cursor:pointer;font:inherit}
     let out = '';
     for (let r = 0; r < N; r++) {
       for (let c = 0; c < N; c++) {
-        let dark;
-        if (r < 7 && c < 7) dark = finder(r, c, 0, 0);
-        else if (r < 7 && c >= 8) dark = finder(r, c, 0, 8);
-        else if (r >= 8 && c < 7) dark = finder(r, c, 8, 0);
-        else if (r === 7 || c === 7) dark = false;
-        else dark = rnd() > 0.5;
-        const d = rnd() * 2.4;
-        out += dark ? '<i style="animation-delay:' + retardQR(d).toFixed(3) + 's"></i>' : '<i class="l"></i>';
+        let k;
+        if (r < 7 && c < 7) k = finder(r, c, 0, 0) ? 'F' : '0';
+        else if (r < 7 && c >= 8) k = finder(r, c, 0, 8) ? 'F' : '0';
+        else if (r >= 8 && c < 7) k = finder(r, c, 8, 0) ? 'F' : '0';
+        else if (r === 7 || c === 7) k = '0';
+        else k = rnd() > 0.5 ? '1' : '0';
+        out += k;
       }
     }
     return out;
+  }
+  // Les petits QR vivants se dessinent sur un canevas. Une seule boucle, et seulement pour les QR visibles à l’écran :
+  // une longue liste de contacts reste fluide. Avec « réduire les mouvements », ils restent figés, mais s’affichent.
+  const qrVisibles = new Set();
+  let qrTimer = null;
+  const qrReduit = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  function dessinerQR(cv, t) {
+    const ctx = cv.getContext && cv.getContext('2d');
+    if (!ctx) return;
+    const cases = cv.dataset.cells || '', n = 15, px = cv.width;
+    const cote = Math.floor(px * 0.92 / n), p = Math.floor((px - cote * n) / 2);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, px, px);
+    for (let i = 0; i < cases.length; i++) {
+      const k = cases[i];
+      if (k === '0') continue;
+      let a = 1;
+      if (k === '1') {
+        const ph = ((i * 37 + 11) % 97) / 97 * Math.PI * 2;   // chaque case a sa propre phase
+        a = 0.15 + 0.85 * (0.5 + 0.5 * Math.sin(t * Math.PI * 2 / 3.2 + ph));
+      }
+      ctx.globalAlpha = a;
+      ctx.fillStyle = '#10233A';
+      ctx.fillRect(p + (i % n) * cote, p + Math.floor(i / n) * cote, cote, cote);
+    }
+    ctx.globalAlpha = 1;
+  }
+  function demarrerQR() {
+    if (qrReduit()) { qrVisibles.forEach((cv) => dessinerQR(cv, 0)); return; }
+    if (qrTimer || !qrVisibles.size) return;
+    const tic = () => {
+      qrTimer = null;
+      qrVisibles.forEach((cv) => { if (cv.isConnected) dessinerQR(cv, Date.now() / 1000); else { qrVisibles.delete(cv); if (qrObs) qrObs.unobserve(cv); } });
+      if (qrVisibles.size) qrTimer = setTimeout(tic, 90);
+    };
+    tic();
+  }
+  const qrObs = ('IntersectionObserver' in window) ? new IntersectionObserver((entrees) => {
+    entrees.forEach((e) => { if (e.isIntersecting) qrVisibles.add(e.target); else qrVisibles.delete(e.target); });
+    demarrerQR();
+  }) : null;
+  // Après chaque affichage : on suit les QR de la page.
+  function suivreQR(racine) {
+    racine.querySelectorAll('canvas.qr-mini').forEach((cv) => { if (qrObs) qrObs.observe(cv); else qrVisibles.add(cv); });
+    if (!qrObs) demarrerQR();
   }
   function viewCreer() {
     if (!S.draftPseudo) S.draftPseudo = genPseudo();
@@ -1265,7 +1310,7 @@ button.chip{cursor:pointer;font:inherit}
     const ms = msgsAll();
     const cs = contacts();
     // Lien en pause ou à réactiver : la ligne est grisée, on ne peut plus l’ouvrir ; elle reste dans une section à part.
-    const miniQR = (c) => '<span class="qr-mini" aria-hidden="true">' + qrMiniCells(c.cid) + '</span>';
+    const miniQR = (c) => { const w = Math.round(38 * Math.min(3, window.devicePixelRatio || 1)); return '<canvas class="qr-mini" aria-hidden="true" width="' + w + '" height="' + w + '" data-cells="' + qrMiniCells(c.cid) + '"></canvas>'; };
     const ligne = (c) => {
       const n = ms.filter((m) => m.cid === c.cid && m.dir === 'in' && m.state === 'new' && !m.seen).length;
       if (c.pause || c.pend) {
@@ -1826,6 +1871,7 @@ button.chip{cursor:pointer;font:inherit}
     app.__coque = coque;
     app.innerHTML = maj + flash + html;
     app.classList.toggle('meme-ecran', same);   // même écran redessiné : il ne rejoue pas son apparition
+    suivreQR(app);
     hydrateVoices();
     Object.keys(keep).forEach((id) => { const el = document.getElementById(id); if (el) el.value = keep[id]; });
     autoGrow();          // la zone reprend la hauteur du brouillon restauré…

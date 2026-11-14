@@ -863,7 +863,7 @@ button.chip{cursor:pointer;font:inherit}
       'remote-sent': ['Demande envoyée', 'Voir l’attente', 'attente'],
       'verif': [esc(p.peerPseudo || 'La personne') + ' vous demande des mots', 'Les lire à voix haute', 'verif'],
       'code': ['Code reçu', 'Finir l’invitation', 'finir'],
-      'code-envoye': [esc(p.name || 'La personne') + ' a reçu son code', 'En attente qu’elle finisse', 'lien-ouvert'],
+      'code-envoye': [esc(p.name || 'La personne') + ' a reçu son code', 'Pas encore ajouté : la personne doit toucher « Finir l’invitation »', 'lien-ouvert'],
       'ff-accepted': [esc(p.peerPseudo || 'La personne') + ' a accepté votre demande', 'Comparer les mots', 'verifier-ff'],
       'remote-accepted': [esc(p.peerPseudo || 'La personne') + ' a accepté votre invitation', 'Donner un nom', 'nommer']
     };
@@ -1174,8 +1174,8 @@ button.chip{cursor:pointer;font:inherit}
       '<div><h1>Créer votre identité</h1><p class="lead" style="margin-top:6px">Un pseudo et un code secret. Pas de numéro, pas d’e-mail.</p></div>' +
       note +
       '<div class="card form">' +
-        '<label class="label" for="pseudo">Votre pseudo</label>' +
-        '<div class="input-row"><input id="pseudo" class="field" value="' + esc(S.draftPseudo) + '" autocomplete="off"><button class="btn btn-secondary btn-inline" data-act="regen" aria-label="Générer un pseudo">' + I.refresh + '</button></div>' +
+        '<label class="label" for="pseudo">Votre pseudo : tiré au sort, changez-le si vous voulez</label>' +
+        '<div class="input-row"><input id="pseudo" class="field" value="' + esc(S.draftPseudo) + '" autocomplete="off"><button class="btn btn-secondary btn-inline" data-act="regen" aria-label="Générer un pseudo">' + I.refresh + '<span>Autre pseudo</span></button></div>' +
         '<p class="hint">C’est le seul nom que les autres voient.</p>' +
         '<label class="label" for="s1">Code secret</label>' +
         '<input id="s1" class="field" type="password" autocomplete="new-password" placeholder="6 caractères minimum">' +
@@ -1302,7 +1302,7 @@ button.chip{cursor:pointer;font:inherit}
     const words = S.words && S.words.length ? (aInvitation ? wordsBlock('Mots de vérification', 'La personne vous demandera trois de ces mots, à lire à voix haute.') : wordsBlock('Mots d’empreinte à comparer','Comparez-les une seule fois, à voix haute ou au téléphone. S’ils sont identiques sur les deux écrans, vous pouvez communiquer en toute sécurité.')) : '';
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Demande envoyée' }) +
       '<div class="progress"><div class="pstep done"><span class="dot">' + '✓' + '</span><div><b>Demande envoyée</b><span>Votre demande a bien été transmise.</span></div></div>' +
-        '<div class="pstep now"><span class="dot">2</span><div><b>Confirmation de la personne</b><span>Elle vérifie les mots de son côté.</span></div></div>' +
+        '<div class="pstep now"><span class="dot">2</span><div><b>Confirmation de la personne</b><span>La personne vérifie les mots de son côté.</span></div></div>' +
         '<div class="pstep"><span class="dot">3</span><div><b>Contact ajouté</b><span>Vous pourrez écrire.</span></div></div></div>' +
       words +
       '<div class="card center" style="align-items:center"><div class="spinner"></div><p class="hint">Gardez l’application ouverte. Cette page se met à jour seule.</p></div>' +
@@ -1336,7 +1336,7 @@ button.chip{cursor:pointer;font:inherit}
     if (!p) return viewAccueil();
     if (p.type === 'code-envoye') {
       return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) +
-        '<div><h1>' + esc(p.name || 'La personne') + ' a reçu son code</h1><p class="lead" style="margin-top:6px">Le code est parti dans l’appli. Il reste à ce qu’elle finisse l’invitation.</p></div>' +
+        '<div><h1>' + esc(p.name || 'La personne') + ' a reçu son code</h1><p class="lead" style="margin-top:6px">Pas encore ajouté à vos contacts. Il reste une étape de son côté : toucher « Finir l’invitation » sur son écran. Dès que c’est fait, ' + esc(p.name || 'La personne') + ' apparaît dans vos contacts.</p></div>' +
         '<div class="dock stack"><button class="btn btn-danger" data-act="refuseremote" data-arg="' + esc(p.pid) + '">Annuler l’invitation</button></div>' +
       '</div>';
     }
@@ -1363,7 +1363,7 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) +
       '<div>' + titre + '<p class="lead" style="margin-top:6px">' + explication + '</p></div>' +
       grille +
-      personCard(p.peerPseudo || 'Personne', 'Invitation validée') +
+      personCard(p.peerPseudo || 'Personne', 'Pseudo de la personne') +
       '<section class="card center" style="align-items:center"><div class="spinner"></div><p class="hint">En attente de ses mots.</p></section>' +
       '<div class="dock stack"><button class="btn btn-danger" data-act="refuseremote" data-arg="' + esc(p.pid) + '">Annuler la demande</button></div>' +
     '</div>';
@@ -1398,9 +1398,10 @@ button.chip{cursor:pointer;font:inherit}
     const p = pendingById(S.arg);
     if (!p || p.type !== 'code') return viewAccueil();
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) +
-      '<div><h1>Finir l’invitation</h1><p class="lead" style="margin-top:6px">Vous avez validé. Le code de ' + esc(p.peerPseudo || 'la personne') + ' est arrivé dans l’appli.</p></div>' +
-      '<div class="card form"><label class="label" for="codeRecu">Code reçu</label><input id="codeRecu" class="field code-input" value="' + esc(fmtCode(p.code)) + '" readonly></div>' +
-      '<p class="hint">Ce code ne sert qu’à vous : il est lié à votre demande.</p>' +
+      '<div><h1>Finir l’invitation</h1><p class="lead" style="margin-top:6px">Vous avez validé l’invitation de ' + esc(p.peerPseudo || 'la personne') + '. Rien à taper : le code est déjà arrivé dans l’appli.</p></div>' +
+      '<div class="card form"><label class="label" for="codeRecu">Code reçu : rien à taper</label><input id="codeRecu" class="field code-input" value="' + esc(fmtCode(p.code)) + '" readonly></div>' +
+      '<p class="hint">Ce code prouve que vous avez bien reçu l’invitation.</p>' +
+      '<p class="hint">Touchez « Finir l’invitation » pour confirmer : la personne sera ajoutée à vos contacts.</p>' +
       '<div class="dock stack"><button class="btn btn-primary" data-act="finirinvite" data-arg="' + esc(p.pid) + '">Finir l’invitation</button></div>' +
     '</div>';
   }
@@ -1418,7 +1419,7 @@ button.chip{cursor:pointer;font:inherit}
     const c = contacts().find((x) => x.cid === S.arg);
     if (!c) return viewAccueil();
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Contact', right: '<button class="iconbtn" data-act="reglages" data-arg="' + esc(c.cid) + '" aria-label="Réglages du contact">' + I.more + '</button>' }) +
-      '<div class="contact-hero"><span class="avatar xl">' + esc(initial(c.name)) + '</span><div class="row-title" style="font-size:20px">' + esc(c.name) + '</div><span class="hint">' + esc(c.pseudo) + '</span><span class="badge badge-ok">' + empreinteIcone(16, EMP[cleEmpreinte(c)]) + 'Vérifié</span></div>' +
+      '<div class="contact-hero"><span class="avatar xl">' + esc(initial(c.name)) + '</span><div class="row-title" style="font-size:20px">' + esc(c.name) + '</div><span class="hint">Pseudo de la personne : ' + esc(c.pseudo) + '</span><span class="badge badge-ok">' + empreinteIcone(16, EMP[cleEmpreinte(c)]) + 'Vérifié</span></div>' +
       '<div class="card code-card"><span class="code-label">Code de ce contact</span><div class="code">' + esc(c.label) + '</div><p class="hint">Dans les conversations, seul ce code apparaît.</p></div>' +
       '<section class="card"><h2>Prêt à écrire</h2><p class="hint">Le message est chiffré. Seule cette personne peut le lire.</p></section>' +
       '<div class="dock stack"><button class="btn btn-primary" data-act="conv" data-arg="' + esc(c.cid) + '">' + I.msg + '<span>Écrire</span></button><button class="btn btn-secondary" data-act="savecontact" data-arg="' + esc(c.cid) + '">' + I.user + '<span>Ajouter à mes contacts</span></button><button class="btn btn-danger" data-act="cut" data-arg="' + esc(c.cid) + '">' + I.unlink + '<span>Couper le lien</span></button></div>' +

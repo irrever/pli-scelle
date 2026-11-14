@@ -835,7 +835,7 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="card"><div class="row-between"><div style="display:flex;gap:12px;align-items:center;min-width:0"><span class="avatar lg">' + esc(initial(pseudo)) + '</span><div style="min-width:0"><div class="row-title">' + esc(pseudo) + '</div><span class="hint">Pseudo reçu</span></div></div><span class="badge badge-ok">' + I.check + esc(badgeText) + '</span></div></div>';
   }
   function nameField(valeur) {
-    return '<div class="card form"><label class="label" for="cname">Nom dans vos contacts</label><input id="cname" class="field" placeholder="Nom obligatoire" autocomplete="off" value="' + esc(valeur || '') + '">' + (contactPickerOk()
+    return '<div class="card form"><label class="label" for="cname">Nom dans vos contacts</label><input id="cname" class="field" placeholder="Nom obligatoire" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="words" value="' + esc(valeur || '') + '">' + (contactPickerOk()
         ? '<button class="btn btn-secondary" data-act="pickcontact" style="margin-top:8px">Choisir dans mes contacts</button>'
         : '<label class="btn btn-secondary file-btn" style="margin-top:8px">' + I.file + '<span>Prendre le nom dans un fichier de contacts (.vcf)</span><input id="vcard" class="sr-only" type="file" accept=".vcf,text/vcard,text/x-vcard"></label><div id="vcardlist"></div>' +
           '<p class="hint">Le navigateur de l’iPhone ne peut pas lire vos contacts. Enregistrez la fiche en fichier .vcf (Contacts, Partager le contact, Enregistrer dans Fichiers), puis choisissez-la ici. Sinon, tapez le nom.</p>') +
@@ -1216,6 +1216,12 @@ button.chip{cursor:pointer;font:inherit}
   // Un seul écran pour recevoir : le QR code lu (photo ou appareil photo) donne soit une invitation, soit une identité.
   function viewScanner() {
     const inv = S.scanKind === 'inv';
+    // Lien d’invitation ouvert : l’invitation est déjà lue, il n’y a rien à scanner.
+    if (inv && S.scanLink) return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) +
+      '<div><h1>Invitation reçue</h1><p class="lead" style="margin-top:6px">Envoyez votre demande : la personne vous enverra son code ensuite, dans l’appli.</p></div>' +
+      formStatus() +
+      '<div class="dock stack"><button class="btn btn-primary" data-act="sendscan">Envoyer ma demande</button></div>' +
+    '</div>';
     return '<div class="screen">' + topbar({ back: 'ajouter', title: 'Scanner un QR code' }) +
       '<p class="lead">Photographiez le QR code de la personne, ou choisissez son image. L’appli reconnaît seule s’il s’agit d’une personne présente ou d’une invitation.</p>' +
       (inv ? notice('info', 'Invitation reçue. Envoyez votre demande : la personne vous enverra son code ensuite, dans l’appli.') : '') +
@@ -1240,7 +1246,7 @@ button.chip{cursor:pointer;font:inherit}
     const until = new Date(inv.exp).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) + pendingBanner() +
       (open
-        ? '<div class="card form"><label class="label" for="invlabel">Pour qui, cette invitation ? (facultatif)</label><input id="invlabel" class="field" maxlength="24" placeholder="Marie" autocomplete="off" value="' + esc(inv.label || '') + '"><p class="hint">Ce prénom reste sur votre téléphone : il n’est jamais envoyé.</p></div>' + '<div class="row-between"><span class="badge badge-ok">En attente</span><span class="hint">Valable jusqu’au ' + esc(until) + '</span></div>' +
+        ? '<div class="card form"><label class="label" for="invlabel">Pour qui, cette invitation ? (facultatif)</label><input id="invlabel" class="field" maxlength="24" placeholder="Marie" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="words" value="' + esc(inv.label || '') + '"><p class="hint">Ce prénom reste sur votre téléphone : il n’est jamais envoyé.</p></div>' + '<div class="row-between"><span class="badge badge-ok">En attente</span><span class="hint">Valable jusqu’au ' + esc(until) + '</span></div>' +
           (S.invQR ? '<div class="qr-frame"><img alt="QR code d’invitation" src="' + S.invQR + '"></div>' : notice('err', 'Le QR code ne peut pas s’afficher ici. Utilisez le texte, plus bas.')) +
           '<div class="stack"><button class="btn btn-primary" data-act="sharelink" data-arg="' + esc(inv.id) + '">' + I.send + '<span>Envoyer le lien et le QR code</span></button></div>' +
           '<div class="stack"><button class="btn btn-secondary" data-act="renewinv" data-arg="' + esc(inv.id) + '">' + I.refresh + '<span>Nouveau QR code</span></button></div>' +
@@ -1616,7 +1622,7 @@ button.chip{cursor:pointer;font:inherit}
     cancelVoice();   // quitter l’écran arrête le micro et jette l’enregistrement en cours
     if (screen !== 'lien-coupe') S.cut = null;
     if (screen !== 'sauvegarde') { S.delMode = false; S.backupText = null; S.backupDone = false; }
-    if (screen !== 'scanner') { S.scanKind = null; S.scanText = ''; }
+    if (screen !== 'scanner') { S.scanKind = null; S.scanText = ''; S.scanLink = false; }
     S.screen = screen;
     S.arg = (arg == null ? null : arg);
     render();
@@ -1720,7 +1726,7 @@ button.chip{cursor:pointer;font:inherit}
       try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
       if (!S.invite) return go('invalide');
       // Lien d’invitation ouvert : même écran que « Scanner un QR code », avec le code à entrer.
-      S.scanKind = 'inv'; S.scanText = invTextFor(S.invite);
+      S.scanKind = 'inv'; S.scanText = invTextFor(S.invite); S.scanLink = true;
       return go('scanner');
     }
     if (S.afterCreate) { S.afterCreate = false; return go('identite-prete'); }
@@ -2095,7 +2101,7 @@ button.chip{cursor:pointer;font:inherit}
     else if (t.indexOf('PLI1:') === 0 || /#ff-/.test(t)) kind = 'ff';
     if (!kind) return scanMsg('err', 'Ce QR code n’est pas celui de Pli Scellé.');
     if (kind === 'ff') { try { parseQR(t); } catch (e) { return scanMsg('err', e.message); } }
-    S.scanKind = kind; S.scanText = t;
+    S.scanKind = kind; S.scanText = t; S.scanLink = false;
     const box = $('#qrtext'); if (box) box.value = t;
     scanMsg('ok', kind === 'inv' ? 'Invitation lue. Envoyez votre demande.' : 'Identité lue. Entrez maintenant le code affiché sur son écran.');
   }

@@ -262,7 +262,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v69';
+  const APP_VERSION = 'v70';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -988,6 +988,11 @@ button.chip{cursor:pointer;font:inherit}
   }
   // Aperçu QR d'un message : décoratif, il ne révèle rien du contenu.
   const thumbs = new Map();
+  // Vignette vivante d’un message : le même dessin que les QR des contacts, propre à chaque message.
+  function qrVignette(key, classe) {
+    const w = Math.round(52 * Math.min(3, window.devicePixelRatio || 1));
+    return '<canvas class="qr-thumb qr-mini' + (classe ? ' ' + classe : '') + '" aria-hidden="true" width="' + w + '" height="' + w + '" data-cells="' + qrMiniCells(key) + '"></canvas>';
+  }
   function qrThumb(key) {
     if (thumbs.has(key)) return thumbs.get(key);
     let url = '';
@@ -1153,21 +1158,21 @@ button.chip{cursor:pointer;font:inherit}
   }
   function msgVoiceHTML(m) {
     const d = m.dur ? ' · ' + m.dur + ' s' : '';
-    const vignette = '<img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '">';
+    const vignette = qrVignette(m.cid + ':' + m.ts);
     if (m.dir === 'out') return '<div class="tile mine">' + vignette + '<span class="tt"><b>Message vocal envoyé</b><span class="hint">' + (m.once === false ? 'Relisible' : 'Lecture unique') + d + '</span></span></div>';
     if (m.state === 'new') return '<button class="tile ' + (m.seen ? 'read' : 'unread') + '" data-act="reveal" data-arg="' + esc(m.mid) + '">' + vignette + '<span class="tt">' + (m.seen ? '<b>Message vocal relisible</b><span class="hint">Toucher pour réécouter' + d + '</span>' : '<b>Message vocal reçu</b><span class="hint">Toucher pour écouter' + d + '</span><span class="nouveau">Nouveau</span>') + '</span></button>';
     if (m.state === 'open') return '<div class="bubble"><audio controls preload="auto" data-voice="' + esc(m.mid) + '"></audio><div class="bubble-timer">' + (dureeChoisie(m.cid) < 0 ? 'Reste ouvert jusqu’à ce que vous le fermiez.' : 'Reste ouvert pendant l’écoute, puis se referme ' + libelleDuree(m.cid) + ' après.') + '</div></div>';
-    return '<div class="tile read">' + vignette.replace('class="qr-thumb"', 'class="qr-thumb faded"') + '<span class="tt"><b>Message vocal lu</b><span class="hint">Le contenu a été effacé</span></span></div>';
+    return '<div class="tile read">' + qrVignette(m.cid + ':' + m.ts, 'faded') + '<span class="tt"><b>Message vocal lu</b><span class="hint">Le contenu a été effacé</span></span></div>';
   }
   function msgHTML(m) {
     if (m.kind === 'voice') return msgVoiceHTML(m);
-    if (m.dir === 'out') return '<div class="tile mine"><img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt"><b>Message envoyé</b><span class="hint">' + (m.once === false ? 'Relisible' : 'Lecture unique') + '</span></span></div>';
-    if (m.state === 'new') return '<button class="tile ' + (m.seen ? 'read' : 'unread') + '" data-act="reveal" data-arg="' + esc(m.mid) + '"><img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt">' + (m.seen ? '<b>Message relisible</b><span class="hint">Toucher pour revoir</span>' : '<b>QR code reçu</b><span class="hint">Toucher pour lire' + (m.once === false ? '' : ' · visible ' + libelleDuree(m.cid) + ', puis effacé') + '</span><span class="nouveau">Nouveau</span>') + '</span></button>';
+    if (m.dir === 'out') return '<div class="tile mine">' + qrVignette(m.cid + ':' + m.ts) + '<span class="tt"><b>Message envoyé</b><span class="hint">' + (m.once === false ? 'Relisible' : 'Lecture unique') + '</span></span></div>';
+    if (m.state === 'new') return '<button class="tile ' + (m.seen ? 'read' : 'unread') + '" data-act="reveal" data-arg="' + esc(m.mid) + '">' + qrVignette(m.cid + ':' + m.ts) + '<span class="tt">' + (m.seen ? '<b>Message relisible</b><span class="hint">Toucher pour revoir</span>' : '<b>QR code reçu</b><span class="hint">Toucher pour lire' + (m.once === false ? '' : ' · visible ' + libelleDuree(m.cid) + ', puis effacé') + '</span><span class="nouveau">Nouveau</span>') + '</span></button>';
     if (m.state === 'open') {
       const libre = m.until - Date.now() > 1e12;
       return '<div class="bubble bubble-ouvert" role="button" tabindex="0" data-act="fermermsg" data-arg="' + esc(m.mid) + '">' + esc(m.text) + (libre ? '' : '<span class="bubble-timer" data-until="' + esc(m.until) + '">Se referme dans ' + Math.max(0, Math.ceil((m.until - Date.now()) / 1000)) + ' s</span>') + '<span class="bubble-fin">' + (m.once === false ? 'Touchez pour refermer' : 'Touchez pour fermer et effacer') + '</span></div>';
     }
-    return '<div class="tile read"><img class="qr-thumb faded" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt"><b>Message lu</b><span class="hint">Le contenu a été effacé</span></span></div>';
+    return '<div class="tile read">' + qrVignette(m.cid + ':' + m.ts, 'faded') + '<span class="tt"><b>Message lu</b><span class="hint">Le contenu a été effacé</span></span></div>';
   }
   function emptyState() {
     return '<div class="list"><div class="empty">' + I.user + '<b>Aucun contact pour l’instant</b><span>Ajoutez une personne, face à face ou à distance.</span></div></div>';
@@ -1874,6 +1879,7 @@ button.chip{cursor:pointer;font:inherit}
       autoGrow();
       syncComposerAct();
       if (pres) window.scrollTo(0, document.documentElement.scrollHeight); else window.scrollTo(0, defile);
+      suivreQR();
       return;
     }
     app.__coque = coque;

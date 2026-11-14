@@ -247,7 +247,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v56';
+  const APP_VERSION = 'v57';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -592,6 +592,7 @@ button.chip{cursor:pointer;font:inherit}
       }
       await Promise.all(suppressions);
       if (changed) { S.needRender = true; alertIncoming(); }
+      LS.set('lastSync', Date.now());
       await afterPoll();
     } catch (e) { /* hors ligne : on réessaie au prochain tour */ }
     finally { S.pollBusy = false; }
@@ -638,15 +639,16 @@ button.chip{cursor:pointer;font:inherit}
     // La validation compte si elle a été envoyée dans le délai : l’inviteur peut la lire plus tard, à son retour.
     if (!inv || inv.status !== 'open' || (m.ts || Date.now()) > inv.exp) { await sendTo(m.from, { kind: 'refuse', inv: m.inv, why: !inv ? 'unknown' : inv.status !== 'open' ? 'used' : 'expired' }); return false; }
     if (pendingAll().some((p) => p.invId === m.inv)) { await sendTo(m.from, { kind: 'refuse', inv: m.inv, why: 'used' }); return false; }
-    inv.status = 'claimed';
-    setInvites(invs);
-    await closeInviteDoc(inv.id);
     const pos = tirerPositions();
-    const mots = await wordsFor(unb64u(S.me.raw), unb64u(m.from));
+    let mots = null;
+    try { mots = await wordsFor(unb64u(S.me.raw), unb64u(m.from)); } catch (e) { mots = null; }
     // Une seule demande en cours par personne : l’ancienne demande de la même personne (autre invitation) est retirée
     LS.set('pending', pendingAll().filter((p) => !(p.type === 'remote-claim' && p.peer === m.from && p.invId !== m.inv)));
     pushPending({ type: 'remote-claim', peer: m.from, peerPseudo: m.pseudo, invId: m.inv, pos: pos, niveau: 1, ok: false, mots: mots });
     await sendTo(m.from, { kind: 'verif', inv: m.inv, pos: pos, pseudo: S.me.pseudo, niveau: 1 });
+    inv.status = 'claimed';
+    setInvites(invs);
+    await closeInviteDoc(inv.id);
     return true;
   }
   // Côté personne invitée : l’inviteur lui demande trois mots précis ; elle les lit à voix haute.
@@ -1606,7 +1608,7 @@ button.chip{cursor:pointer;font:inherit}
       '<section><div class="section-title">Alertes</div><div class="list"><button class="rowlink" data-act="togglesound"><span>Sonnerie à la réception</span><span class="state">' + (getPrefs().sound ? 'Activée' : 'Désactivée') + '</span>' + I.chev + '</button></div>' + toneChipsHTML() + '<div class="list" style="margin-top:12px"><button class="rowlink" data-act="togglenotif"><span>Notifications quand l’appli est fermée</span><span class="state">' + (getPrefs().notif ? (getPrefs().push ? 'Activées' : 'En attente') : 'Désactivées') + '</span>' + I.chev + '</button></div>' + notifHintHTML() + '<p class="hint">La sonnerie joue à chaque message ou demande reçus, tant que l’appli est ouverte (et vibre sur Android).</p></section>' +
       '<section><div class="section-title">Sauvegarde</div><div class="list"><button class="rowlink" data-act="go" data-arg="sauvegarde"><span>Sauvegarder mes contacts</span>' + I.chev + '</button><button class="rowlink" data-act="go" data-arg="installer"><span>Installer une sauvegarde</span>' + I.chev + '</button></div><p class="hint">' + (LS.get('lastBackup', 0) ? 'Dernière sauvegarde : ' + esc(new Date(LS.get('lastBackup', 0)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })) : 'Pas encore de sauvegarde. Sans elle, vos contacts ne sont que dans ce navigateur.') + '</p></section>' +
       '<section><div class="section-title">Sécurité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="supprimer"><span style="display:flex;gap:10px;align-items:center">' + I.trash + 'Supprimer mon identité</span>' + I.chev + '</button></div></section>' +
-      '<p class="hint center" style="padding-top:8px">Version ' + APP_VERSION + '</p>' +
+      '<p class="hint center" style="padding-top:8px">Version ' + APP_VERSION + ' · dernière synchronisation : ' + esc(LS.get('lastSync', 0) ? new Date(LS.get('lastSync', 0)).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'jamais') + '</p>' +
     '</div>';
   }
   function viewSupprimer() {

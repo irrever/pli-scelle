@@ -213,7 +213,12 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 @media (prefers-reduced-motion: reduce){.qr-build i:not(.l){animation:none;opacity:1;transform:none}}
 .qr-card.plain{background:none;border:0;box-shadow:none;padding:12px 0 4px}
 .qr-card.plain .qr-build{width:min(200px,58vw)}
-.qr-mini{display:block;flex:none;width:38px;height:38px;box-sizing:border-box;background:#fff;border-radius:7px}
+.qr-mini{display:grid;grid-template-columns:repeat(15,1fr);grid-template-rows:repeat(15,1fr);flex:none;width:38px;height:38px;padding:3px;box-sizing:border-box;background:#fff;border-radius:7px}
+.qr-mini i{display:block}
+.qr-mini i.l{background:transparent}
+.qr-mini i.f{background:#10233A}
+.qr-mini i:not(.l):not(.f){background:#10233A;animation:build 3.2s ease-in-out infinite both}
+@media (prefers-reduced-motion: reduce){.qr-mini i:not(.l):not(.f){animation:none;opacity:1;transform:none}}
 
 
 
@@ -262,7 +267,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v70';
+  const APP_VERSION = 'v71';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -990,8 +995,7 @@ button.chip{cursor:pointer;font:inherit}
   const thumbs = new Map();
   // Vignette vivante d’un message : le même dessin que les QR des contacts, propre à chaque message.
   function qrVignette(key, classe) {
-    const w = Math.round(52 * Math.min(3, window.devicePixelRatio || 1));
-    return '<canvas class="qr-thumb qr-mini' + (classe ? ' ' + classe : '') + '" aria-hidden="true" width="' + w + '" height="' + w + '" data-cells="' + qrMiniCells(key) + '"></canvas>';
+    return '<span class="qr-thumb qr-mini' + (classe ? ' ' + classe : '') + '" aria-hidden="true">' + qrGrille(key, true) + '</span>';
   }
   function qrThumb(key) {
     if (thumbs.has(key)) return thumbs.get(key);
@@ -1244,44 +1248,22 @@ button.chip{cursor:pointer;font:inherit}
     }
     return out;
   }
-  // Les petits QR vivants se dessinent sur un canevas : chaque case ne fait que varier de transparence, rien ne se déplace.
-  // Une seule boucle relit les canevas présents à chaque tour : elle reprend après chaque affichage, et ne dessine que ceux qui sont à l’écran.
-  let qrTimer = null;
-  function dessinerQR(cv, t) {
-    const ctx = cv.getContext && cv.getContext('2d');
-    if (!ctx) return;
-    const cases = cv.dataset.cells || '', n = 15, px = cv.width;
-    const cote = Math.floor(px * 0.92 / n), p = Math.floor((px - cote * n) / 2);
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, px, px);
+  // Grille d’un QR vivant : chaque case sombre est une cellule CSS qui respire à son propre rythme, comme le grand QR.
+  // « partage » : une case sur trois seulement respire (vignettes de messages, plus nombreuses à l’écran).
+  function qrGrille(key, partage) {
+    const cases = qrMiniCells(key);
+    let out = '', n = 0;
     for (let i = 0; i < cases.length; i++) {
       const k = cases[i];
-      if (k === '0') continue;
-      let a = 1;
-      if (k === '1') {
-        const ph = ((i * 37 + 11) % 97) / 97 * Math.PI * 2;   // chaque case a sa propre phase
-        a = 0.15 + 0.85 * (0.5 + 0.5 * Math.sin(t * Math.PI * 2 / 3.2 + ph));
-      }
-      ctx.globalAlpha = a;
-      ctx.fillStyle = '#10233A';
-      ctx.fillRect(p + (i % n) * cote, p + Math.floor(i / n) * cote, cote, cote);
+      if (k === '0') { out += '<i class="l"></i>'; continue; }
+      if (k === 'F') { out += '<i class="f"></i>'; continue; }
+      n++;
+      if (partage && n % 3 !== 0) { out += '<i class="f"></i>'; continue; }
+      const d = ((i * 37 + 11) % 97) / 97 * 2.4;   // délai propre à chaque case, stable d’un affichage à l’autre
+      out += '<i style="animation-delay:' + retardQR(d).toFixed(3) + 's"></i>';
     }
-    ctx.globalAlpha = 1;
+    return out;
   }
-  function demarrerQR() {
-    if (qrTimer) return;
-    const tour = () => {
-      qrTimer = null;
-      const cvs = document.querySelectorAll('canvas.qr-mini');
-      if (!cvs.length) return;
-      const t = Date.now() / 1000, h = window.innerHeight;
-      cvs.forEach((cv) => { const r = cv.getBoundingClientRect(); if (r.bottom > -20 && r.top < h + 20) dessinerQR(cv, t); });
-      qrTimer = setTimeout(tour, 90);
-    };
-    tour();
-  }
-  // Après chaque affichage : la boucle reprend si elle s’est arrêtée.
-  function suivreQR() { demarrerQR(); }
   function viewCreer() {
     if (!S.draftPseudo) S.draftPseudo = genPseudo();
     const note = S.arg === 'invite' ? notice('info', 'Vous répondez à une invitation. Une fois votre identité créée, vous pourrez accepter l’invitation.') : '';
@@ -1320,7 +1302,7 @@ button.chip{cursor:pointer;font:inherit}
     const ms = msgsAll();
     const cs = contacts();
     // Lien en pause ou à réactiver : la ligne est grisée, on ne peut plus l’ouvrir ; elle reste dans une section à part.
-    const miniQR = (c) => { const w = Math.round(38 * Math.min(3, window.devicePixelRatio || 1)); return '<canvas class="qr-mini" aria-hidden="true" width="' + w + '" height="' + w + '" data-cells="' + qrMiniCells(c.cid) + '"></canvas>'; };
+    const miniQR = (c) => '<span class="qr-mini" aria-hidden="true">' + qrGrille(c.cid) + '</span>';
     const ligne = (c) => {
       const n = ms.filter((m) => m.cid === c.cid && m.dir === 'in' && m.state === 'new' && !m.seen).length;
       if (c.pause || c.pend) {
@@ -1879,13 +1861,11 @@ button.chip{cursor:pointer;font:inherit}
       autoGrow();
       syncComposerAct();
       if (pres) window.scrollTo(0, document.documentElement.scrollHeight); else window.scrollTo(0, defile);
-      suivreQR();
       return;
     }
     app.__coque = coque;
     app.innerHTML = maj + flash + html;
     app.classList.toggle('meme-ecran', same);   // même écran redessiné : il ne rejoue pas son apparition
-    suivreQR();
     hydrateVoices();
     Object.keys(keep).forEach((id) => { const el = document.getElementById(id); if (el) el.value = keep[id]; });
     autoGrow();          // la zone reprend la hauteur du brouillon restauré…

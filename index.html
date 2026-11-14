@@ -254,7 +254,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v67';
+  const APP_VERSION = 'v68';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1153,7 +1153,7 @@ button.chip{cursor:pointer;font:inherit}
   function msgHTML(m) {
     if (m.kind === 'voice') return msgVoiceHTML(m);
     if (m.dir === 'out') return '<div class="tile mine"><img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt"><b>Message envoyé</b><span class="hint">' + (m.once === false ? 'Relisible' : 'Lecture unique') + '</span></span></div>';
-    if (m.state === 'new') return '<button class="tile ' + (m.seen ? 'read' : 'unread') + '" data-act="reveal" data-arg="' + esc(m.mid) + '"><img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt">' + (m.seen ? '<b>Message relisible</b><span class="hint">Toucher pour revoir</span>' : '<b>QR code reçu</b><span class="hint">Toucher pour lire</span><span class="nouveau">Nouveau</span>') + '</span></button>';
+    if (m.state === 'new') return '<button class="tile ' + (m.seen ? 'read' : 'unread') + '" data-act="reveal" data-arg="' + esc(m.mid) + '"><img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt">' + (m.seen ? '<b>Message relisible</b><span class="hint">Toucher pour revoir</span>' : '<b>QR code reçu</b><span class="hint">Toucher pour lire' + (m.once === false ? '' : ' · visible ' + Math.round(REVEAL_MS / 1000) + ' s, puis effacé') + '</span><span class="nouveau">Nouveau</span>') + '</span></button>';
     if (m.state === 'open') return '<div class="bubble">' + esc(m.text) + '<div class="bubble-timer" data-until="' + esc(m.until) + '">Se referme dans ' + Math.max(0, Math.ceil((m.until - Date.now()) / 1000)) + ' s</div></div>';
     return '<div class="tile read"><img class="qr-thumb faded" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt"><b>Message lu</b><span class="hint">Le contenu a été effacé</span></span></div>';
   }
@@ -2290,7 +2290,7 @@ button.chip{cursor:pointer;font:inherit}
     install: () => actInstall(),
     reactiver: () => actReactivate(),
     recharger: recharger,
-    togglemode: () => { S.once = S.once === false; updateOnceChip(); },
+    togglemode: () => { S.once = S.once === false; LS.set('lectureUnique', S.once !== false); updateOnceChip(); },
     voicerec: () => startVoice(true),
     plusmenu: () => { S.plusOpen = !S.plusOpen; render(); },
     voicestop: () => stopVoice(),
@@ -2635,6 +2635,7 @@ button.chip{cursor:pointer;font:inherit}
 
   async function init() {
     S.me = LS.get('me', null);
+    S.once = LS.get('lectureUnique', true) !== false;   // mode choisi par l’expéditeur, gardé sur cet appareil
     // Le prénom d’une invitation s’enregistre à mesure qu’on le tape : il reste sur ce téléphone, il n’est jamais envoyé.
     document.addEventListener('input', (e) => { if (e.target && e.target.id === 'invlabel' && S.screen === 'inviter' && S.arg) renommerInvitation(S.arg, e.target.value.trim().slice(0, 24)); });
     S.db = relayDb;

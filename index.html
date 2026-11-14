@@ -247,7 +247,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v54';
+  const APP_VERSION = 'v55';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -604,6 +604,7 @@ button.chip{cursor:pointer;font:inherit}
       case 'code': return onCode(m);
       case 'proof': return onProof(m);
       case 'mots': return onMots(m);
+      case 'mots-ok': return onMotsOk(m);
       case 'accept': return onAccept(m);
       case 'refuse': return onRefuse(m);
       case 'msg': return onMsg(m, docId);
@@ -686,6 +687,7 @@ button.chip{cursor:pointer;font:inherit}
     if (bons) {
       pend[idx] = Object.assign({}, p, { ok: true, recu: recus });
       LS.set('pending', pend);
+      await sendTo(m.from, { kind: 'mots-ok', inv: body.inv });
       S.needRender = true;
       return true;
     }
@@ -699,6 +701,16 @@ button.chip{cursor:pointer;font:inherit}
     dropPending(p.pid);
     await sendTo(m.from, { kind: 'refuse', inv: body.inv, why: 'mismatch' });
     S.flash = { t: 'Les mots ne correspondent pas : la demande est refusée.' };
+    S.needRender = true;
+    return true;
+  }
+  // Côté personne invitée : la personne qui invite a comparé les mots et les a confirmés. Il ne reste que le code à recevoir.
+  async function onMotsOk(m) {
+    const pend = pendingAll();
+    const idx = pend.findIndex((p) => p.type === 'remote-sent' && p.invId === m.inv && p.peer === m.from);
+    if (idx < 0) return false;
+    pend[idx] = Object.assign({}, pend[idx], { confirme: true });
+    LS.set('pending', pend);
     S.needRender = true;
     return true;
   }
@@ -862,7 +874,7 @@ button.chip{cursor:pointer;font:inherit}
     const map = {
       'ff-request': ['Une personne a scanné votre identité', 'Vérifier et répondre', 'demande'],
       'remote-claim': [esc(libelleInvitation(p) || 'Quelqu’un') + ' a accepté votre invitation', p.ok ? 'Envoyer le code, dans l’appli' : 'Voir la demande', 'lien-ouvert'],
-      'remote-sent': ['Demande envoyée', 'Voir l’attente', 'attente'],
+      'remote-sent': [p.confirme ? 'Mots confirmés par la personne' : 'Demande envoyée', 'Voir l’attente', 'attente'],
       'verif': [esc(p.peerPseudo || 'La personne') + ' vous demande des mots', 'Les lire à voix haute', 'verif'],
       'code': ['Code reçu', 'Finir l’invitation', 'finir'],
       'code-envoye': [esc(p.name || 'La personne') + ' a reçu son code', 'Pas encore ajouté : la personne doit toucher « Finir l’invitation »', 'lien-ouvert'],
@@ -1307,13 +1319,14 @@ button.chip{cursor:pointer;font:inherit}
     '</div>';
   }
   function viewAttente() {
+    const confirme = pendingAll().some((p) => p.type === 'remote-sent' && p.confirme);
     // Les 6 mots se calculent des deux côtés à partir des deux clés : le scanneur les voit dès l’envoi, en même temps que la personne.
     const aInvitation = pendingAll().some((p) => p.type === 'remote-sent');
     const words = S.words && S.words.length ? (aInvitation ? wordsBlock('Votre empreinte', 'Rien à toucher ici. La personne qui invite vous demandera trois de ces mots : vous les toucherez alors sur votre écran.') : wordsBlock('Mots d’empreinte à comparer','Comparez-les une seule fois, à voix haute ou au téléphone. S’ils sont identiques sur les deux écrans, vous pouvez communiquer en toute sécurité.')) : '';
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Demande envoyée' }) +
       '<div class="progress"><div class="pstep done"><span class="dot">' + '✓' + '</span><div><b>Demande envoyée</b><span>Votre demande a bien été transmise.</span></div></div>' +
-        '<div class="pstep now"><span class="dot">2</span><div><b>Confirmation de la personne</b><span>La personne vérifie les mots de son côté.</span></div></div>' +
-        '<div class="pstep"><span class="dot">3</span><div><b>Contact ajouté</b><span>Vous pourrez écrire.</span></div></div></div>' +
+        (confirme ? '<div class="pstep done"><span class="dot">✓</span><div><b>Mots confirmés par la personne</b><span>La personne a comparé les mots : rien à faire de votre côté.</span></div></div>' : '<div class="pstep now"><span class="dot">2</span><div><b>Confirmation de la personne</b><span>La personne vérifie les mots de son côté.</span></div></div>') +
+        (confirme ? '<div class="pstep now"><span class="dot">3</span><div><b>Recevoir le code</b><span>Il arrive dans l’appli : touchez-le pour finir.</span></div></div>' : '<div class="pstep"><span class="dot">3</span><div><b>Contact ajouté</b><span>Vous pourrez écrire.</span></div></div>') + '</div>' +
       words +
       '<div class="card center" style="align-items:center"><div class="spinner"></div><p class="hint">Gardez l’application ouverte. Cette page se met à jour seule.</p></div>' +
       '<div class="dock"><button class="btn btn-secondary" data-act="go" data-arg="accueil">Retour aux messages</button></div>' +

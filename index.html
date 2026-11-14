@@ -335,7 +335,11 @@ button.chip{cursor:pointer;font:inherit}
   function addContact(raw, pseudo, name) {
     const cs = contacts();
     const ex = cs.find((c) => c.raw === raw);
-    if (ex) return ex;
+    if (ex) {
+      // Déjà dans les contacts : le nom donné maintenant remplace l’ancien, au lieu d’être ignoré.
+      if (name && ex.name !== name) { ex.name = name; LS.set('contacts', cs); }
+      return ex;
+    }
     let label;
     do { label = randCode().slice(0, 3); } while (cs.some((c) => c.label === label));
     const c = { cid: rid(8), name: name, pseudo: pseudo || '', raw: raw, label: label, since: Date.now() };

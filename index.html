@@ -58,7 +58,7 @@ p{margin:0}
 .label{font-size:13px;font-weight:600;color:var(--ink-2);margin-top:4px}
 .field{width:100%;min-height:50px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font-size:16px;outline:none}
 .field:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
-textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
+textarea.field{resize:vertical;min-height:72px;font-size:16px;line-height:1.4}
 .code-input{font:600 22px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.18em;text-align:center;text-transform:uppercase}
 .input-row{display:flex;gap:8px;align-items:stretch}
 .input-row .field{flex:1;min-width:0}
@@ -175,7 +175,7 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 .composer-row .btn-plus{margin-bottom:5px}
 .capsule{flex:1;min-width:0;display:flex;align-items:flex-end;background:var(--surface);border:1px solid var(--line);border-radius:26px}
 .capsule:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
-.capsule .draft{flex:1;min-width:0;height:52px;min-height:52px;max-height:160px;resize:none;border:0;background:transparent;color:var(--ink);outline:none;font:inherit;font-size:14px;line-height:1.4;padding:15px 6px 11px 14px;overflow-y:auto}
+.capsule .draft{flex:1;min-width:0;height:52px;min-height:52px;max-height:160px;resize:none;border:0;background:transparent;color:var(--ink);outline:none;font:inherit;font-size:16px;line-height:1.4;padding:15px 6px 11px 14px;overflow-y:auto}
 .act-btn{width:36px;height:36px;min-width:36px;min-height:36px;margin:0 6px 8px 0;padding:0;border:0;border-radius:50%;display:grid;place-items:center;flex:none;cursor:pointer}
 .act-btn svg{width:18px;height:18px}
 .act-mic{background:var(--accent-soft);color:var(--accent)}
@@ -253,7 +253,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v62';
+  const APP_VERSION = 'v63';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1170,6 +1170,8 @@ button.chip{cursor:pointer;font:inherit}
   };
 
   // QR code décoratif de la page de création : les modules apparaissent et s'effacent, comme pendant une génération.
+  // Même phase à chaque affichage : une mise à jour de l’écran ne fait pas repartir l’animation des QR.
+  function retardQR(d) { return -(((Date.now() / 1000) + d) % 3.2); }
   function qrDecorCells() {
     const N = 21;
     let seed = 20260311;
@@ -1187,8 +1189,8 @@ button.chip{cursor:pointer;font:inherit}
         else if (r === 6) dark = c % 2 === 0;
         else if (c === 6) dark = r % 2 === 0;
         else dark = rnd() > 0.5;
-        const d = (rnd() * 2.4).toFixed(2);
-        out += dark ? '<i style="animation-delay:' + d + 's"></i>' : '<i class="l"></i>';
+        const d = rnd() * 2.4;
+        out += dark ? '<i style="animation-delay:' + retardQR(d).toFixed(3) + 's"></i>' : '<i class="l"></i>';
       }
     }
     return out;
@@ -1216,8 +1218,8 @@ button.chip{cursor:pointer;font:inherit}
         else if (r >= 8 && c < 7) dark = finder(r, c, 8, 0);
         else if (r === 7 || c === 7) dark = false;
         else dark = rnd() > 0.5;
-        const d = (rnd() * 2.4).toFixed(2);
-        out += dark ? '<i style="animation-delay:' + d + 's"></i>' : '<i class="l"></i>';
+        const d = rnd() * 2.4;
+        out += dark ? '<i style="animation-delay:' + retardQR(d).toFixed(3) + 's"></i>' : '<i class="l"></i>';
       }
     }
     return out;
@@ -1797,6 +1799,7 @@ button.chip{cursor:pointer;font:inherit}
     const pres = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 160;   // l’utilisateur était en bas
     // Nouvelle version : le bandeau suit l’utilisateur sur tous les écrans, pas seulement sur l’accueil.
     const maj = versionNouvelle && S.screen !== 'accueil' ? '<div class="pending-stack"><button class="notice warn" data-act="recharger">' + I.refresh + '<span class="grow">Nouvelle version (' + esc(versionNouvelle) + ') disponible<br><span class="more">Touchez pour la charger. Vos données restent sur cet appareil.</span></span>' + I.chev + '</button></div>' : '';
+    const defile = window.scrollY;
     app.innerHTML = maj + flash + html;
     hydrateVoices();
     Object.keys(keep).forEach((id) => { const el = document.getElementById(id); if (el) el.value = keep[id]; });
@@ -1804,8 +1807,9 @@ button.chip{cursor:pointer;font:inherit}
     syncComposerAct();   // …et le bon bouton : micro, ou envoi s’il y a du texte
     // Conversation : on s’ouvre sur le dernier message, et il suit les nouveaux si on était déjà en bas
     if (S.screen === 'conv' && (!same || pres)) window.scrollTo(0, document.documentElement.scrollHeight);
+    else if (same) window.scrollTo(0, defile);   // même écran mis à jour : on garde la position de lecture
     app.dataset.view = key;
-    if (focusId) { const el = document.getElementById(focusId); if (el) el.focus(); }
+    if (focusId) { const el = document.getElementById(focusId); if (el) el.focus({ preventScroll: true }); }
   }
   // Message dans la vue en cours ; sans zone dédiée, il s’affiche en haut.
   function setStatus(id, kind, text) {
@@ -2319,7 +2323,7 @@ button.chip{cursor:pointer;font:inherit}
     const c = sonContexte();
     if (!c || c.state === 'running') return;
     try {
-      c.resume().then(() => { S.needRender = true; }).catch(() => {});
+      c.resume().then(() => { if (S.screen === 'accueil') S.needRender = true; }).catch(() => {});
       const s = c.createBufferSource(); s.buffer = c.createBuffer(1, 1, 22050); s.connect(c.destination); s.start(0);
     } catch (e) { /* son indisponible sur ce téléphone */ }
   }

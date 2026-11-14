@@ -210,7 +210,8 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 .qr-build i:not(.l){background:#10233A;animation:build 3.2s ease-in-out infinite both}
 .qr-build i.l{background:transparent}
 @keyframes build{0%{opacity:0;transform:scale(.2)}35%{opacity:1;transform:scale(1)}75%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.2)}}
-@media (prefers-reduced-motion: reduce){.qr-build i:not(.l){animation:none;opacity:1;transform:none}}
+@keyframes fondu{0%,100%{opacity:.15}50%{opacity:1}}
+@media (prefers-reduced-motion: reduce){.qr-build i:not(.l){animation-name:fondu}}
 .qr-card.plain{background:none;border:0;box-shadow:none;padding:12px 0 4px}
 .qr-card.plain .qr-build{width:min(200px,58vw)}
 .qr-mini{display:grid;grid-template-columns:repeat(15,1fr);grid-template-rows:repeat(15,1fr);flex:none;width:38px;height:38px;padding:3px;box-sizing:border-box;background:#fff;border-radius:7px}
@@ -218,7 +219,7 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 .qr-mini i.l{background:transparent}
 .qr-mini i.f{background:#10233A}
 .qr-mini i:not(.l):not(.f){background:#10233A;animation:build 3.2s ease-in-out infinite both}
-@media (prefers-reduced-motion: reduce){.qr-mini i:not(.l):not(.f){animation:none;opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.qr-mini i:not(.l):not(.f){animation-name:fondu}}
 
 
 
@@ -267,7 +268,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v71';
+  const APP_VERSION = 'v72';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();

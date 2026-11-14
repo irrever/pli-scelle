@@ -684,7 +684,7 @@ button.chip{cursor:pointer;font:inherit}
       return true;
     }
     if ((p.niveau || 1) === 1) {
-      pend[idx] = Object.assign({}, p, { niveau: 2, pos: [1, 2, 3, 4, 5, 6], ok: false });
+      pend[idx] = Object.assign({}, p, { niveau: 2, pos: [1, 2, 3, 4, 5, 6], ok: false, mots: mes });
       LS.set('pending', pend);
       await sendTo(m.from, { kind: 'verif', inv: body.inv, pos: [1, 2, 3, 4, 5, 6], pseudo: S.me.pseudo, niveau: 2 });
       S.needRender = true;
@@ -1326,6 +1326,7 @@ button.chip{cursor:pointer;font:inherit}
     '</div>';
   }
   // Côté personne qui invite : l’invitée touche les mots sur son écran ; l’appli les compare, sans rien taper.
+  // Au second essai, les six mots sont aussi affichés ici : on peut les voir, comme sur son écran.
   function viewLienOuvert() {
     const p = pendingById(S.arg);
     if (!p) return viewAccueil();
@@ -1336,18 +1337,23 @@ button.chip{cursor:pointer;font:inherit}
       '</div>';
     }
     const titre = '<h1>' + esc(libelleInvitation(p) || 'Quelqu’un') + ' a accepté votre invitation</h1>';
+    const deuxieme = (p.niveau || 1) === 2 && Array.isArray(p.mots) && p.mots.length >= 6;
+    const grille = deuxieme
+      ? '<div class="words-grid">' + [0, 1, 2, 3, 4, 5].map((k) => '<div class="word"><span class="word-n">' + (k + 1) + '</span><span>' + esc(p.mots[k]) + '</span></div>').join('') + '</div>'
+      : '';
     if (p.ok) {
       return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) +
         '<div>' + titre + '<p class="lead" style="margin-top:6px">Identiques : vous pouvez envoyer le code, dans l’appli.</p></div>' +
-        personCard(p.peerPseudo || 'Personne', 'Mots vérifiés') + nameField(libelleInvitation(p)) +
+        grille + personCard(p.peerPseudo || 'Personne', 'Mots vérifiés') + nameField(libelleInvitation(p)) +
         '<div class="dock stack"><button class="btn btn-primary" data-act="envoicode" data-arg="' + esc(p.pid) + '">Envoyer le code, dans l’appli</button><button class="btn btn-danger" data-act="refuseremote" data-arg="' + esc(p.pid) + '">Annuler la demande</button></div>' +
       '</div>';
     }
-    const explication = (p.niveau || 1) === 2
-      ? 'Pas les mêmes au premier essai : elle touche maintenant les six mots. C’est la dernière chance.'
+    const explication = deuxieme
+      ? 'Pas les mêmes au premier essai : elle touche maintenant les six mots, qui sont aussi sur son écran. C’est la dernière chance.'
       : 'Elle touche les mots demandés sur son écran. L’appli les compare : vous n’avez rien à taper.';
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) +
       '<div>' + titre + '<p class="lead" style="margin-top:6px">' + explication + '</p></div>' +
+      grille +
       personCard(p.peerPseudo || 'Personne', 'Invitation validée') +
       '<section class="card center" style="align-items:center"><div class="spinner"></div><p class="hint">En attente de ses mots.</p></section>' +
       '<div class="dock stack"><button class="btn btn-danger" data-act="refuseremote" data-arg="' + esc(p.pid) + '">Annuler la demande</button></div>' +

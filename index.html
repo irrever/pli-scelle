@@ -253,7 +253,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v61';
+  const APP_VERSION = 'v62';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -338,6 +338,12 @@ button.chip{cursor:pointer;font:inherit}
   function setInvites(l) { LS.set('invites', l); }
   function renommerInvitation(id, libelle) { const l = invitesAll(); const i = l.find((x) => x.id === id); if (i) { i.label = libelle; setInvites(l); } }
   function markInviteClosed(id) { const l = invitesAll(); const i = l.find((x) => x.id === id); if (i) i.status = 'closed'; setInvites(l); }
+  // Une personne déjà dans les contacts garde une seule fiche : le message le dit, au lieu d’annoncer un nouveau contact.
+  function messageDejaLa(ancien, nouveau) {
+    return ancien === nouveau
+      ? '« ' + nouveau + ' » est déjà dans vos contacts. Une seule fiche.'
+      : '« ' + ancien + ' » est déjà dans vos contacts : le nom devient « ' + nouveau + ' ». Une seule fiche.';
+  }
   function addContact(raw, pseudo, name) {
     const cs = contacts();
     const ex = cs.find((c) => c.raw === raw);
@@ -735,10 +741,11 @@ button.chip{cursor:pointer;font:inherit}
     const attendu = inv ? await proofFor(unb64u(inv.K), m.from) : null;
     pend.splice(idx, 1); LS.set('pending', pend);
     if (attendu !== m.proof) { await sendTo(m.from, { kind: 'refuse', inv: m.inv, why: 'badcode' }); S.flash = { t: 'Le code ne correspond pas : la demande est refusée.' }; return true; }
+    const avant = contacts().find((c) => c.raw === p.peer);
     const cProof = addContact(p.peer, p.peerPseudo, p.name);
     await sendTo(p.peer, { kind: 'accept', pseudo: S.me.pseudo, inv: m.inv });
     markInviteClosed(m.inv);
-    S.flash = { t: p.name + ' est ajoutée.', ok: true };
+    S.flash = avant ? { t: messageDejaLa(avant.name, p.name), ok: true } : { t: p.name + ' est ajoutée.', ok: true };
     if (S.screen === 'lien-ouvert' && S.arg === p.pid) go('contact', cProof.cid);
     return true;
   }
@@ -2056,7 +2063,9 @@ button.chip{cursor:pointer;font:inherit}
     if (!name) return setStatus('formstatus', 'err', 'Donnez un nom à ce contact.');
     const p = pendingById(pid);
     if (!p) return go('accueil');
+    const avant = contacts().find((x) => x.raw === p.peer);
     const c = addContact(p.peer, p.peerPseudo, name);
+    if (avant) S.flash = { t: messageDejaLa(avant.name, name), ok: true };
     dropPending(pid);
     go('contact', c.cid);
   }

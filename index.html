@@ -214,7 +214,7 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 @media (prefers-reduced-motion: reduce){.qr-build i:not(.l){animation-name:fondu}}
 .qr-card.plain{background:none;border:0;box-shadow:none;padding:12px 0 4px}
 .qr-card.plain .qr-build{width:min(200px,58vw)}
-.qr-mini{display:grid;grid-template-columns:repeat(15,1fr);grid-template-rows:repeat(15,1fr);flex:none;width:38px;height:38px;padding:3px;box-sizing:border-box;background:#fff;border-radius:7px}
+.qr-mini{display:grid;grid-template-columns:repeat(21,1fr);grid-template-rows:repeat(21,1fr);flex:none;width:46px;height:46px;padding:3px;box-sizing:border-box;background:#fff;border-radius:7px}
 .qr-mini i{display:block}
 .qr-mini i.l{background:transparent}
 .qr-mini i.f{background:#10233A}
@@ -268,7 +268,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v72';
+  const APP_VERSION = 'v73';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1229,7 +1229,7 @@ button.chip{cursor:pointer;font:inherit}
   // QR code vivant de chaque contact : petit, décoratif, et toujours le même motif pour une même personne.
   // Chaque case vaut « F » (repère, toujours plein), « 1 » (case qui respire) ou « 0 » (vide).
   function qrMiniCells(cid) {
-    const N = 15;
+    const N = 21;
     let seed = 7;
     for (const ch of String(cid)) seed = (seed * 31 + ch.charCodeAt(0)) % 2147483647;
     if (!seed) seed = 7;
@@ -1238,11 +1238,14 @@ button.chip{cursor:pointer;font:inherit}
     let out = '';
     for (let r = 0; r < N; r++) {
       for (let c = 0; c < N; c++) {
+        const sep = (r === 7 && c <= 7) || (c === 7 && r <= 7) || (r === 7 && c >= 13) || (c === 13 && r <= 7) || (r === 13 && c <= 7) || (c === 7 && r >= 13);
         let k;
         if (r < 7 && c < 7) k = finder(r, c, 0, 0) ? 'F' : '0';
-        else if (r < 7 && c >= 8) k = finder(r, c, 0, 8) ? 'F' : '0';
-        else if (r >= 8 && c < 7) k = finder(r, c, 8, 0) ? 'F' : '0';
-        else if (r === 7 || c === 7) k = '0';
+        else if (r < 7 && c >= 14) k = finder(r, c, 0, 14) ? 'F' : '0';
+        else if (r >= 14 && c < 7) k = finder(r, c, 14, 0) ? 'F' : '0';
+        else if (sep) k = '0';
+        else if (r === 6) k = c % 2 === 0 ? '1' : '0';
+        else if (c === 6) k = r % 2 === 0 ? '1' : '0';
         else k = rnd() > 0.5 ? '1' : '0';
         out += k;
       }
@@ -1250,7 +1253,7 @@ button.chip{cursor:pointer;font:inherit}
     return out;
   }
   // Grille d’un QR vivant : chaque case sombre est une cellule CSS qui respire à son propre rythme, comme le grand QR.
-  // « partage » : une case sur trois seulement respire (vignettes de messages, plus nombreuses à l’écran).
+  // « partage » : une case sur deux seulement respire (vignettes de messages, plus nombreuses à l’écran).
   function qrGrille(key, partage) {
     const cases = qrMiniCells(key);
     let out = '', n = 0;
@@ -1259,7 +1262,7 @@ button.chip{cursor:pointer;font:inherit}
       if (k === '0') { out += '<i class="l"></i>'; continue; }
       if (k === 'F') { out += '<i class="f"></i>'; continue; }
       n++;
-      if (partage && n % 3 !== 0) { out += '<i class="f"></i>'; continue; }
+      if (partage && n % 2 !== 0) { out += '<i class="f"></i>'; continue; }
       const d = ((i * 37 + 11) % 97) / 97 * 2.4;   // délai propre à chaque case, stable d’un affichage à l’autre
       out += '<i style="animation-delay:' + retardQR(d).toFixed(3) + 's"></i>';
     }

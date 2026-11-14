@@ -253,7 +253,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v63';
+  const APP_VERSION = 'v64';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -745,8 +745,10 @@ button.chip{cursor:pointer;font:inherit}
     const cProof = addContact(p.peer, p.peerPseudo, p.name);
     await sendTo(p.peer, { kind: 'accept', pseudo: S.me.pseudo, inv: m.inv });
     markInviteClosed(m.inv);
-    S.flash = avant ? { t: messageDejaLa(avant.name, p.name), ok: true } : { t: p.name + ' est ajoutée.', ok: true };
     if (S.screen === 'lien-ouvert' && S.arg === p.pid) go('contact', cProof.cid);
+    // Posé après le changement d’écran : le message reste visible au rendu qui suit ce traitement (sinon le rendu du sondage l’efface).
+    S.flash = avant ? { t: messageDejaLa(avant.name, p.name), ok: true } : { t: p.name + ' est ajoutée.', ok: true };
+    S.needRender = true;
     return true;
   }
   async function onAccept(m) {

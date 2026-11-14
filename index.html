@@ -141,6 +141,8 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
 .word{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line-2);font-weight:600}
 .word-n{font:500 11px "IBM Plex Mono",ui-monospace,monospace;color:var(--muted);min-width:14px}
 .word.pick{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:100%;cursor:pointer}
+.word.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset}
 .eyebrow{font:500 12px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 /* carte d’identité */
 .id-card{background:var(--id-bg);color:var(--id-ink);border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:10px;box-shadow:0 12px 28px rgba(16,35,58,.25)}
@@ -598,6 +600,7 @@ button.chip{cursor:pointer;font:inherit}
       case 'verif': return onVerif(m);
       case 'code': return onCode(m);
       case 'proof': return onProof(m);
+      case 'mots': return onMots(m);
       case 'accept': return onAccept(m);
       case 'refuse': return onRefuse(m);
       case 'msg': return onMsg(m, docId);
@@ -635,8 +638,8 @@ button.chip{cursor:pointer;font:inherit}
     setInvites(invs);
     await closeInviteDoc(inv.id);
     const pos = tirerPositions();
-    pushPending({ type: 'remote-claim', peer: m.from, peerPseudo: m.pseudo, invId: m.inv, pos: pos });
-    await sendTo(m.from, { kind: 'verif', inv: m.inv, pos: pos, pseudo: S.me.pseudo });
+    pushPending({ type: 'remote-claim', peer: m.from, peerPseudo: m.pseudo, invId: m.inv, pos: pos, niveau: 1, ok: false });
+    await sendTo(m.from, { kind: 'verif', inv: m.inv, pos: pos, pseudo: S.me.pseudo, niveau: 1 });
     return true;
   }
   // Côté personne invitée : l’inviteur lui demande trois mots précis ; elle les lit à voix haute.
@@ -644,7 +647,7 @@ button.chip{cursor:pointer;font:inherit}
     const pend = pendingAll();
     const idx = pend.findIndex((p) => p.type === 'remote-sent' && p.invId === m.inv && p.peer === m.from);
     if (idx < 0) return false;
-    pend[idx] = Object.assign({}, pend[idx], { type: 'verif', pos: m.pos, peerPseudo: m.pseudo || pend[idx].peerPseudo });
+    pend[idx] = Object.assign({}, pend[idx], { type: 'verif', pos: m.pos, niveau: m.niveau || 1, peerPseudo: m.pseudo || pend[idx].peerPseudo });
     LS.set('pending', pend);
     S.routed.delete(pend[idx].pid);
     return true;
@@ -658,6 +661,39 @@ button.chip{cursor:pointer;font:inherit}
     pend[idx] = Object.assign({}, pend[idx], { type: 'code', code: body.code, salt: body.salt });
     LS.set('pending', pend);
     S.routed.delete(pend[idx].pid);
+    return true;
+  }
+  // Côté personne qui invite : les mots touchés par l’invitée sont comparés aux siens. Rien n’est tapé.
+  // Premier essai faux : l’appli demande les six mots (dernière chance). Second essai faux : refus.
+  async function onMots(m) {
+    const body = await decryptFrom(await sharedKey(m.from), m.iv, m.ct);
+    const pend = pendingAll();
+    const idx = pend.findIndex((p) => p.type === 'remote-claim' && p.invId === body.inv && p.peer === m.from);
+    if (idx < 0) return false;
+    const p = pend[idx];
+    if ((body.niveau || 1) !== (p.niveau || 1)) return false;
+    const mes = await wordsFor(unb64u(S.me.raw), unb64u(m.from));
+    const demandes = (p.pos || []).slice().sort((a, b) => a - b);
+    const recus = (body.mots || []).map((x) => x.p).sort((a, b) => a - b);
+    const memesPositions = recus.length === demandes.length && recus.every((q, i) => q === demandes[i]);
+    const bons = memesPositions && (body.mots || []).every((x) => normMot(x.m) === normMot(mes[x.p - 1]));
+    if (bons) {
+      pend[idx] = Object.assign({}, p, { ok: true });
+      LS.set('pending', pend);
+      S.needRender = true;
+      return true;
+    }
+    if ((p.niveau || 1) === 1) {
+      pend[idx] = Object.assign({}, p, { niveau: 2, pos: [1, 2, 3, 4, 5, 6], ok: false });
+      LS.set('pending', pend);
+      await sendTo(m.from, { kind: 'verif', inv: body.inv, pos: [1, 2, 3, 4, 5, 6], pseudo: S.me.pseudo, niveau: 2 });
+      S.needRender = true;
+      return true;
+    }
+    dropPending(p.pid);
+    await sendTo(m.from, { kind: 'refuse', inv: body.inv, why: 'mismatch' });
+    S.flash = { t: 'Les mots ne correspondent pas : la demande est refusée.' };
+    S.needRender = true;
     return true;
   }
   // Côté personne qui invite : la personne prouve qu’elle a le code. Le contact est créé ici, puis l’acceptation part.
@@ -819,7 +855,7 @@ button.chip{cursor:pointer;font:inherit}
   function noticeHTML(p) {
     const map = {
       'ff-request': ['Une personne a scanné votre identité', 'Vérifier et répondre', 'demande'],
-      'remote-claim': [esc(libelleInvitation(p) || 'Quelqu’un') + ' a accepté votre invitation', 'Vérifier les mots', 'lien-ouvert'],
+      'remote-claim': [esc(libelleInvitation(p) || 'Quelqu’un') + ' a accepté votre invitation', p.ok ? 'Envoyer le code, dans l’appli' : 'Voir la demande', 'lien-ouvert'],
       'remote-sent': ['Demande envoyée', 'Voir l’attente', 'attente'],
       'verif': [esc(p.peerPseudo || 'La personne') + ' vous demande des mots', 'Les lire à voix haute', 'verif'],
       'code': ['Code reçu', 'Finir l’invitation', 'finir'],
@@ -1199,7 +1235,7 @@ button.chip{cursor:pointer;font:inherit}
     const date = (t) => esc(new Date(t).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }));
     // Celle qui a déjà répondu passe en premier, en évidence, et s’ouvre directement sur la demande.
     const aRepondu = (i) => pendingAll().some((p) => p.type === 'remote-claim' && p.invId === i.id);
-    const reponse = (i) => { const p = pendingAll().find((x) => x.type === 'remote-claim' && x.invId === i.id); return '<button class="notice alert" data-act="openp" data-arg="lien-ouvert|' + esc(p.pid) + '">' + I.inbox + '<span class="grow"><b>' + esc(i.label || 'Sans prénom') + ' a répondu</b><br><span class="more">Vérifiez trois mots, puis envoyez le code, dans l’appli</span></span>' + I.chev + '</button>'; };
+    const reponse = (i) => { const p = pendingAll().find((x) => x.type === 'remote-claim' && x.invId === i.id); return '<button class="notice alert" data-act="openp" data-arg="lien-ouvert|' + esc(p.pid) + '">' + I.inbox + '<span class="grow"><b>' + esc(i.label || 'Sans prénom') + ' a répondu</b><br><span class="more">' + (p.ok ? 'Mots identiques : envoyez le code, dans l’appli' : 'Elle touche les mots demandés sur son écran') + '</span></span>' + I.chev + '</button>'; };
     const attente = (i) => '<button class="rowlink" data-act="voirinv" data-arg="' + esc(i.id) + '"><span><b>' + esc(i.label || 'Sans prénom') + '</b><br><span class="hint">En attente · valable jusqu’au ' + date(i.exp) + '</span></span>' + I.chev + '</button>';
     const repondues = ouvertes.filter(aRepondu), enAttente = ouvertes.filter((i) => !aRepondu(i));
     return '<section class="stack"><div class="section-title">Invitations en attente</div>' + repondues.map(reponse).join('') +
@@ -1289,43 +1325,57 @@ button.chip{cursor:pointer;font:inherit}
       '<div class="dock stack"><button class="btn btn-primary" data-act="confirmff" data-arg="' + esc(p.pid) + '">Les mots sont identiques</button><button class="btn btn-danger" data-act="drop" data-arg="' + esc(p.pid) + '">Ce n’est pas la bonne personne</button></div>' +
     '</div>';
   }
-  // Côté personne qui invite : vérifier les trois mots, puis envoyer le code dans l’appli.
+  // Côté personne qui invite : l’invitée touche les mots sur son écran ; l’appli les compare, sans rien taper.
   function viewLienOuvert() {
     const p = pendingById(S.arg);
     if (!p) return viewAccueil();
-    const pos = p.pos || [];
-    const liste = pos.join(', ').replace(/, (\d)$/, ' et $1');
     if (p.type === 'code-envoye') {
       return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) +
         '<div><h1>' + esc(p.name || 'La personne') + ' a reçu son code</h1><p class="lead" style="margin-top:6px">Le code est parti dans l’appli. Il reste à ce qu’elle finisse l’invitation.</p></div>' +
         '<div class="dock stack"><button class="btn btn-danger" data-act="refuseremote" data-arg="' + esc(p.pid) + '">Annuler l’invitation</button></div>' +
       '</div>';
     }
-    const verifie = S.verifFait && S.verifPid === p.pid;
-    const champs = pos.map((n, k) => '<label class="label" for="v' + k + '">Mot ' + n + '</label><input id="v' + k + '" class="field" autocomplete="off" autocapitalize="none">').join('');
-    const resultat = verifie ? notice(S.verifOk ? 'ok' : 'err', S.verifOk ? 'Identiques : vous pouvez envoyer le code.' : 'Pas les mêmes : ne continuez pas.') : '';
-    const suite = verifie && S.verifOk
-      ? nameField(libelleInvitation(p)) + '<div class="dock stack"><button class="btn btn-primary" data-act="envoicode" data-arg="' + esc(p.pid) + '">Envoyer le code, dans l’appli</button><button class="btn btn-danger" data-act="refuseremote" data-arg="' + esc(p.pid) + '">Annuler la demande</button></div>'
-      : '<div class="dock stack"><button class="btn btn-danger" data-act="refuseremote" data-arg="' + esc(p.pid) + '">Annuler la demande</button></div>';
+    const titre = '<h1>' + esc(libelleInvitation(p) || 'Quelqu’un') + ' a accepté votre invitation</h1>';
+    if (p.ok) {
+      return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) +
+        '<div>' + titre + '<p class="lead" style="margin-top:6px">Identiques : vous pouvez envoyer le code, dans l’appli.</p></div>' +
+        personCard(p.peerPseudo || 'Personne', 'Mots vérifiés') + nameField(libelleInvitation(p)) +
+        '<div class="dock stack"><button class="btn btn-primary" data-act="envoicode" data-arg="' + esc(p.pid) + '">Envoyer le code, dans l’appli</button><button class="btn btn-danger" data-act="refuseremote" data-arg="' + esc(p.pid) + '">Annuler la demande</button></div>' +
+      '</div>';
+    }
+    const explication = (p.niveau || 1) === 2
+      ? 'Pas les mêmes au premier essai : elle touche maintenant les six mots. C’est la dernière chance.'
+      : 'Elle touche les mots demandés sur son écran. L’appli les compare : vous n’avez rien à taper.';
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) +
-      '<div><h1>' + esc(libelleInvitation(p) || 'Quelqu’un') + ' a accepté votre invitation</h1><p class="lead" style="margin-top:6px">Demandez-lui à voix haute les mots ' + liste + ', puis tapez ce qu’elle vous dit.</p></div>' +
+      '<div>' + titre + '<p class="lead" style="margin-top:6px">' + explication + '</p></div>' +
       personCard(p.peerPseudo || 'Personne', 'Invitation validée') +
-      '<section class="card form">' + champs +
-        '<div class="dock stack" style="position:static"><button class="btn btn-secondary" data-act="verifmots" data-arg="' + esc(p.pid) + '">Vérifier les mots</button></div>' +
-        resultat +
-      '</section>' + suite +
+      '<section class="card center" style="align-items:center"><div class="spinner"></div><p class="hint">En attente de ses mots.</p></section>' +
+      '<div class="dock stack"><button class="btn btn-danger" data-act="refuseremote" data-arg="' + esc(p.pid) + '">Annuler la demande</button></div>' +
     '</div>';
   }
-  // Côté personne invitée : l’inviteur lui demande trois mots précis ; elle les lit à voix haute.
+  // Côté personne invitée : l’inviteur lui demande des mots précis ; elle les touche sur son écran, puis envoie.
   function viewVerif() {
     const p = pendingById(S.arg);
     if (!p || !p.pos) return viewAccueil();
     const mots = S.words || [];
+    const deuxieme = (p.niveau || 1) === 2;
     const liste = p.pos.join(', ').replace(/, (\d)$/, ' et $1');
+    const need = p.pos.length;
+    const touches = S.selMots && S.selMots.pid === p.pid ? S.selMots.idx : [];
+    const nom = esc(p.peerPseudo || 'La personne');
+    const lead = deuxieme
+      ? nom + ' vous demande les six mots. Au premier essai, les mots ne correspondaient pas : c’est la dernière chance. Touchez les six, puis envoyez.'
+      : nom + ' vous demande les mots ' + liste + '. Touchez-les sur votre écran, puis envoyez.';
+    const tuiles = [0, 1, 2, 3, 4, 5].map((k) => {
+      const touche = touches.indexOf(k) >= 0;
+      const demande = p.pos.indexOf(k + 1) >= 0;
+      return '<button class="word' + (demande ? ' pick' : '') + (touche ? ' sel' : '') + '" data-act="touchemot" data-arg="' + esc(p.pid) + '|' + k + '" aria-pressed="' + (touche ? 'true' : 'false') + '"><span class="word-n">' + (touche ? '✓ ' : '') + (k + 1) + '</span><span>' + esc(mots[k] || '') + '</span></button>';
+    }).join('');
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Vérification' }) +
-      '<div><h1>Vérification des mots</h1><p class="lead" style="margin-top:6px">' + esc(p.peerPseudo || 'La personne') + ' vous demande les mots ' + liste + '. Lisez-les à voix haute, au téléphone ou en face à face.</p></div>' +
-      '<div class="words-grid">' + [0, 1, 2, 3, 4, 5].map((k) => '<div class="word' + (p.pos.indexOf(k + 1) >= 0 ? ' pick' : '') + '"><span class="word-n">' + (k + 1) + '</span><span>' + esc(mots[k] || '') + '</span></div>').join('') + '</div>' +
-      '<p class="hint" style="text-align:center">Ensuite, son code arrive ici, dans l’appli.</p>' +
+      '<div><h1>Vérification des mots</h1><p class="lead" style="margin-top:6px">' + lead + '</p></div>' +
+      '<div class="words-grid">' + tuiles + '</div>' +
+      '<p class="hint" style="text-align:center">Mots touchés : ' + touches.length + ' sur ' + need + '</p>' +
+      '<div class="dock stack"><button class="btn btn-primary" data-act="envoimots" data-arg="' + esc(p.pid) + '"' + (touches.length === need ? '' : ' disabled') + '>Envoyer ces mots</button></div>' +
     '</div>';
   }
   // Côté personne invitée : le code est déjà rempli ; un seul geste pour finir.
@@ -1869,23 +1919,26 @@ button.chip{cursor:pointer;font:inherit}
     S.scanKind = null; S.scanText = ''; S.invite = null;
     go('attente');
   }
-  // Les mots tapés par l’inviteur sont comparés aux siens : les deux listes viennent des deux clés, rien ne transite par l’appli.
+  // Les mots touchés par l’invitée sont comparés aux siens : les deux listes viennent des deux clés.
   function normMot(s) { return String(s || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
-  async function actVerifierMots(pid) {
+  // Les mots touchés partent chiffrés pour la personne qui invite, seule à pouvoir les comparer aux siens.
+  async function actEnvoyerMots(pid) {
     const p = pendingById(pid);
-    if (!p || !p.pos) return go('accueil');
-    const mots = S.words && S.words.length ? S.words : await wordsFor(unb64u(S.me.raw), unb64u(p.peer));
-    S.words = mots;
-    S.verifPid = pid; S.verifFait = true;
-    S.verifOk = p.pos.every((n, k) => { const saisi = normMot((document.getElementById('v' + k) || {}).value); return saisi !== '' && saisi === normMot(mots[n - 1]); });
-    go('lien-ouvert', pid);
+    if (!p || p.type !== 'verif' || !p.pos) return go('accueil');
+    const touches = S.selMots && S.selMots.pid === pid ? S.selMots.idx.slice().sort((a, b) => a - b) : [];
+    if (touches.length !== p.pos.length) return;
+    const mots = await wordsFor(unb64u(S.me.raw), unb64u(p.peer));
+    await sendAuth(p.peer, 'mots', { inv: p.invId, niveau: p.niveau || 1, mots: touches.map((k) => ({ p: k + 1, m: mots[k] })) });
+    LS.set('pending', pendingAll().map((x) => x.pid === pid ? { pid: x.pid, at: Date.now(), type: 'remote-sent', peer: x.peer, peerPseudo: x.peerPseudo, invId: x.invId } : x));
+    S.selMots = null; S.words = mots;
+    go('attente');
   }
   // Les mots correspondent : le code part dans l’appli, chiffré pour cette seule personne.
   async function actEnvoyerCode(pid) {
     const name = nameValue();
     if (!name) return setStatus('formstatus', 'err', 'Donnez un nom à ce contact.');
     const p = pendingById(pid);
-    if (!p || S.verifPid !== pid || !S.verifOk) return go('lien-ouvert', pid);
+    if (!p || !p.ok) return go('lien-ouvert', pid);
     const inv = invitesAll().find((i) => i.id === p.invId);
     if (!inv) return go('accueil');
     await sendAuth(p.peer, 'code', { inv: p.invId, code: inv.code, salt: inv.salt });
@@ -1904,10 +1957,10 @@ button.chip{cursor:pointer;font:inherit}
     S.words = await wordsFor(unb64u(S.me.raw), unb64u(p.peer));
     go('attente');
   }
-  // Refus ou annulation : la personne voit pourquoi. « Les mots ne correspondent pas » si la vérification a échoué.
+  // Annulation par la personne qui invite : l’invitée voit « La personne a annulé la demande ».
   async function actRefuseRemote(pid) {
     const p = pendingById(pid);
-    const why = S.verifFait && !S.verifOk ? 'mismatch' : 'cancelled';
+    const why = 'cancelled';
     if (p) { try { await sendTo(p.peer, { kind: 'refuse', inv: p.invId, why: why }); } catch (e) {} }
     dropPending(pid);
     S.verifFait = false; S.verifOk = false;
@@ -2045,7 +2098,15 @@ button.chip{cursor:pointer;font:inherit}
     sharelink: actShareLink,
     saveqr: actSaveQR,
     cancelinv: actCancelInv,
-    verifmots: actVerifierMots,
+    touchemot: (arg) => {
+      const [pid, k] = String(arg || '').split('|');
+      const i = Number(k);
+      if (!S.selMots || S.selMots.pid !== pid) S.selMots = { pid: pid, idx: [] };
+      const j = S.selMots.idx.indexOf(i);
+      if (j >= 0) S.selMots.idx.splice(j, 1); else S.selMots.idx.push(i);
+      render();
+    },
+    envoimots: actEnvoyerMots,
     envoicode: actEnvoyerCode,
     finirinvite: actFinirInvite,
     refuseremote: actRefuseRemote,

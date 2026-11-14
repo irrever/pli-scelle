@@ -247,7 +247,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v52';
+  const APP_VERSION = 'v53';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -642,6 +642,8 @@ button.chip{cursor:pointer;font:inherit}
     await closeInviteDoc(inv.id);
     const pos = tirerPositions();
     const mots = await wordsFor(unb64u(S.me.raw), unb64u(m.from));
+    // Une seule demande en cours par personne : l’ancienne demande de la même personne (autre invitation) est retirée
+    LS.set('pending', pendingAll().filter((p) => !(p.type === 'remote-claim' && p.peer === m.from && p.invId !== m.inv)));
     pushPending({ type: 'remote-claim', peer: m.from, peerPseudo: m.pseudo, invId: m.inv, pos: pos, niveau: 1, ok: false, mots: mots });
     await sendTo(m.from, { kind: 'verif', inv: m.inv, pos: pos, pseudo: S.me.pseudo, niveau: 1 });
     return true;
@@ -1299,7 +1301,7 @@ button.chip{cursor:pointer;font:inherit}
   function viewAttente() {
     // Les 6 mots se calculent des deux côtés à partir des deux clés : le scanneur les voit dès l’envoi, en même temps que la personne.
     const aInvitation = pendingAll().some((p) => p.type === 'remote-sent');
-    const words = S.words && S.words.length ? (aInvitation ? wordsBlock('Mots de vérification', 'La personne vous demandera trois de ces mots, à lire à voix haute.') : wordsBlock('Mots d’empreinte à comparer','Comparez-les une seule fois, à voix haute ou au téléphone. S’ils sont identiques sur les deux écrans, vous pouvez communiquer en toute sécurité.')) : '';
+    const words = S.words && S.words.length ? (aInvitation ? wordsBlock('Votre empreinte', 'Rien à toucher ici. La personne qui invite vous demandera trois de ces mots : vous les toucherez alors sur votre écran.') : wordsBlock('Mots d’empreinte à comparer','Comparez-les une seule fois, à voix haute ou au téléphone. S’ils sont identiques sur les deux écrans, vous pouvez communiquer en toute sécurité.')) : '';
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Demande envoyée' }) +
       '<div class="progress"><div class="pstep done"><span class="dot">' + '✓' + '</span><div><b>Demande envoyée</b><span>Votre demande a bien été transmise.</span></div></div>' +
         '<div class="pstep now"><span class="dot">2</span><div><b>Confirmation de la personne</b><span>La personne vérifie les mots de son côté.</span></div></div>' +
@@ -1931,6 +1933,8 @@ button.chip{cursor:pointer;font:inherit}
     if (!snap.exists) return setStatus('formstatus', 'err', 'Ce QR code n’est plus valable : il a déjà été utilisé, ou l’invitation est close.');
     const d = snap.data();
     if (Date.now() > d.exp) return setStatus('formstatus', 'err', 'Cette invitation a expiré.');
+    // Une seule demande en cours par personne : une ancienne demande à la même personne est retirée
+    LS.set('pending', pendingAll().filter((p) => !(p.peer === d.from && p.invId && p.invId !== o.i && ['remote-sent', 'verif', 'code', 'remote-accepted'].indexOf(p.type) >= 0)));
     await sendTo(d.from, { kind: 'remote-claim', inv: o.i, pseudo: S.me.pseudo });
     pushPending({ type: 'remote-sent', peer: d.from, invId: o.i, peerPseudo: '' });
     S.words = await wordsFor(unb64u(S.me.raw), unb64u(d.from));

@@ -596,6 +596,7 @@ button.chip{cursor:pointer;font:inherit}
     try {
       const to = await mailboxOf(S.me.raw);
       const snap = await S.db.collection('box').where('to', '==', to).get();
+      if (!S.me) return;   // identité supprimée pendant la lecture : on n’écrit plus rien sur ce téléphone
       if (snap.docs.length) LS.set('recus', LS.get('recus', 0) + snap.docs.length);
       let changed = false;
       const suppressions = [];

@@ -209,6 +209,12 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 @media (prefers-reduced-motion: reduce){.qr-build i:not(.l){animation:none;opacity:1;transform:none}}
 .qr-card.plain{background:none;border:0;box-shadow:none;padding:12px 0 4px}
 .qr-card.plain .qr-build{width:min(200px,58vw)}
+.qr-mini{display:grid;grid-template-columns:repeat(15,1fr);grid-template-rows:repeat(15,1fr);box-sizing:border-box;flex:none;width:38px;height:38px;padding:3px;background:#fff;border-radius:7px;content-visibility:auto}
+.qr-mini i{display:block}
+.qr-mini i:not(.l){background:#10233A;animation:build 3.2s ease-in-out infinite both}
+.qr-mini i.l{background:transparent}
+.row-item.is-off .qr-mini{opacity:.45}
+@media (prefers-reduced-motion: reduce){.qr-mini i:not(.l){animation:none;opacity:1;transform:none}}
 /* Aperçu QR des messages (tuiles) */
 .qr-thumb{width:52px;height:52px;flex:none;border-radius:8px;background:#fff;padding:3px;box-sizing:border-box}
 .tt{display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -247,7 +253,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v60';
+  const APP_VERSION = 'v61';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1186,6 +1192,29 @@ button.chip{cursor:pointer;font:inherit}
     const cap = opt.caption === false ? '' : '<p class="hint" style="text-align:center">Votre QR code d’identité se prépare…</p>';
     return '<div class="qr-card' + (opt.plain ? ' plain' : '') + '" aria-hidden="true"><div class="qr-build">' + qrDecorCells() + '</div>' + cap + '</div>';
   }
+  // QR code vivant de chaque contact : petit, décoratif, et toujours le même motif pour une même personne.
+  function qrMiniCells(cid) {
+    const N = 15;
+    let seed = 7;
+    for (const ch of String(cid)) seed = (seed * 31 + ch.charCodeAt(0)) % 2147483647;
+    if (!seed) seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    const finder = (r, c, r0, c0) => { const i = r - r0, j = c - c0; return i === 0 || i === 6 || j === 0 || j === 6 || (i >= 2 && i <= 4 && j >= 2 && j <= 4); };
+    let out = '';
+    for (let r = 0; r < N; r++) {
+      for (let c = 0; c < N; c++) {
+        let dark;
+        if (r < 7 && c < 7) dark = finder(r, c, 0, 0);
+        else if (r < 7 && c >= 8) dark = finder(r, c, 0, 8);
+        else if (r >= 8 && c < 7) dark = finder(r, c, 8, 0);
+        else if (r === 7 || c === 7) dark = false;
+        else dark = rnd() > 0.5;
+        const d = (rnd() * 2.4).toFixed(2);
+        out += dark ? '<i style="animation-delay:' + d + 's"></i>' : '<i class="l"></i>';
+      }
+    }
+    return out;
+  }
   function viewCreer() {
     if (!S.draftPseudo) S.draftPseudo = genPseudo();
     const note = S.arg === 'invite' ? notice('info', 'Vous répondez à une invitation. Une fois votre identité créée, vous pourrez accepter l’invitation.') : '';
@@ -1224,12 +1253,13 @@ button.chip{cursor:pointer;font:inherit}
     const ms = msgsAll();
     const cs = contacts();
     // Lien en pause ou à réactiver : la ligne est grisée, on ne peut plus l’ouvrir ; elle reste dans une section à part.
+    const miniQR = (c) => '<span class="qr-mini" aria-hidden="true">' + qrMiniCells(c.cid) + '</span>';
     const ligne = (c) => {
       const n = ms.filter((m) => m.cid === c.cid && m.dir === 'in' && m.state === 'new' && !m.seen).length;
       if (c.pause || c.pend) {
-        return '<div class="row-item is-off" aria-disabled="true"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · ' + (c.pause ? 'En pause, en attente de sa reprise' : 'À réactiver') + '</span></span><button class="btn btn-secondary" style="min-height:40px;width:auto;padding:0 12px" data-act="cut" data-arg="' + esc(c.cid) + '">Couper le lien</button></div>';
+        return '<div class="row-item is-off" aria-disabled="true"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · ' + (c.pause ? 'En pause, en attente de sa reprise' : 'À réactiver') + '</span></span>' + miniQR(c) + '<button class="btn btn-secondary" style="min-height:40px;width:auto;padding:0 12px" data-act="cut" data-arg="' + esc(c.cid) + '">Couper le lien</button></div>';
       }
-      return '<button class="row-item conv" data-act="conv" data-arg="' + esc(c.cid) + '"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · Vérifié</span></span>' + (n ? '<span class="count">' + n + '</span>' : '') + I.chev + '</button>';
+      return '<button class="row-item conv" data-act="conv" data-arg="' + esc(c.cid) + '"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · Vérifié</span></span>' + miniQR(c) + (n ? '<span class="count">' + n + '</span>' : '') + I.chev + '</button>';
     };
     const actifs = cs.filter((c) => !c.pause && !c.pend);
     const attente = cs.filter((c) => c.pause || c.pend);
@@ -1247,7 +1277,6 @@ button.chip{cursor:pointer;font:inherit}
       (cs.some((c) => c.pend) ? '<div class="pending-stack"><button class="notice warn" data-act="reactiver">' + I.link + '<span class="grow">Réactiver les liens<br><span class="more">Vos contacts sont installés. Touchez pour leur envoyer la demande de reprise.</span></span>' + I.chev + '</button></div>' : '') +
       (cs.length && !LS.get('lastBackup', 0) ? '<div class="pending-stack"><button class="notice warn" data-act="go" data-arg="sauvegarde">' + I.shield + '<span class="grow">Sauvegardez vos contacts<br><span class="more">Sans sauvegarde, ils restent dans ce navigateur seulement.</span></span>' + I.chev + '</button></div>' : '') +
       '<section><div class="section-title">Contacts</div>' + list + '</section>' +
-      qrDecorCard({ caption: false, plain: true }) +
       '<div class="dock"><button class="btn btn-primary" data-act="go" data-arg="ajouter">' + I.plus + '<span>Ajouter une personne</span></button></div>' +
     '</div>';
   }
@@ -2267,7 +2296,7 @@ button.chip{cursor:pointer;font:inherit}
   setInterval(tick, 1000);
 
   // ---------- alertes : sonnerie à la réception (facultative, réglée dans « Mon identité ») ----------
-  function getPrefs() { const p = LS.get('prefs', null) || {}; return { sound: !!p.sound, tone: (p.tone && TONES[p.tone]) ? p.tone : 'carillon', notif: !!p.notif, push: !!p.push }; }
+  function getPrefs() { const p = LS.get('prefs', null) || {}; return { sound: !!p.sound, tone: (p.tone && TONES[p.tone]) ? p.tone : 'pli', notif: !!p.notif, push: !!p.push }; }
   function setPref(k, v) { LS.set('prefs', Object.assign(getPrefs(), { [k]: v })); }
   // Son : un seul contexte audio pour toute la session, jamais recréé (iOS en limite le nombre et cesse de jouer).
   // iOS le suspend hors d’un toucher : on le reprend à chaque toucher, ce qui est le seul moment où il accepte le son.
@@ -2287,11 +2316,15 @@ button.chip{cursor:pointer;font:inherit}
   }
   ['pointerdown', 'touchend', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, touchSon));
   // Sonneries au choix : suites de notes générées sur place, sans fichier.
+  // « partiels » : harmoniques de chaque note, [multiple de la fréquence, niveau relatif, durée relative].
+  // « Pli » est la sonnerie de l’appli : deux notes claires, avec une touche aiguë qui rappelle le papier plié.
+  // Les notes sont dans la plage où les petits haut-parleurs de téléphone sont les plus présents.
   const TONES = {
-    carillon: { label: 'Carillon', type: 'sine', gain: 0.4, len: 0.3, notes: [[1046, 0], [1318, 0.18], [1568, 0.36], [1046, 0.75], [1318, 0.93], [1568, 1.11]] },
-    deux: { label: 'Deux notes', type: 'triangle', gain: 0.45, len: 0.45, notes: [[880, 0], [660, 0.35], [880, 0.7], [660, 1.05]] },
-    cloche: { label: 'Cloche', type: 'sine', gain: 0.3, len: 1.6, notes: [[660, 0], [990, 0], [1320, 0], [660, 1.1], [990, 1.1], [1320, 1.1]] },
-    doux: { label: 'Doux', type: 'sine', gain: 0.25, len: 0.9, notes: [[392, 0], [494, 0.5], [587, 1.0]] }
+    pli: { label: 'Pli', gain: 0.55, len: 0.9, partiels: [[1, 1, 1], [2, 0.22, 0.5], [4.2, 0.07, 0.15]], notes: [[1318, 0], [1760, 0.1]] },
+    carillon: { label: 'Carillon', gain: 0.6, len: 0.35, partiels: [[1, 1, 1], [2, 0.12, 0.5]], notes: [[1046, 0], [1318, 0.18], [1568, 0.36], [1046, 0.75], [1318, 0.93], [1568, 1.11]] },
+    deux: { label: 'Deux notes', gain: 0.6, len: 0.5, partiels: [[1, 1, 1], [2, 0.15, 0.5]], notes: [[880, 0], [660, 0.35], [880, 0.7], [660, 1.05]] },
+    cloche: { label: 'Cloche', gain: 0.25, len: 1.6, partiels: [[1, 1, 1], [2.76, 0.35, 0.4], [5.4, 0.12, 0.2]], notes: [[660, 0], [990, 0], [1320, 0], [660, 1.1], [990, 1.1], [1320, 1.1]] },
+    doux: { label: 'Doux', gain: 0.55, len: 1.1, partiels: [[1, 1, 1], [2, 0.3, 0.6], [3, 0.08, 0.3]], notes: [[784, 0], [988, 0.5], [1175, 1.0]] }
   };
   function toneChipsHTML() {
     return '<div class="stack" style="margin-top:10px"><span class="hint">Son de la sonnerie (touchez un son pour l’entendre)</span><div style="display:flex;gap:8px;flex-wrap:wrap">' +
@@ -2300,21 +2333,37 @@ button.chip{cursor:pointer;font:inherit}
   }
   // « geste » est vrai quand la sonnerie est demandée par un toucher (essai, réglage). Hors toucher, iOS refuse le son :
   // on ne le joue pas en retard, l’accueil signale que la sonnerie est en pause.
+  // Chaque note : une attaque nette, puis une queue qui s’éteint. Un limiteur, pour tout le son, n’agit qu’au-dessus de -3 dB :
+  // le son reste plein sur le petit haut-parleur d’un téléphone, sans saturer.
+  let compresseurSon = null;
+  function sortieSon(c) {
+    if (!compresseurSon || compresseurSon.context !== c) {
+      compresseurSon = c.createDynamicsCompressor();
+      compresseurSon.threshold.value = -3; compresseurSon.knee.value = 0; compresseurSon.ratio.value = 20;
+      compresseurSon.attack.value = 0.002; compresseurSon.release.value = 0.1;
+      compresseurSon.connect(c.destination);
+    }
+    return compresseurSon;
+  }
   function playChime(tone, geste) {
     try {
       const c = sonContexte();
       if (!c) return;
       if (c.state !== 'running') { if (!geste) return; touchSon(); }
-      const def = TONES[tone || getPrefs().tone] || TONES.carillon;
+      const def = TONES[tone || getPrefs().tone] || TONES.pli;
       const t0 = c.currentTime + 0.02;
+      const sortie = sortieSon(c);
       def.notes.forEach(([f, dt]) => {
-        const o = c.createOscillator(), g = c.createGain();
-        o.type = def.type; o.frequency.value = f;
-        g.gain.setValueAtTime(0.0001, t0 + dt);
-        g.gain.exponentialRampToValueAtTime(def.gain, t0 + dt + 0.02);
-        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + def.len);
-        o.connect(g); g.connect(c.destination);
-        o.start(t0 + dt); o.stop(t0 + dt + def.len + 0.02);
+        def.partiels.forEach(([multiple, niveau, duree]) => {
+          const o = c.createOscillator(), g = c.createGain();
+          const debut = t0 + dt, fin = debut + def.len * duree;
+          o.type = 'sine'; o.frequency.value = f * multiple;
+          g.gain.setValueAtTime(0.0001, debut);
+          g.gain.exponentialRampToValueAtTime(def.gain * niveau, debut + 0.012);
+          g.gain.exponentialRampToValueAtTime(0.0001, fin);
+          o.connect(g); g.connect(sortie);
+          o.start(debut); o.stop(fin + 0.02);
+        });
       });
     } catch (e) { /* son indisponible sur ce téléphone : rien à afficher */ }
   }

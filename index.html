@@ -140,7 +140,6 @@ textarea.field{resize:vertical;min-height:72px;font-size:14px;line-height:1.4}
 .words-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .word{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line-2);font-weight:600}
 .word-n{font:500 11px "IBM Plex Mono",ui-monospace,monospace;color:var(--muted);min-width:14px}
-.word.pick{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
 button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:100%;cursor:pointer}
 .word.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset}
 .eyebrow{font:500 12px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
@@ -248,7 +247,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v50';
+  const APP_VERSION = 'v51';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -638,7 +637,8 @@ button.chip{cursor:pointer;font:inherit}
     setInvites(invs);
     await closeInviteDoc(inv.id);
     const pos = tirerPositions();
-    pushPending({ type: 'remote-claim', peer: m.from, peerPseudo: m.pseudo, invId: m.inv, pos: pos, niveau: 1, ok: false });
+    const mots = await wordsFor(unb64u(S.me.raw), unb64u(m.from));
+    pushPending({ type: 'remote-claim', peer: m.from, peerPseudo: m.pseudo, invId: m.inv, pos: pos, niveau: 1, ok: false, mots: mots });
     await sendTo(m.from, { kind: 'verif', inv: m.inv, pos: pos, pseudo: S.me.pseudo, niveau: 1 });
     return true;
   }
@@ -678,7 +678,7 @@ button.chip{cursor:pointer;font:inherit}
     const memesPositions = recus.length === demandes.length && recus.every((q, i) => q === demandes[i]);
     const bons = memesPositions && (body.mots || []).every((x) => normMot(x.m) === normMot(mes[x.p - 1]));
     if (bons) {
-      pend[idx] = Object.assign({}, p, { ok: true });
+      pend[idx] = Object.assign({}, p, { ok: true, recu: recus });
       LS.set('pending', pend);
       S.needRender = true;
       return true;
@@ -1326,7 +1326,7 @@ button.chip{cursor:pointer;font:inherit}
     '</div>';
   }
   // Côté personne qui invite : l’invitée touche les mots sur son écran ; l’appli les compare, sans rien taper.
-  // Au second essai, les six mots sont aussi affichés ici : on peut les voir, comme sur son écran.
+  // L’empreinte à six mots est affichée ici, comme sur son écran. Une fois identique, les mots touchés sont cochés.
   function viewLienOuvert() {
     const p = pendingById(S.arg);
     if (!p) return viewAccueil();
@@ -1337,9 +1337,13 @@ button.chip{cursor:pointer;font:inherit}
       '</div>';
     }
     const titre = '<h1>' + esc(libelleInvitation(p) || 'Quelqu’un') + ' a accepté votre invitation</h1>';
-    const deuxieme = (p.niveau || 1) === 2 && Array.isArray(p.mots) && p.mots.length >= 6;
-    const grille = deuxieme
-      ? '<div class="words-grid">' + [0, 1, 2, 3, 4, 5].map((k) => '<div class="word"><span class="word-n">' + (k + 1) + '</span><span>' + esc(p.mots[k]) + '</span></div>').join('') + '</div>'
+    const empreinte = Array.isArray(p.mots) && p.mots.length >= 6;
+    const coches = p.ok && Array.isArray(p.recu) ? p.recu : [];
+    const grille = empreinte
+      ? '<div class="words-grid">' + [0, 1, 2, 3, 4, 5].map((k) => {
+          const coche = coches.indexOf(k + 1) >= 0;
+          return '<div class="word' + (coche ? ' sel' : '') + '"><span class="word-n">' + (coche ? '✓ ' : '') + (k + 1) + '</span><span>' + esc(p.mots[k]) + '</span></div>';
+        }).join('') + '</div>'
       : '';
     if (p.ok) {
       return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) +
@@ -1348,9 +1352,10 @@ button.chip{cursor:pointer;font:inherit}
         '<div class="dock stack"><button class="btn btn-primary" data-act="envoicode" data-arg="' + esc(p.pid) + '">Envoyer le code, dans l’appli</button><button class="btn btn-danger" data-act="refuseremote" data-arg="' + esc(p.pid) + '">Annuler la demande</button></div>' +
       '</div>';
     }
-    const explication = deuxieme
+    const liste = (p.pos || []).join(', ').replace(/, (\d)$/, ' et $1');
+    const explication = (p.niveau || 1) === 2
       ? 'Pas les mêmes au premier essai : elle touche maintenant les six mots, qui sont aussi sur son écran. C’est la dernière chance.'
-      : 'Elle touche les mots demandés sur son écran. L’appli les compare : vous n’avez rien à taper.';
+      : 'Elle touche les mots ' + liste + ' sur son écran. L’appli compare : vous n’avez rien à taper.';
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) +
       '<div>' + titre + '<p class="lead" style="margin-top:6px">' + explication + '</p></div>' +
       grille +
@@ -1375,7 +1380,7 @@ button.chip{cursor:pointer;font:inherit}
     const tuiles = [0, 1, 2, 3, 4, 5].map((k) => {
       const touche = touches.indexOf(k) >= 0;
       const demande = p.pos.indexOf(k + 1) >= 0;
-      return '<button class="word' + (demande ? ' pick' : '') + (touche ? ' sel' : '') + '" data-act="touchemot" data-arg="' + esc(p.pid) + '|' + k + '" aria-pressed="' + (touche ? 'true' : 'false') + '"><span class="word-n">' + (touche ? '✓ ' : '') + (k + 1) + '</span><span>' + esc(mots[k] || '') + '</span></button>';
+      return '<button class="word' + (touche ? ' sel' : '') + '" data-act="touchemot" data-demande="' + (demande ? '1' : '0') + '" data-arg="' + esc(p.pid) + '|' + k + '" aria-pressed="' + (touche ? 'true' : 'false') + '"><span class="word-n">' + (touche ? '✓ ' : '') + (k + 1) + '</span><span>' + esc(mots[k] || '') + '</span></button>';
     }).join('');
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Vérification' }) +
       '<div><h1>Vérification des mots</h1><p class="lead" style="margin-top:6px">' + lead + '</p></div>' +
@@ -1719,7 +1724,9 @@ button.chip{cursor:pointer;font:inherit}
     const flash = S.flash ? notice(S.flash.ok ? 'ok' : 'info', esc(S.flash.t)) : '';
     S.flash = null; S.needRender = false;
     const pres = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 160;   // l’utilisateur était en bas
-    app.innerHTML = flash + html;
+    // Nouvelle version : le bandeau suit l’utilisateur sur tous les écrans, pas seulement sur l’accueil.
+    const maj = versionNouvelle && S.screen !== 'accueil' ? '<div class="pending-stack"><button class="notice warn" data-act="recharger">' + I.refresh + '<span class="grow">Nouvelle version (' + esc(versionNouvelle) + ') disponible<br><span class="more">Touchez pour la charger. Vos données restent sur cet appareil.</span></span>' + I.chev + '</button></div>' : '';
+    app.innerHTML = maj + flash + html;
     hydrateVoices();
     Object.keys(keep).forEach((id) => { const el = document.getElementById(id); if (el) el.value = keep[id]; });
     autoGrow();          // la zone reprend la hauteur du brouillon restauré…

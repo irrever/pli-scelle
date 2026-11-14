@@ -191,6 +191,9 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 .chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:12px;font-weight:600;color:var(--ink-2);align-self:flex-start}
 .chip.on{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
 .bubble-timer{margin-top:6px;font-size:12px;color:var(--muted)}
+.bubble-ouvert{display:block;width:auto;text-align:left;cursor:pointer}
+.bubble-ouvert .bubble-timer{display:block}
+.bubble-fin{display:block;margin-top:6px;font-size:12px;color:var(--muted)}
 .voice-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px;border-radius:14px;background:var(--accent-soft);color:var(--accent)}
 .voice-bar audio{width:100%;height:40px}
 .voice-dot{width:10px;height:10px;border-radius:50%;background:#d93025;animation:voicepulse 1s infinite}
@@ -248,13 +251,18 @@ button.chip{cursor:pointer;font:inherit}
   const ITER_CODE = 100000;
   const ITER_SECRET = 200000;
   const INVITE_LIFE = 24 * 3600 * 1000;
-  const REVEAL_MS = 20000;
+  // Un message ouvert reste lisible un certain temps, puis il est effacé (lecture unique). Par défaut : une minute, réglable dans les réglages de chaque conversation.
+  const DUREES_LECTURE = [[20, '20 secondes'], [60, '1 minute (par défaut)'], [180, '3 minutes'], [600, '10 minutes'], [-1, 'Jusqu’à fermeture']];
+  const LIBRE_MS = 1e13;   // « jusqu’à fermeture » : une échéance si lointaine qu’elle n’arrive jamais
+  function dureeChoisie(cid) { const c = contacts().find((x) => x.cid === cid); return c && typeof c.lecture === 'number' ? c.lecture : 60; }
+  function dureeLecture(cid) { const v = dureeChoisie(cid); return v < 0 ? LIBRE_MS : v * 1000; }
+  function libelleDuree(cid) { const v = dureeChoisie(cid); return v < 0 ? 'jusqu’à fermeture' : (v < 60 ? v + ' s' : (v / 60) + ' min'); }
   const EFFACE_MS = 2 * 60 * 1000;   // une trace (« Message lu », « Message envoyé ») reste 2 minutes, puis disparaît
   const MAX_FAILS = 5;
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v68';
+  const APP_VERSION = 'v69';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1019,7 +1027,7 @@ button.chip{cursor:pointer;font:inherit}
   function keepVoiceOpen(mid) {
     const all = msgsAll();
     const m = all.find((x) => x.mid === mid);
-    if (m && m.state === 'open') { m.until = Date.now() + REVEAL_MS; LS.set('msgs', all); }
+    if (m && m.state === 'open') { m.until = Date.now() + dureeLecture(m.cid); LS.set('msgs', all); }
   }
   function voicePlaying() { return Array.from(document.querySelectorAll('audio[data-voice]')).some((a) => !a.paused && !a.ended); }
   function hydrateVoices() {
@@ -1148,14 +1156,17 @@ button.chip{cursor:pointer;font:inherit}
     const vignette = '<img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '">';
     if (m.dir === 'out') return '<div class="tile mine">' + vignette + '<span class="tt"><b>Message vocal envoyé</b><span class="hint">' + (m.once === false ? 'Relisible' : 'Lecture unique') + d + '</span></span></div>';
     if (m.state === 'new') return '<button class="tile ' + (m.seen ? 'read' : 'unread') + '" data-act="reveal" data-arg="' + esc(m.mid) + '">' + vignette + '<span class="tt">' + (m.seen ? '<b>Message vocal relisible</b><span class="hint">Toucher pour réécouter' + d + '</span>' : '<b>Message vocal reçu</b><span class="hint">Toucher pour écouter' + d + '</span><span class="nouveau">Nouveau</span>') + '</span></button>';
-    if (m.state === 'open') return '<div class="bubble"><audio controls preload="auto" data-voice="' + esc(m.mid) + '"></audio><div class="bubble-timer">Reste ouvert pendant l’écoute, puis se referme ' + REVEAL_MS / 1000 + ' s après.</div></div>';
+    if (m.state === 'open') return '<div class="bubble"><audio controls preload="auto" data-voice="' + esc(m.mid) + '"></audio><div class="bubble-timer">' + (dureeChoisie(m.cid) < 0 ? 'Reste ouvert jusqu’à ce que vous le fermiez.' : 'Reste ouvert pendant l’écoute, puis se referme ' + libelleDuree(m.cid) + ' après.') + '</div></div>';
     return '<div class="tile read">' + vignette.replace('class="qr-thumb"', 'class="qr-thumb faded"') + '<span class="tt"><b>Message vocal lu</b><span class="hint">Le contenu a été effacé</span></span></div>';
   }
   function msgHTML(m) {
     if (m.kind === 'voice') return msgVoiceHTML(m);
     if (m.dir === 'out') return '<div class="tile mine"><img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt"><b>Message envoyé</b><span class="hint">' + (m.once === false ? 'Relisible' : 'Lecture unique') + '</span></span></div>';
-    if (m.state === 'new') return '<button class="tile ' + (m.seen ? 'read' : 'unread') + '" data-act="reveal" data-arg="' + esc(m.mid) + '"><img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt">' + (m.seen ? '<b>Message relisible</b><span class="hint">Toucher pour revoir</span>' : '<b>QR code reçu</b><span class="hint">Toucher pour lire' + (m.once === false ? '' : ' · visible ' + Math.round(REVEAL_MS / 1000) + ' s, puis effacé') + '</span><span class="nouveau">Nouveau</span>') + '</span></button>';
-    if (m.state === 'open') return '<div class="bubble">' + esc(m.text) + '<div class="bubble-timer" data-until="' + esc(m.until) + '">Se referme dans ' + Math.max(0, Math.ceil((m.until - Date.now()) / 1000)) + ' s</div></div>';
+    if (m.state === 'new') return '<button class="tile ' + (m.seen ? 'read' : 'unread') + '" data-act="reveal" data-arg="' + esc(m.mid) + '"><img class="qr-thumb" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt">' + (m.seen ? '<b>Message relisible</b><span class="hint">Toucher pour revoir</span>' : '<b>QR code reçu</b><span class="hint">Toucher pour lire' + (m.once === false ? '' : ' · visible ' + libelleDuree(m.cid) + ', puis effacé') + '</span><span class="nouveau">Nouveau</span>') + '</span></button>';
+    if (m.state === 'open') {
+      const libre = m.until - Date.now() > 1e12;
+      return '<div class="bubble bubble-ouvert" role="button" tabindex="0" data-act="fermermsg" data-arg="' + esc(m.mid) + '">' + esc(m.text) + (libre ? '' : '<span class="bubble-timer" data-until="' + esc(m.until) + '">Se referme dans ' + Math.max(0, Math.ceil((m.until - Date.now()) / 1000)) + ' s</span>') + '<span class="bubble-fin">' + (m.once === false ? 'Touchez pour refermer' : 'Touchez pour fermer et effacer') + '</span></div>';
+    }
     return '<div class="tile read"><img class="qr-thumb faded" alt="" src="' + qrThumb(m.cid + ':' + m.ts) + '"><span class="tt"><b>Message lu</b><span class="hint">Le contenu a été effacé</span></span></div>';
   }
   function emptyState() {
@@ -1228,11 +1239,9 @@ button.chip{cursor:pointer;font:inherit}
     }
     return out;
   }
-  // Les petits QR vivants se dessinent sur un canevas. Une seule boucle, et seulement pour les QR visibles à l’écran :
-  // une longue liste de contacts reste fluide. Avec « réduire les mouvements », ils restent figés, mais s’affichent.
-  const qrVisibles = new Set();
+  // Les petits QR vivants se dessinent sur un canevas : chaque case ne fait que varier de transparence, rien ne se déplace.
+  // Une seule boucle relit les canevas présents à chaque tour : elle reprend après chaque affichage, et ne dessine que ceux qui sont à l’écran.
   let qrTimer = null;
-  const qrReduit = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   function dessinerQR(cv, t) {
     const ctx = cv.getContext && cv.getContext('2d');
     if (!ctx) return;
@@ -1255,24 +1264,19 @@ button.chip{cursor:pointer;font:inherit}
     ctx.globalAlpha = 1;
   }
   function demarrerQR() {
-    if (qrReduit()) { qrVisibles.forEach((cv) => dessinerQR(cv, 0)); return; }
-    if (qrTimer || !qrVisibles.size) return;
-    const tic = () => {
+    if (qrTimer) return;
+    const tour = () => {
       qrTimer = null;
-      qrVisibles.forEach((cv) => { if (cv.isConnected) dessinerQR(cv, Date.now() / 1000); else { qrVisibles.delete(cv); if (qrObs) qrObs.unobserve(cv); } });
-      if (qrVisibles.size) qrTimer = setTimeout(tic, 90);
+      const cvs = document.querySelectorAll('canvas.qr-mini');
+      if (!cvs.length) return;
+      const t = Date.now() / 1000, h = window.innerHeight;
+      cvs.forEach((cv) => { const r = cv.getBoundingClientRect(); if (r.bottom > -20 && r.top < h + 20) dessinerQR(cv, t); });
+      qrTimer = setTimeout(tour, 90);
     };
-    tic();
+    tour();
   }
-  const qrObs = ('IntersectionObserver' in window) ? new IntersectionObserver((entrees) => {
-    entrees.forEach((e) => { if (e.isIntersecting) qrVisibles.add(e.target); else qrVisibles.delete(e.target); });
-    demarrerQR();
-  }) : null;
-  // Après chaque affichage : on suit les QR de la page.
-  function suivreQR(racine) {
-    racine.querySelectorAll('canvas.qr-mini').forEach((cv) => { if (qrObs) qrObs.observe(cv); else qrVisibles.add(cv); });
-    if (!qrObs) demarrerQR();
-  }
+  // Après chaque affichage : la boucle reprend si elle s’est arrêtée.
+  function suivreQR() { demarrerQR(); }
   function viewCreer() {
     if (!S.draftPseudo) S.draftPseudo = genPseudo();
     const note = S.arg === 'invite' ? notice('info', 'Vous répondez à une invitation. Une fois votre identité créée, vous pourrez accepter l’invitation.') : '';
@@ -1683,6 +1687,9 @@ button.chip{cursor:pointer;font:inherit}
         'Vous n’avez rien à revérifier ensuite, quel que soit le nombre de messages. Il faudra seulement recommencer si l’un de vous recrée son identité. Si un seul mot diffère, ne faites pas confiance à ce lien : coupez-le, puis recréez-le ensemble, en vous voyant ou en vous entendant.',
         'Pli Scellé chiffre les messages sur votre téléphone : seuls vous deux pouvez les lire. Il n’y a ni compte, ni numéro de téléphone, et le serveur qui transporte les messages ne voit que du contenu chiffré.'
       ], S.motsCle.mots) : '') +
+      '<section class="stack"><div class="section-title">Durée de lecture</div><p class="hint">Un message ouvert reste lisible ce temps, puis il est effacé. Touchez-le pour le fermer tout de suite.</p><div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        DUREES_LECTURE.map(([v, t]) => '<button class="chip' + ((typeof c.lecture === 'number' ? c.lecture : 60) === v ? ' on' : '') + '" type="button" data-act="setlecture" data-arg="' + esc(c.cid) + '|' + v + '">' + t + '</button>').join('') +
+      '</div></section>' +
       '<section class="list"><button class="rowlink" data-act="go" data-arg="verrouille"><span>Verrouiller l’application</span>' + I.chev + '</button>' +
       '<button class="rowlink danger" data-act="cut" data-arg="' + esc(c.cid) + '"><span>Couper le lien</span>' + I.chev + '</button></section>' +
       '<p class="hint">Couper le lien efface la conversation des deux côtés. Pour reprendre contact, il faut une nouvelle connexion.</p>' +
@@ -1872,7 +1879,7 @@ button.chip{cursor:pointer;font:inherit}
     app.__coque = coque;
     app.innerHTML = maj + flash + html;
     app.classList.toggle('meme-ecran', same);   // même écran redessiné : il ne rejoue pas son apparition
-    suivreQR(app);
+    suivreQR();
     hydrateVoices();
     Object.keys(keep).forEach((id) => { const el = document.getElementById(id); if (el) el.value = keep[id]; });
     autoGrow();          // la zone reprend la hauteur du brouillon restauré…
@@ -2165,10 +2172,20 @@ button.chip{cursor:pointer;font:inherit}
     inp.value = '';
     go('conv', cid);
   }
+  // Toucher un message ouvert le referme tout de suite : en lecture unique il est effacé, en relisible il redevient une tuile.
+  function actFermerMessage(mid) {
+    const all = msgsAll();
+    const m = all.find((x) => x.mid === mid);
+    if (!m || m.state !== 'open' || m.kind === 'voice') return;
+    if (m.once === false) { m.state = 'new'; m.until = 0; }
+    else { m.state = 'gone'; m.goneAt = Date.now(); m.text = ''; }
+    LS.set('msgs', all);
+    go('conv', S.arg);
+  }
   function actReveal(mid) {
     const all = msgsAll();
     const m = all.find((x) => x.mid === mid);
-    if (m && m.state === 'new') { m.state = 'open'; m.seen = true; m.until = Date.now() + REVEAL_MS; LS.set('msgs', all); }
+    if (m && m.state === 'new') { m.state = 'open'; m.seen = true; m.until = Date.now() + dureeLecture(m.cid); LS.set('msgs', all); }
     go('conv', S.arg);
   }
   async function actCut(cid) {
@@ -2284,6 +2301,8 @@ button.chip{cursor:pointer;font:inherit}
     confirmremote: actConfirmRemote,
     send: actSend,
     reveal: actReveal,
+    fermermsg: (mid) => actFermerMessage(mid),
+    setlecture: (arg) => { const [cid, v] = String(arg).split('|'); const cs = contacts(); const c = cs.find((x) => x.cid === cid); if (c) { c.lecture = Number(v); LS.set('contacts', cs); } go('reglages', cid); },
     cut: actCut,
     deleteme: () => actDeleteMe(false),
     supprimerkeep: () => { S.delMode = true; go('sauvegarde'); },

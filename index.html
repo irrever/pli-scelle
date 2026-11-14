@@ -13,6 +13,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 button,input,textarea{font:inherit;color:inherit}
 #app{max-width:460px;min-height:100vh;margin:0 auto;display:flex;flex-direction:column;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .screen{flex:1;display:flex;flex-direction:column;gap:16px;padding:0 0 16px;animation:in .22s ease both}
+#app.meme-ecran .screen{animation:none}
 @keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion: reduce){.screen{animation:none}.spinner{animation:none}}
 h1{margin:0;font:600 26px/1.2 "Bricolage Grotesque","Segoe UI",system-ui,sans-serif;letter-spacing:-.01em;text-wrap:balance}
@@ -253,7 +254,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v64';
+  const APP_VERSION = 'v65';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1611,13 +1612,17 @@ button.chip{cursor:pointer;font:inherit}
     } catch (e) { setStatus('formstatus', 'err', 'Fichier illisible.'); }
     t.value = '';
   });
+  // Le fil des messages seul : c’est la seule partie qui change quand un message arrive.
+  function convFilHTML(c) {
+    const thread = msgsAll().filter((m) => m.cid === c.cid).sort((a, b) => (a.ts || 0) - (b.ts || 0)).map(msgHTML).join('');
+    return '<div class="thread">' + (thread || '<p class="hint center" style="padding-top:24px">Aucun message. Écrivez le premier.</p>') + '</div>';
+  }
   function viewConv() {
     const c = contacts().find((x) => x.cid === S.arg);
     if (!c) return viewAccueil();
-    const thread = msgsAll().filter((m) => m.cid === c.cid).sort((a, b) => (a.ts || 0) - (b.ts || 0)).map(msgHTML).join('');
     return '<div class="screen" style="gap:12px">' +
       topbar({ backAct: 'go', backArg: 'accueil', titleHTML: '<span class="conv-title"><span class="code code-sm">' + esc(c.label) + '</span><span class="hint" style="display:inline-flex;align-items:center;gap:4px;color:var(--accent)">' + empreinteIcone(14, EMP[cleEmpreinte(c)]) + 'Vérifié</span></span>', right: '<button class="iconbtn" data-act="reglages" data-arg="' + esc(c.cid) + '" aria-label="Réglages du contact">' + I.more + '</button>' }) +
-      '<div class="thread">' + (thread || '<p class="hint center" style="padding-top:24px">Aucun message. Écrivez le premier.</p>') + '</div>' +
+      convFilHTML(c) +
       '' + composerHTML(c.cid) + '' +
     '</div>';
   }
@@ -1798,11 +1803,29 @@ button.chip{cursor:pointer;font:inherit}
     try { html = fn(); } catch (e) { console.error(e); html = '<div class="screen">' + notice('err', 'Affichage impossible : ' + esc(e.message)) + '</div>'; }
     const flash = S.flash ? notice(S.flash.ok ? 'ok' : 'info', esc(S.flash.t)) : '';
     S.flash = null; S.needRender = false;
-    const pres = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 160;   // l’utilisateur était en bas
+    const hauteur = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    const pres = hauteur + window.scrollY >= document.documentElement.scrollHeight - 160 || !!S.forceBas;   // en bas, ou message envoyé à l’instant
+    S.forceBas = false;
     // Nouvelle version : le bandeau suit l’utilisateur sur tous les écrans, pas seulement sur l’accueil.
     const maj = versionNouvelle && S.screen !== 'accueil' ? '<div class="pending-stack"><button class="notice warn" data-act="recharger">' + I.refresh + '<span class="grow">Nouvelle version (' + esc(versionNouvelle) + ') disponible<br><span class="more">Touchez pour la charger. Vos données restent sur cet appareil.</span></span>' + I.chev + '</button></div>' : '';
     const defile = window.scrollY;
+    // Coque de la conversation (barre et zone de saisie, sans le fil) : si elle n’a pas changé, seul le fil est remplacé.
+    let coque = null, fil = null;
+    if (S.screen === 'conv' && !flash && !maj) {
+      const c = contacts().find((x) => x.cid === S.arg);
+      if (c) { fil = convFilHTML(c); const i = html.indexOf(fil); if (i >= 0) coque = html.slice(0, i) + html.slice(i + fil.length); }
+    }
+    if (same && coque !== null && app.__coque === coque && app.querySelector('.thread')) {
+      app.querySelector('.thread').innerHTML = fil.slice('<div class="thread">'.length, -'</div>'.length);
+      hydrateVoices();
+      autoGrow();
+      syncComposerAct();
+      if (pres) window.scrollTo(0, document.documentElement.scrollHeight); else window.scrollTo(0, defile);
+      return;
+    }
+    app.__coque = coque;
     app.innerHTML = maj + flash + html;
+    app.classList.toggle('meme-ecran', same);   // même écran redessiné : il ne rejoue pas son apparition
     hydrateVoices();
     Object.keys(keep).forEach((id) => { const el = document.getElementById(id); if (el) el.value = keep[id]; });
     autoGrow();          // la zone reprend la hauteur du brouillon restauré…
@@ -2089,6 +2112,7 @@ button.chip{cursor:pointer;font:inherit}
     await S.db.collection('box').add({ to: to, from: S.me.raw, kind: 'msg', ts: Date.now(), iv: body.iv, ct: body.ct });
     const all = msgsAll();
     all.push({ mid: rid(10), cid: cid, dir: 'out', state: 'sent', ts: Date.now(), once: S.once !== false });
+    S.forceBas = true;
     LS.set('msgs', all);
     if ((S.attach || []).length) { S.attach = []; S.flash = { t: 'Seul le texte est envoyé pour l’instant.', ok: true }; }
     inp.value = '';

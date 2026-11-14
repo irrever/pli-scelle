@@ -247,7 +247,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v58';
+  const APP_VERSION = 'v59';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -840,11 +840,11 @@ button.chip{cursor:pointer;font:inherit}
     if (req && !isTyping()) { S.routed.add(req.pid); return openPending(req.pid, req.type === 'ff-request' ? 'demande' : 'lien-ouvert'); }
     const acc = pend.find((p) => p.type === 'ff-accepted' && !S.routed.has(p.pid));
     if (acc) { S.routed.add(acc.pid); return openPending(acc.pid, 'verifier-ff'); }
-    const racc = pend.find((p) => p.type === 'remote-accepted' && !S.routed.has(p.pid));
+    const racc = pend.find((p) => p.type === 'remote-accepted' && (!S.routed.has(p.pid) || S.screen === 'attente'));
     if (racc) { S.routed.add(racc.pid); return openPending(racc.pid, 'nommer'); }
-    const vf = pend.find((p) => p.type === 'verif' && !S.routed.has(p.pid));
+    const vf = pend.find((p) => p.type === 'verif' && (!S.routed.has(p.pid) || S.screen === 'attente'));
     if (vf && !isTyping()) { S.routed.add(vf.pid); return openPending(vf.pid, 'verif'); }
-    const cd = pend.find((p) => p.type === 'code' && !S.routed.has(p.pid));
+    const cd = pend.find((p) => p.type === 'code' && (!S.routed.has(p.pid) || S.screen === 'attente'));
     if (cd && !isTyping()) { S.routed.add(cd.pid); return openPending(cd.pid, 'finir'); }
     if (S.screen === 'attente' && !pend.some((p) => p.type === 'ff-sent' || p.type === 'remote-sent' || p.type === 'verif' || p.type === 'code')) {
       S.words = null;
@@ -1323,13 +1323,14 @@ button.chip{cursor:pointer;font:inherit}
   }
   function viewAttente() {
     const confirme = pendingAll().some((p) => p.type === 'remote-sent' && p.confirme);
+    const fini = pendingAll().some((p) => p.type === 'remote-sent' && p.fini);
     // Les 6 mots se calculent des deux côtés à partir des deux clés : le scanneur les voit dès l’envoi, en même temps que la personne.
     const aInvitation = pendingAll().some((p) => p.type === 'remote-sent');
     const words = S.words && S.words.length ? (aInvitation ? wordsBlock('Votre empreinte', 'Rien à toucher ici. La personne qui invite vous demandera trois de ces mots : vous les toucherez alors sur votre écran.') : wordsBlock('Mots d’empreinte à comparer','Comparez-les une seule fois, à voix haute ou au téléphone. S’ils sont identiques sur les deux écrans, vous pouvez communiquer en toute sécurité.')) : '';
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Demande envoyée' }) +
       '<div class="progress"><div class="pstep done"><span class="dot">' + '✓' + '</span><div><b>Demande envoyée</b><span>Votre demande a bien été transmise.</span></div></div>' +
         (confirme ? '<div class="pstep done"><span class="dot">✓</span><div><b>Mots confirmés par la personne</b><span>La personne a comparé les mots : rien à faire de votre côté.</span></div></div>' : '<div class="pstep now"><span class="dot">2</span><div><b>Confirmation de la personne</b><span>La personne vérifie les mots de son côté.</span></div></div>') +
-        (confirme ? '<div class="pstep now"><span class="dot">3</span><div><b>Recevoir le code</b><span>Il arrive dans l’appli : touchez-le pour finir.</span></div></div>' : '<div class="pstep"><span class="dot">3</span><div><b>Contact ajouté</b><span>Vous pourrez écrire.</span></div></div>') + '</div>' +
+        (fini ? '<div class="pstep now"><span class="dot">3</span><div><b>Ajout à ses contacts</b><span>La personne vous ajoute : vous pourrez ensuite lui donner un nom.</span></div></div>' : confirme ? '<div class="pstep now"><span class="dot">3</span><div><b>Recevoir le code</b><span>Il arrive dans l’appli : touchez-le pour finir.</span></div></div>' : '<div class="pstep"><span class="dot">3</span><div><b>Contact ajouté</b><span>Vous pourrez écrire.</span></div></div>') + '</div>' +
       words +
       '<div class="card center" style="align-items:center"><div class="spinner"></div><p class="hint">Gardez l’application ouverte. Cette page se met à jour seule.</p></div>' +
       '<div class="dock"><button class="btn btn-secondary" data-act="go" data-arg="accueil">Retour aux messages</button></div>' +
@@ -1999,7 +2000,7 @@ button.chip{cursor:pointer;font:inherit}
     const K = await pbkdf2(p.code, unb64u(p.salt), ITER_CODE);
     const proof = await proofFor(K, S.me.raw);
     await sendTo(p.peer, { kind: 'proof', inv: p.invId, proof: proof });
-    LS.set('pending', pendingAll().map((x) => x.pid === pid ? { pid: x.pid, at: Date.now(), type: 'remote-sent', peer: x.peer, peerPseudo: x.peerPseudo, invId: x.invId } : x));
+    LS.set('pending', pendingAll().map((x) => x.pid === pid ? { pid: x.pid, at: Date.now(), type: 'remote-sent', peer: x.peer, peerPseudo: x.peerPseudo, invId: x.invId, confirme: x.confirme, fini: true } : x));
     S.words = await wordsFor(unb64u(S.me.raw), unb64u(p.peer));
     go('attente');
   }

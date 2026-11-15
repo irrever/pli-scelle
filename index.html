@@ -268,7 +268,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v80';
+  const APP_VERSION = 'v81';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1668,9 +1668,10 @@ button.chip{cursor:pointer;font:inherit}
     if (!c) return viewAccueil();
     return '<div class="screen">' + topbar({ backAct: 'conv', backArg: c.cid, title: 'Réglages' }) +
       '<div class="card code-card"><span class="code-label">Code de ce contact</span><div class="code">' + esc(c.label) + '</div></div>' +
-      '<section class="stack"><div class="section-title">Durée de lecture</div><p class="hint">Un message ouvert reste lisible ce temps, puis il est effacé. Touchez-le pour le fermer tout de suite.</p><div style="display:flex;gap:8px;flex-wrap:wrap">' +
-        DUREES_LECTURE.map(([v, t]) => '<button class="chip' + ((typeof c.lecture === 'number' ? c.lecture : 60) === v ? ' on' : '') + '" type="button" data-act="setlecture" data-arg="' + esc(c.cid) + '|' + v + '">' + t + '</button>').join('') +
-      '</div></section>' +
+      '<section class="stack"><div class="section-title">Durée de lecture</div><p class="hint">Un message ouvert reste lisible ce temps, puis il est effacé. Touchez-le pour le fermer tout de suite.</p>' +
+      '<section class="list">' +
+        DUREES_LECTURE.map(([v, t]) => { const choisi = (typeof c.lecture === 'number' ? c.lecture : 60) === v; return '<button class="rowlink' + (choisi ? ' on' : '') + '" type="button" data-act="setlecture" data-arg="' + esc(c.cid) + '|' + v + '"><span>' + t + '</span>' + (choisi ? '<span class="state" style="color:var(--accent)">' + I.check + '</span>' : '') + '</button>'; }).join('') +
+      '</section></section>' +
       '<section class="list"><button class="rowlink" data-act="go" data-arg="verrouille"><span>Verrouiller l’application</span>' + I.chev + '</button>' +
       '<button class="rowlink danger" data-act="cut" data-arg="' + esc(c.cid) + '"><span>Couper le lien</span>' + I.chev + '</button></section>' +
       '<p class="hint">Couper le lien efface la conversation des deux côtés. Pour reprendre contact, il faut une nouvelle connexion.</p>' +

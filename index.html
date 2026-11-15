@@ -283,7 +283,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v102';
+  const APP_VERSION = 'v103';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -2046,10 +2046,10 @@ button.chip{cursor:pointer;font:inherit}
       (del && S.backupDone
         ? '<div class="dock stack" style="position:static"><button class="btn btn-danger-solid" data-act="deletekeep">J’ai copié la sauvegarde : supprimer mon identité</button><button class="btn btn-ghost" data-act="go" data-arg="identite">Annuler</button></div>'
         : (!del && S.backupText
-          ? '<div class="dock stack" style="position:static"><button class="btn btn-secondary" data-act="nouveaufichier">Créer un nouveau fichier</button><button class="btn btn-primary" data-act="go" data-arg="installer">Installer une sauvegarde</button></div>'
+          ? ''
           : '<section class="card form"><label class="label" for="bcode">Code secret : il chiffre cette sauvegarde</label><input id="bcode" class="field" type="password" autocomplete="off">' + formStatus() +
             '<p class="hint">Vous le retaperez pour ouvrir ce fichier. L’application ne le garde pas.</p></section>' +
-            '<div class="dock"><button class="btn btn-primary" data-act="backup">Enregistrer la sauvegarde</button></div>')) +
+            '<div class="dock"><button class="btn btn-primary" data-act="backup">Enregistrer dans un fichier</button></div>')) +
     '</div>';
   }
   // Juste après la création : l’identité, le pseudo, et ce qui reste privé. Rien de nouveau à voir ici : tout se fait ensuite.
@@ -2180,8 +2180,8 @@ button.chip{cursor:pointer;font:inherit}
   function errText(e) { if (e && e.message) return e.message; if (e && e.code) return 'Base indisponible (' + e.code + ').'; return 'Une erreur est survenue. Réessayez.'; }
   function nameValue() { const el = $('#cname'); return el ? el.value.trim().slice(0, 40) : ''; }
   async function copyText(text, okMsg) {
-    try { await navigator.clipboard.writeText(text); flashNow({ t: okMsg, ok: true }); }
-    catch (e) { flashNow({ t: 'Copiez ce texte : ' + text, ok: true }); }
+    try { await navigator.clipboard.writeText(text); flashNow({ t: okMsg, ok: true }); return true; }
+    catch (e) { flashNow({ t: 'Copiez ce texte : ' + text, ok: true }); return false; }
   }
 
   // ---------- actions ----------
@@ -2787,9 +2787,21 @@ button.chip{cursor:pointer;font:inherit}
         if (e && e.code === 'declined') return setStatus('formstatus', 'info', 'Enregistrement annulé.');
       }
     }
-    LS.set('lastBackup', Date.now()); S.backupText = text; S.backupDone = true;
+    // La sauvegarde n’est marquée comme faite qu’une fois le fichier enregistré, ou le texte copié.
+    S.backupText = text; S.backupDone = false;
+    try {
+      const fichier = new File([enc.encode(text)], 'pli-sauvegarde-' + new Date().toISOString().slice(0, 10) + '.json', { type: 'application/json' });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [fichier] })) {
+        await navigator.share({ files: [fichier], title: 'Sauvegarde Pli Scellé' });
+        LS.set('lastBackup', Date.now()); S.backupDone = true;
+        go('sauvegarde');
+        return flashNow({ t: 'Sauvegarde enregistrée. Gardez ce fichier en lieu sûr.', ok: true });
+      }
+    } catch (e) {
+      if (e && e.name === 'AbortError') { go('sauvegarde'); return flashNow({ t: 'Enregistrement annulé. Vous pouvez copier le texte ci-dessous.', ok: false }); }
+    }
     go('sauvegarde');
-    flashNow({ t: 'Copiez le texte de la sauvegarde et gardez-le en lieu sûr.', ok: true });
+    flashNow({ t: 'Copiez le texte ci-dessous et gardez-le en lieu sûr.', ok: true });
   }
   // Installer la sauvegarde des contacts : ils apparaissent « À réactiver » jusqu’à la réponse de chaque personne.
   async function actInstall() {
@@ -2844,7 +2856,6 @@ button.chip{cursor:pointer;font:inherit}
     togglenotif: actToggleNotif,
     ajouterverifier: actVerifierAjout,
     raccourcivu: () => { LS.set('raccourci', RACCOURCI_REVISION); go('accueil'); },
-    nouveaufichier: () => { S.backupText = null; S.backupDone = false; go('sauvegarde'); },
     retrouveractuel: actRetrouver,
     enablebio: actEnableBio,
     disablebio: () => { LS.set('bio', null); S.flash = { t: 'Déverrouillage biométrique désactivé.', ok: true }; go('identite'); },
@@ -2938,7 +2949,7 @@ button.chip{cursor:pointer;font:inherit}
     pickcontact: pickContactName,
     setname: (a) => { const el = $('#cname'); if (el) el.value = String(a || '').slice(0, 40); const l = $('#vcardlist'); if (l) l.innerHTML = ''; },
     backup: actMakeBackup,
-    copybackup: () => copyText(S.backupText || '', 'Sauvegarde copiée.')
+    copybackup: async () => { if (await copyText(S.backupText || '', 'Sauvegarde copiée. Gardez-la en lieu sûr.')) { LS.set('lastBackup', Date.now()); S.backupDone = true; go('sauvegarde'); flashNow({ t: 'Sauvegarde copiée. Gardez-la en lieu sûr.', ok: true }); } }
   };
 
   document.addEventListener('click', (ev) => {

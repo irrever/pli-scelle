@@ -199,7 +199,7 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 .act{display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0;width:100%;background:none;border:0;color:var(--ink);font-size:13px;line-height:1.25;text-align:center;cursor:pointer}
 .act .rond{width:62px;height:62px;border-radius:50%;background:var(--surface-2);display:grid;place-items:center;color:var(--accent)}
 .act.on .rond{background:var(--accent);color:#fff}
-.act.danger .rond{color:var(--danger)}
+.act.danger .rond{color:var(--danger);box-shadow:0 0 0 3px var(--surface),0 0 0 5px var(--danger)}
 .act small{display:block;color:var(--muted);font-size:12px}
 .plus-sheet{background:var(--surface);border:1px solid var(--line-2);border-radius:18px;padding:16px 10px 12px;box-shadow:var(--shadow);display:grid;gap:12px;margin:0 0 8px}
 .event-row{display:grid;gap:8px;margin:0 0 8px}
@@ -278,7 +278,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v84';
+  const APP_VERSION = 'v85';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();

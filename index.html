@@ -283,8 +283,11 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v91';
+  const APP_VERSION = 'v92';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
+  // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
+  const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
+  let minuteurAttente = null, derniereAction = Date.now(), decompteOublie = null, valeurOublie = 5;
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1273,6 +1276,7 @@ button.chip{cursor:pointer;font:inherit}
     inviter: viewInviter, attente: viewAttente, demande: viewDemande, 'verifier-ff': viewVerifierFF,
     'lien-ouvert': viewLienOuvert, nommer: viewNommer, contact: viewContact, conv: viewConv,
     reglages: viewReglages, couper: viewCouper, 'lien-coupe': viewLienCoupe, identite: viewIdentite, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, 'identite-prete': viewIdentitePrete, verif: viewVerif, finir: viewFinir, reprise: viewRepriseLien,
+    codeoublie: viewCodeOublie, 'codeoublie-decompte': viewCodeOublieDecompte, urgence: viewUrgence,
     invalide: viewInvalide
   };
 
@@ -1364,6 +1368,7 @@ button.chip{cursor:pointer;font:inherit}
         '<label class="label" for="s2">Répétez le code secret</label>' +
         '<input id="s2" class="field" type="password" autocomplete="new-password">' +
         '<p class="hint">Il ouvre l’application sur cet appareil. Il ne se récupère pas.</p>' +
+        '<label style="display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(--ink-2);margin-top:10px"><input id="averti" type="checkbox" style="margin-top:4px;flex:none"><span>J’ai compris : si je me trompe trois fois de suite au déverrouillage, tous les messages que j’ai reçus sont effacés.</span></label>' +
         formStatus() +
       '</div>' +
       qrDecorCard() +
@@ -1375,14 +1380,51 @@ button.chip{cursor:pointer;font:inherit}
     '</div>';
   }
   function viewVerrouille() {
+    const v = etatVerrou();
+    const attente = attenteRestante();
+    if (attente > 0) setTimeout(surveillerAttente, 0);
+    const msg = S.verrouMessage ? notice('err', esc(S.verrouMessage)) : '';
+    const effaces = v.efface ? notice('info', 'Vos messages reçus ont été effacés, après trois erreurs. Vos contacts sont toujours là.') : '';
+    const attenteHtml = attente > 0 ? notice('err', 'Trop d’essais. Réessayez dans <span id="compte-attente">' + dureeAttente(attente) + '</span>.') : '';
+    const avertissement = v.n === 2 && attente === 0 ? notice('err', 'Attention : au prochain essai raté, tous vos messages reçus seront effacés.') : '';
+    const bloque = attente > 0 ? ' disabled' : '';
     return '<div class="screen center-col" style="justify-content:center;flex:1">' +
       '<div class="brand" style="padding:0;justify-content:center">' + LOGO + '<span>Pli Scellé</span></div>' +
       '<div><h1>Déverrouiller</h1><p class="lead" style="margin-top:6px">' + (S.arg === 'invite' ? 'Entrez votre code secret pour répondre à l’invitation.' : 'Entrez votre code secret pour accéder à vos messages.') + '</p></div>' +
       qrDecorCard({ caption: false, plain: true }) +
-      '<div class="card form" style="width:100%;text-align:left"><label class="label" for="unlock">Code secret</label><input id="unlock" class="field" type="password" autocomplete="off">' + formStatus() + '</div>' +
-      '<div style="width:100%"><button class="btn btn-primary" data-act="unlock">Déverrouiller</button></div>' +
-      (LS.get('bio', null) ? '<div style="width:100%"><button class="btn btn-secondary" data-act="biounlock">Empreinte ou Face ID</button></div>' : '') +
+      effaces + attenteHtml + avertissement +
+      '<div class="card form" style="width:100%;text-align:left"><label class="label" for="unlock">Code secret</label><input id="unlock" class="field" type="password" autocomplete="off"' + bloque + '>' + msg + formStatus() + '</div>' +
+      '<div style="width:100%"><button class="btn btn-primary" data-act="unlock"' + bloque + '>Déverrouiller</button></div>' +
+      (LS.get('bio', null) ? '<div style="width:100%"><button class="btn btn-secondary" data-act="biounlock"' + bloque + '>Empreinte ou Face ID</button></div>' : '') +
+      (v.blocs >= 1 ? '<div style="width:100%"><button class="btn btn-ghost" data-act="go" data-arg="codeoublie">Code oublié ?</button></div>' : '') +
       '<p class="hint">Vos messages restent sur cet appareil.</p>' +
+    '</div>';
+  }
+  function viewCodeOublie() {
+    return '<div class="screen">' + topbar({ back: 'verrouille', title: 'Code oublié' }) +
+      '<div><h1>Code oublié</h1><p class="lead" style="margin-top:6px">Sans votre code secret, cette identité ne peut plus être ouverte. Il n’y a pas d’autre choix que d’en créer une nouvelle.</p></div>' +
+      '<section class="card"><p class="hint">L’identité actuelle est effacée sur cet appareil. Vos contacts sont prévenus, et les messages que vous avez reçus sont supprimés.</p></section>' +
+      '<div class="dock stack" style="position:static"><button class="btn btn-danger" data-act="oubliecommencer">Créer une nouvelle identité</button><button class="btn btn-secondary" data-act="go" data-arg="verrouille">Retour</button></div>' +
+    '</div>';
+  }
+  function viewCodeOublieDecompte() {
+    return '<div class="screen center-col" style="justify-content:center;flex:1;text-align:center">' +
+      '<div style="width:112px;height:112px;border-radius:999px;border:6px solid var(--danger-soft);display:grid;place-items:center;font-size:44px;font-weight:700;color:var(--danger)">' + valeurOublie + '</div>' +
+      '<h1 style="margin-top:16px">Créer une nouvelle identité ?</h1>' +
+      '<p class="lead" style="margin-top:8px;max-width:320px">L’identité actuelle, ses contacts et les messages reçus seront supprimés dans ' + valeurOublie + (valeurOublie > 1 ? ' secondes' : ' seconde') + '. Touchez « Arrêter » pour revenir.</p>' +
+      '<div class="dock stack" style="position:static;width:100%"><button class="btn btn-secondary" data-act="go" data-arg="codeoublie">Arrêter</button></div>' +
+    '</div>';
+  }
+  function viewUrgence() {
+    const actif = !!LS.get('urgence', null);
+    const titre = '<div><h1>Code d’urgence</h1><p class="lead" style="margin-top:6px">Ce code efface tout cet appareil, messages compris, sans rien afficher. Il doit être différent de votre code secret.</p></div>';
+    if (actif) return '<div class="screen">' + topbar({ back: 'identite', title: 'Code d’urgence' }) + titre +
+      '<section class="card"><p class="hint">Activé sur cet appareil.</p></section><div class="dock stack" style="position:static"><button class="btn btn-danger" data-act="urgencesupprimer">Supprimer le code d’urgence</button></div></div>';
+    return '<div class="screen">' + topbar({ back: 'identite', title: 'Code d’urgence' }) + titre +
+      '<div class="card form"><label class="label" for="uact">Votre code secret actuel</label><input id="uact" class="field" type="password" autocomplete="off">' +
+      '<label class="label" for="u1">Code d’urgence</label><input id="u1" class="field" type="password" autocomplete="new-password" placeholder="8 caractères minimum, lettres et chiffres">' +
+      '<label class="label" for="u2">Répétez le code d’urgence</label><input id="u2" class="field" type="password" autocomplete="new-password">' + formStatus() + '</div>' +
+      '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="urgenceenregistrer">Enregistrer le code d’urgence</button></div>' +
     '</div>';
   }
   // Où en est une demande de reprise, pour une ligne « lien à reprendre ».
@@ -1886,6 +1928,7 @@ button.chip{cursor:pointer;font:inherit}
       '<div class="id-card"><div class="id-top"><span>PLI SCELLÉ</span><span>IDENTITÉ</span></div><div class="id-body"><div class="id-main"><div class="id-label">Mon pseudo</div><div class="id-name">' + esc(S.me.pseudo) + '</div></div><div class="id-qr" aria-hidden="true"><div class="qr-build">' + qrDecorCells() + '</div></div></div><div class="id-foot">Ni numéro, ni e-mail. Ce pseudo permet seulement de vous écrire.</div></div>' +
       zoneEffacementHTML() +
       (S.bioAvail ? '<section><div class="section-title">Déverrouillage</div><div class="list"><button class="rowlink" data-act="go" data-arg="biometrie"><span>Empreinte ou Face ID</span><span class="state">' + (LS.get('bio', null) ? 'Activé' : 'Désactivé') + '</span>' + I.chev + '</button></div></section>' : '') +
+      '<section><div class="section-title">Code d’urgence</div><div class="list"><button class="rowlink" data-act="go" data-arg="urgence"><span>Code d’urgence</span><span class="state">' + (LS.get('urgence', null) ? 'Activé' : 'Désactivé') + '</span>' + I.chev + '</button></div></section>' +
       '<section><div class="section-title">Alertes</div><div class="list"><button class="rowlink" data-act="togglesound"><span>Sonnerie à la réception</span><span class="state">' + (getPrefs().sound ? 'Activée' : 'Désactivée') + '</span>' + I.chev + '</button></div>' + toneChipsHTML() + '<div class="list" style="margin-top:12px"><button class="rowlink" data-act="togglenotif"><span>Notifications quand l’appli est fermée</span><span class="state">' + (getPrefs().notif ? (getPrefs().push ? 'Activées' : 'En attente') : 'Désactivées') + '</span>' + I.chev + '</button></div>' + notifHintHTML() + '<p class="hint">La sonnerie joue à chaque message ou demande reçus, tant que l’appli est ouverte (et vibre sur Android).</p></section>' +
       '<section><div class="section-title">Sauvegarde</div><div class="list"><button class="rowlink" data-act="go" data-arg="sauvegarde"><span>Sauvegarder mes contacts</span>' + I.chev + '</button><button class="rowlink" data-act="go" data-arg="installer"><span>Installer une sauvegarde</span>' + I.chev + '</button></div><p class="hint">' + (LS.get('lastBackup', 0) ? 'Dernière sauvegarde : ' + esc(new Date(LS.get('lastBackup', 0)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })) : 'Pas encore de sauvegarde. Sans elle, vos contacts ne sont que dans ce navigateur.') + '</p></section>' +
       '<section><div class="section-title">Sécurité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="supprimer"><span style="display:flex;gap:10px;align-items:center">' + I.trash + 'Supprimer mon identité</span>' + I.chev + '</button></div></section>' +
@@ -1968,6 +2011,7 @@ button.chip{cursor:pointer;font:inherit}
       '<div><p class="eyebrow">Étape 2 sur 4</p><h1>Votre identité est prête</h1><p class="lead" style="margin-top:6px">Pli Scellé est une messagerie privée, sans compte ni numéro : vous reliez vos contacts un par un, puis vous écrivez.</p></div>' +
       '<div class="id-card"><div class="id-top"><span>PLI SCELLÉ</span><span>IDENTITÉ</span></div><div class="id-body"><div class="id-main"><div class="id-label">Mon pseudo</div><div class="id-name">' + esc(S.me.pseudo) + '</div></div><div class="id-qr" aria-hidden="true"><div class="qr-build">' + qrDecorCells() + '</div></div></div><div class="id-foot">Ni numéro, ni e-mail. Ce pseudo permet seulement de vous écrire.</div></div>' +
       '<section class="card"><h2>Vos messages restent privés</h2><p class="hint">Pli Scellé chiffre vos messages sur ce téléphone : seuls vous et votre contact pouvez les lire. Vos clés restent sur cet appareil, protégées par votre code secret, qui ne se récupère pas.</p></section>' +
+      (S.bioAvail ? '<section class="card"><h2>Déverrouiller plus vite ?</h2><p class="hint">Face ID ou l’empreinte peuvent ouvrir l’appli à la place du code. Ce n’est qu’un raccourci : le visage ou l’empreinte restent dans le téléphone, dans sa zone sécurisée. Attention : quelqu’un qui vous oblige à présenter votre visage ou votre doigt peut ouvrir l’appli sans que le code d’urgence soit tapé.</p><button class="btn btn-secondary" data-act="go" data-arg="biometrie">Activer Face ID ou l’empreinte</button></section>' : '') +
       '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="go" data-arg="reprendre">Continuer</button></div>' +
     '</div>';
   }
@@ -2019,6 +2063,7 @@ button.chip{cursor:pointer;font:inherit}
   }
   function render() {
     if (S.screen !== 'identite' && (S.effacement || decompteTimer)) quitterEffacement();
+    if (S.screen !== 'codeoublie-decompte') arreterDecompteOublie();
     expireOpened();
     chargerEmpreintes();
     const app = $('#app');
@@ -2120,6 +2165,7 @@ button.chip{cursor:pointer;font:inherit}
     if (pseudo.length < 2 || pseudo.length > 24) return setStatus('formstatus', 'err', 'Le pseudo fait entre 2 et 24 caractères.');
     const erreur = erreurCodeSecret(s1);
     if (erreur) return setStatus('formstatus', 'err', erreur);
+    if (!$('#averti') || !$('#averti').checked) return setStatus('formstatus', 'err', 'Cochez « J’ai compris » : c’est ce qui arrive après trois erreurs.');
     if (s1 !== s2) return setStatus('formstatus', 'err', 'Les deux codes secrets ne sont pas identiques.');
     try { await createIdentity(pseudo, s1); }
     catch (e) { return setStatus('formstatus', 'err', 'Création impossible : le relais ne répond pas. Réessayez.'); }
@@ -2127,11 +2173,127 @@ button.chip{cursor:pointer;font:inherit}
     S.afterCreate = S.arg === 'sauvegarde' ? 'installer' : true;   // après une nouvelle identité : la sauvegarde si elle a été demandée, sinon « Reprendre vos contacts »
     afterAuth();
   }
+  // ---------- verrouillage : erreurs, délais, messages reçus effacés, code oublié, code d’urgence, activité ----------
+  function etatVerrou() { return Object.assign({}, VERROU_DEFAUT, LS.get('verrou', {}) || {}); }
+  function attenteRestante() { return Math.max(0, Math.ceil((etatVerrou().attente - Date.now()) / 1000)); }
+  function dureeAttente(s) { return s >= 60 ? Math.floor(s / 60) + ' min' + (s % 60 ? ' ' + (s % 60) + ' s' : '') : s + ' s'; }
+  function surveillerAttente() {
+    if (minuteurAttente) { clearInterval(minuteurAttente); minuteurAttente = null; }
+    if (attenteRestante() <= 0) return;
+    minuteurAttente = setInterval(() => {
+      const reste = attenteRestante();
+      if (reste > 0) { const el = $('#compte-attente'); if (el) el.textContent = dureeAttente(reste); return; }
+      clearInterval(minuteurAttente); minuteurAttente = null;
+      if (S.screen === 'verrouille') render();
+    }, 1000);
+  }
+  async function codeCorrect(wrap, code) { try { await unwrapPkcs8(wrap, code); return true; } catch (e) { return false; } }
+  // Une erreur de code : au deuxième, l’appli prévient ; au troisième, les messages reçus sont effacés, puis un délai.
+  async function echecCode() {
+    const v = etatVerrou();
+    v.n += 1;
+    if (v.n < 3) { LS.set('verrou', v); S.verrouMessage = 'Ce code ne correspond pas. Essai ' + v.n + ' sur 3.'; return go('verrouille'); }
+    v.n = 0; v.blocs += 1; v.attente = Date.now() + 30000 * Math.pow(2, v.blocs - 1); v.efface = true;
+    LS.set('verrou', v);
+    S.verrouMessage = 'Trois erreurs : attendez avant de réessayer.';
+    go('verrouille');
+    await effacerMessagesRecus();
+    if (S.screen === 'verrouille') render();
+  }
+  // Efface les messages reçus : sur ce téléphone, et sur le relais tant qu’ils n’ont pas été téléchargés. Les contacts restent.
+  async function effacerMessagesRecus() {
+    LS.set('msgs', msgsAll().filter((m) => m.dir !== 'in'));
+    await viderVoixRecues();
+    try { if (S.me && S.me.secret) await purgerRelais(true); } catch (e) { /* hors ligne : le relais sera vidé plus tard */ }
+  }
+  async function viderVoixRecues() {
+    try {
+      const db = await vdb();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(['audio', 'parts'], 'readwrite');
+        tx.objectStore('audio').clear(); tx.objectStore('parts').clear();
+        tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error);
+      });
+    } catch (e) { /* rien à effacer */ }
+  }
+  // Supprime sur le relais les messages non téléchargés. Avec « seulementMessages », les autres (lien, reprise) restent.
+  async function purgerRelais(seulementMessages) {
+    const boite = await mailboxOf(S.me.raw);
+    for (let tour = 0; tour < 20; tour++) {
+      const rows = await rpc('pli_fetch', { p_mailbox: boite, p_secret: S.me.secret });
+      if (!rows || !rows.length) return;
+      let retires = 0;
+      for (const r of rows) {
+        const k = (r.msg_payload || {}).kind;
+        if (seulementMessages && k !== 'msg' && k !== 'voicepart') continue;
+        await rpc('pli_ack', { p_id: r.msg_id, p_mailbox: boite, p_secret: S.me.secret });
+        retires++;
+      }
+      if (retires === 0 || rows.length < 200) return;
+    }
+  }
+  // Code d’urgence : tout l’appareil est effacé, comme « Effacer mon identité », sans rien afficher.
+  async function effacementUrgence() {
+    await effacerIdentite(false, true);
+    S.verrouMessage = null; S.flash = null;
+    go('creer');
+  }
+  // Code oublié : compte à rebours de 5 secondes, puis l’identité est effacée (contacts prévenus).
+  function arreterDecompteOublie() { if (decompteOublie) { clearInterval(decompteOublie); decompteOublie = null; } }
+  function demarrerDecompteOublie() {
+    arreterDecompteOublie();
+    valeurOublie = 5;
+    decompteOublie = setInterval(async () => {
+      valeurOublie -= 1;
+      if (valeurOublie > 0) { if (S.screen === 'codeoublie-decompte') render(); return; }
+      arreterDecompteOublie();
+      const ok = await effacerIdentite(false);
+      if (ok) { S.verrouMessage = null; S.flash = null; return go('creer'); }
+      S.verrouMessage = (S.flash && S.flash.t) || 'Rien n’a été effacé. Réessayez en ligne.';
+      go('verrouille');
+    }, 1000);
+  }
+  async function actEnregistrerUrgence() {
+    const actuel = ($('#uact') || {}).value || '', u1 = ($('#u1') || {}).value || '', u2 = ($('#u2') || {}).value || '';
+    if (!await codeCorrect(S.me.wrap, actuel)) return setStatus('formstatus', 'err', 'Code secret incorrect.');
+    const erreur = erreurCodeSecret(u1);
+    if (erreur) return setStatus('formstatus', 'err', erreur);
+    if (u1 !== u2) return setStatus('formstatus', 'err', 'Les deux codes d’urgence ne sont pas identiques.');
+    if (await codeCorrect(S.me.wrap, u1)) return setStatus('formstatus', 'err', 'Ce code est votre code secret. Choisissez-en un autre.');
+    const pkcs8 = await unwrapPkcs8(S.me.wrap, actuel);
+    LS.set('urgence', await wrapPkcs8(pkcs8, u1));
+    S.flash = { t: 'Code d’urgence enregistré.', ok: true };
+    go('identite');
+  }
+  function actSupprimerUrgence() { LS.set('urgence', null); S.flash = { t: 'Code d’urgence supprimé.', ok: true }; go('identite'); }
+  async function wrapPkcs8(pkcs8, code) {
+    const salt = rand(16), iv = rand(12);
+    const kb = await pbkdf2(code, salt, ITER_SECRET);
+    const key = await crypto.subtle.importKey('raw', kb, 'AES-GCM', false, ['encrypt']);
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, pkcs8));
+    return { salt: b64u(salt), iv: b64u(iv), ct: b64u(ct) };
+  }
+  // Verrouillage automatique : trois minutes sans toucher l’écran.
+  function verifierInactivite() {
+    if (!S.priv || !S.me) return;
+    if (Date.now() - derniereAction < 180000) return;
+    S.priv = null; S.verrouMessage = null; stopPolling();
+    go('verrouille');
+  }
   async function actUnlock() {
+    if (attenteRestante() > 0) return;
     const code = $('#unlock').value;
+    if (!code) return;
+    S.verrouMessage = null;
     try { S.priv = await unwrapPriv(S.me.wrap, code); }
-    catch (e) { S.priv = null; return setStatus('formstatus', 'err', 'Code incorrect.'); }
-    if (!await ensureSecret()) { S.priv = null; return setStatus('formstatus', 'err', 'Cette identité ne peut plus être ouverte ici : sa boîte est déjà prise. Créez une nouvelle identité.'); }
+    catch (e) {
+      S.priv = null;
+      const urgence = LS.get('urgence', null);
+      if (urgence && await codeCorrect(urgence, code)) return effacementUrgence();
+      return echecCode();
+    }
+    if (!await ensureSecret()) { S.priv = null; S.verrouMessage = 'Cette identité ne peut plus être ouverte ici : sa boîte est déjà prise. Créez une nouvelle identité.'; return go('verrouille'); }
+    LS.set('verrou', VERROU_DEFAUT);   // bon code : les compteurs repartent de zéro
     afterAuth();
   }
   function afterAuth() {
@@ -2397,20 +2559,26 @@ button.chip{cursor:pointer;font:inherit}
     go('lien-coupe');
   }
   // Supprimer l’identité : avec « keep », les contacts sont mis en pause (ils pourront reprendre le lien) ; sinon, les liens sont coupés.
-  async function actDeleteMe(keep) {
+  // Efface l’identité. Avec « keep », les contacts sont mis en pause ; sinon ils reçoivent une coupure vérifiée par le serveur.
+  // Renvoie false si un contact n’a pas pu être prévenu : rien n’est effacé, sauf si on force (code d’urgence).
+  async function effacerIdentite(keep, forcer) {
     if (keep === true) {
       for (const c of contacts()) { try { await sendAuth(c.raw, 'pause', { ts: Date.now() }); } catch (e) {} }
     } else {
-      // Effacer = d’abord prévenir chaque contact, par une coupure vérifiée par le serveur. Si l’un ne peut pas être prévenu, rien n’est effacé.
       const echecs = [];
       for (const c of contacts()) { try { await envoyerSigne(c.raw, { kind: 'cut' }); } catch (e) { echecs.push(c.name || c.pseudo || 'un contact'); } }
-      if (echecs.length) { S.flash = { t: 'Rien n’a été effacé : impossible de prévenir ' + echecs.join(', ') + '. Réessayez en ligne.', ok: false }; return go('identite'); }
+      if (echecs.length && !forcer) { S.flash = { t: 'Rien n’a été effacé : impossible de prévenir ' + echecs.join(', ') + '. Réessayez en ligne.', ok: false }; return false; }
     }
+    try { await purgerRelais(false); } catch (e) { /* hors ligne */ }
     for (const i of invitesAll()) { if (i.status === 'open') await closeInviteDoc(i.id); }
     LS.clearAll();
     try { indexedDB.deleteDatabase('pli-voix'); vdbP = null; } catch (e) { /* rien à effacer */ }
     S.me = null; S.priv = null; S.qr = null; S.invQR = null; S.draftPseudo = null; S.words = null;
     stopPolling();
+    return true;
+  }
+  async function actDeleteMe(keep) {
+    if (await effacerIdentite(keep) === false) return go('identite');
     go('creer');
   }
 
@@ -2528,6 +2696,9 @@ button.chip{cursor:pointer;font:inherit}
     deletekeep: () => actDeleteMe(true),
     install: () => actInstall(),
     reactiver: () => actReactivate(),
+    oubliecommencer: () => { go('codeoublie-decompte'); demarrerDecompteOublie(); },
+    urgenceenregistrer: () => actEnregistrerUrgence(),
+    urgencesupprimer: () => actSupprimerUrgence(),
     repriseok: (a) => confirmerReprise(a),
     reprisenon: (a) => refuserReprise(a),
     recharger: recharger,
@@ -2878,6 +3049,7 @@ button.chip{cursor:pointer;font:inherit}
     go('identite');
   }
   async function actBioUnlock() {
+    if (attenteRestante() > 0) return;
     const bio = LS.get('bio', null);
     if (!bio) return;
     let pkcs8;
@@ -2891,12 +3063,14 @@ button.chip{cursor:pointer;font:inherit}
     }
     S.priv = await crypto.subtle.importKey('pkcs8', pkcs8, ECDH, false, ['deriveKey', 'deriveBits']);
     if (!await ensureSecret()) { S.priv = null; return setStatus('formstatus', 'err', 'Cette identité ne peut plus être ouverte ici. Entrez votre code secret, ou créez une nouvelle identité.'); }
+    LS.set('verrou', VERROU_DEFAUT);
     afterAuth();
   }
   function viewBiometrie() {
     const on = !!LS.get('bio', null);
     return '<div class="screen">' + topbar({ back: 'identite', title: 'Empreinte ou Face ID' }) +
       '<div><h1>Empreinte ou Face ID</h1><p class="lead" style="margin-top:6px">Sur ce téléphone, l’empreinte ou Face ID peut ouvrir l’appli à la place du code secret. Le code reste toujours possible.</p></div>' +
+      '<section class="card"><p class="hint">Attention : quelqu’un qui vous oblige à présenter votre visage ou votre doigt peut ouvrir l’appli sans que le code d’urgence soit tapé.</p></section>' +
       (on
         ? '<div class="card"><p class="hint">Activé sur cet appareil.</p></div><div class="dock"><button class="btn btn-danger" data-act="disablebio">Désactiver</button></div>'
         : '<div class="card form"><label class="label" for="biocode">Code secret</label><input id="biocode" class="field" type="password" autocomplete="off">' + formStatus() + '</div><div class="dock"><button class="btn btn-primary" data-act="enablebio">Activer</button></div>') +
@@ -2926,6 +3100,10 @@ button.chip{cursor:pointer;font:inherit}
       }
     }
     S.bioAvail = await bioAvailable();
+    // Verrouillage automatique : toute action sur l’écran compte comme une activité.
+    ['pointerdown', 'keydown', 'touchstart', 'input'].forEach((ev) => document.addEventListener(ev, () => { derniereAction = Date.now(); }, true));
+    setInterval(verifierInactivite, 5000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) verifierInactivite(); });
     // Versions : au démarrage, au retour sur la fenêtre, puis toutes les 10 minutes (une fenêtre d’appli reste souvent ouverte longtemps)
     verifierVersion();
     setInterval(verifierVersion, 10 * 60 * 1000);

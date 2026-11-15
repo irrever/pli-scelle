@@ -37,6 +37,7 @@ p{margin:0}
 /* barre du haut */
 .topbar{position:relative;display:flex;align-items:center;gap:8px;min-height:60px;padding:8px 12px 8px 8px;background:var(--bg)}
 .topbar-title{flex:1;min-width:0;font:600 17px/1.2 "Bricolage Grotesque",system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.repere{display:inline-block;margin-left:10px;padding:2px 9px;border:1px solid var(--line-2);border-radius:999px;font:600 12px/1.4 system-ui,sans-serif;color:var(--muted);vertical-align:middle;white-space:nowrap}
 .topbar.bare{padding-left:0}
 .topbar-right{display:flex;align-items:center;gap:4px}
 .iconbtn{width:44px;height:44px;border-radius:12px;border:0;background:transparent;color:var(--ink);display:grid;place-items:center;cursor:pointer;flex:none}
@@ -283,7 +284,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v97';
+  const APP_VERSION = 'v98';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -1491,7 +1492,7 @@ button.chip{cursor:pointer;font:inherit}
         (attente.length ? '<div class="section-title" style="margin-top:14px">Liens en attente</div><div class="list">' + attente.map(ligne).join('') + '</div>' : '')
       : emptyState();
     return '<div class="screen">' +
-      topbar({ titleHTML: 'Messages', right: '<button class="iconbtn" data-act="go" data-arg="identite" aria-label="Mon identité">' + I.user + '</button><button class="iconbtn" data-act="lock" aria-label="Verrouiller">' + I.lock + '</button>' }) +
+      topbar({ titleHTML: 'Messages' + (idActif === 'b' ? '<span class="repere">Identité 2</span>' : ''), right: '<button class="iconbtn" data-act="go" data-arg="identite" aria-label="Mon identité">' + I.user + '</button><button class="iconbtn" data-act="lock" aria-label="Verrouiller">' + I.lock + '</button>' }) +
       (notices ? '<div class="pending-stack">' + notices + '</div>' : '') +
       invitationsEnAttenteHTML() +
       (versionNouvelle ? '<div class="pending-stack"><button class="notice warn" data-act="recharger">' + I.refresh + '<span class="grow">Nouvelle version (' + esc(versionNouvelle) + ') disponible<br><span class="more">Touchez pour la charger. Vos données restent sur cet appareil.</span></span>' + I.chev + '</button></div>' : '') +
@@ -1962,7 +1963,7 @@ button.chip{cursor:pointer;font:inherit}
     rafraichirZoneEffacer();
   }
   function viewIdentite() {
-    return '<div class="screen">' + topbar({ back: 'accueil', title: 'Mon identité' }) +
+    return '<div class="screen">' + topbar({ back: 'accueil', titleHTML: 'Mon identité' + (idActif === 'b' ? '<span class="repere">Identité 2</span>' : '') }) +
       '<div class="id-card"><div class="id-top"><span>PLI SCELLÉ</span><span>IDENTITÉ</span></div><div class="id-body"><div class="id-main"><div class="id-label">Mon pseudo</div><div class="id-name">' + esc(S.me.pseudo) + '</div></div><div class="id-qr" aria-hidden="true"><div class="qr-build">' + qrDecorCells() + '</div></div></div><div class="id-foot">Ni numéro, ni e-mail. Ce pseudo permet seulement de vous écrire.</div></div>' +
       zoneEffacementHTML() +
       (S.bioAvail && idActif === 'a' ? '<section><div class="section-title">Déverrouillage</div><div class="list"><button class="rowlink" data-act="go" data-arg="biometrie"><span>Empreinte ou Face ID</span><span class="state">' + (LS.get('bio', null) ? 'Activé' : 'Désactivé') + '</span>' + I.chev + '</button></div></section>' : '') +

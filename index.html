@@ -268,7 +268,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v78';
+  const APP_VERSION = 'v79';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1292,8 +1292,8 @@ button.chip{cursor:pointer;font:inherit}
       '<div><h1>Déverrouiller</h1><p class="lead" style="margin-top:6px">' + (S.arg === 'invite' ? 'Entrez votre code secret pour répondre à l’invitation.' : 'Entrez votre code secret pour accéder à vos messages.') + '</p></div>' +
       qrDecorCard({ caption: false, plain: true }) +
       '<div class="card form" style="width:100%;text-align:left"><label class="label" for="unlock">Code secret</label><input id="unlock" class="field" type="password" autocomplete="off">' + formStatus() + '</div>' +
-      '<div class="dock" style="width:100%"><button class="btn btn-primary" data-act="unlock">Déverrouiller</button></div>' +
-      (LS.get('bio', null) ? '<div class="dock" style="width:100%"><button class="btn btn-secondary" data-act="biounlock">Empreinte ou Face ID</button></div>' : '') +
+      '<div style="width:100%"><button class="btn btn-primary" data-act="unlock">Déverrouiller</button></div>' +
+      (LS.get('bio', null) ? '<div style="width:100%"><button class="btn btn-secondary" data-act="biounlock">Empreinte ou Face ID</button></div>' : '') +
       '<p class="hint">Vos messages restent sur cet appareil.</p>' +
     '</div>';
   }

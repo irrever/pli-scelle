@@ -161,6 +161,11 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 .hero-icon{width:76px;height:76px;border-radius:24px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;align-self:center}
 .hero-icon.danger{background:var(--danger-soft);color:var(--danger)}
 .hero-icon .ico{width:34px;height:34px}
+.compte-rebours{display:flex;flex-direction:column;align-items:center;gap:14px;padding:4px 0}
+.cr-ring{position:relative;width:128px;height:128px}
+.cr-ring svg{display:block}
+.cr-chiffre{position:absolute;inset:0;display:grid;place-items:center;font:700 44px/1 "Bricolage Grotesque",system-ui,sans-serif;color:var(--danger)}
+.cr-titre{margin:0;font-weight:600;font-size:17px}
 .contact-hero{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding-top:8px}
 .conv-title{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0}
 /* conversation */
@@ -278,7 +283,8 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v86';
+  const APP_VERSION = 'v87';
+  let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1746,9 +1752,68 @@ button.chip{cursor:pointer;font:inherit}
       '<div class="dock stack" style="width:100%"><button class="btn btn-primary" data-act="go" data-arg="accueil">Retour aux messages</button><button class="btn btn-secondary" data-act="newinvite">Inviter à nouveau</button></div>' +
     '</div>';
   }
+  // Zone sensible de « Mon identité » : effacement radical après un décompte de 5 secondes, qu’on peut arrêter.
+  function zoneEffacementHTML() {
+    const e = S.effacement;
+    let corps;
+    if (e && e.etat === 'compte') {
+      const decalage = (326.73 * (1 - e.restant / 5)).toFixed(2);
+      corps = '<div class="compte-rebours">' +
+        '<div class="cr-ring"><svg width="128" height="128" viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52" fill="none" stroke="var(--danger-soft)" stroke-width="8"/><circle cx="60" cy="60" r="52" fill="none" stroke="var(--danger)" stroke-width="8" stroke-linecap="round" stroke-dasharray="326.73" stroke-dashoffset="' + decalage + '" transform="rotate(-90 60 60)"/></svg><span class="cr-chiffre">' + e.restant + '</span></div>' +
+        '<p class="cr-titre" aria-live="polite">Effacement dans ' + e.restant + ' ' + (e.restant > 1 ? 'secondes' : 'seconde') + '</p>' +
+        '<p class="hint center">Votre identité, vos contacts et vos messages seront effacés de cet appareil, et chaque lien sera coupé. Touchez « Arrêter » pour annuler.</p>' +
+        '<button class="btn btn-primary" type="button" data-act="effacerstop">Arrêter l’effacement</button>' +
+      '</div>';
+    } else {
+      corps = (e && e.etat === 'arrete' ? notice('info', e.raison) : '') +
+        '<div class="card"><div><b>Effacer radicalement mon identité</b><p class="hint">Efface votre identité, vos contacts et vos messages de cet appareil. Chaque contact voit son lien coupé tout de suite. Rien ne se récupère.</p></div>' +
+        '<button class="btn btn-danger-solid" type="button" data-act="effacerdemarre">Effacer mon identité</button></div>';
+    }
+    return '<section id="zoneEffacer" class="stack"><div class="section-title">Zone sensible</div>' + corps + '</section>';
+  }
+  function arreterDecompte() {
+    if (decompteTimer) { clearInterval(decompteTimer); decompteTimer = null; }
+  }
+  // Quitter « Mon identité » annule le décompte : rien ne s’efface sans que la personne soit sur l’écran.
+  function quitterEffacement() {
+    arreterDecompte();
+    S.effacement = null;
+  }
+  function rafraichirZoneEffacer() {
+    const z = document.getElementById('zoneEffacer');
+    if (z) z.outerHTML = zoneEffacementHTML();
+  }
+  // Passer en arrière-plan arrête le décompte : on ne peut plus l’arrêter depuis l’appli.
+  function arreterParArriere() {
+    if (!S.effacement || S.effacement.etat !== 'compte') return;
+    arreterDecompte();
+    S.effacement = { etat: 'arrete', raison: 'Effacement arrêté : l’appli est passée en arrière-plan. Rien n’a été effacé.' };
+    rafraichirZoneEffacer();
+  }
+  function actEffacerDemarre() {
+    if (S.effacement && S.effacement.etat === 'compte') return;
+    arreterDecompte();
+    S.effacement = { etat: 'compte', restant: 5 };
+    decompteTimer = setInterval(tickDecompte, 1000);
+    rafraichirZoneEffacer();
+  }
+  function tickDecompte() {
+    if (!S.effacement || S.effacement.etat !== 'compte') { arreterDecompte(); return; }
+    S.effacement.restant -= 1;
+    if (S.effacement.restant > 0) { rafraichirZoneEffacer(); return; }
+    arreterDecompte();
+    S.effacement = null;
+    actDeleteMe(false);
+  }
+  function actEffacerArrete() {
+    arreterDecompte();
+    S.effacement = { etat: 'arrete', raison: 'Effacement arrêté. Rien n’a été effacé.' };
+    rafraichirZoneEffacer();
+  }
   function viewIdentite() {
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Mon identité' }) +
       '<div class="id-card"><div class="id-top"><span>PLI SCELLÉ</span><span>IDENTITÉ</span></div><div class="id-body"><div class="id-main"><div class="id-label">Mon pseudo</div><div class="id-name">' + esc(S.me.pseudo) + '</div></div><div class="id-qr" aria-hidden="true"><div class="qr-build">' + qrDecorCells() + '</div></div></div><div class="id-foot">Ni numéro, ni e-mail. Ce pseudo permet seulement de vous écrire.</div></div>' +
+      zoneEffacementHTML() +
       (S.bioAvail ? '<section><div class="section-title">Déverrouillage</div><div class="list"><button class="rowlink" data-act="go" data-arg="biometrie"><span>Empreinte ou Face ID</span><span class="state">' + (LS.get('bio', null) ? 'Activé' : 'Désactivé') + '</span>' + I.chev + '</button></div></section>' : '') +
       '<section><div class="section-title">Alertes</div><div class="list"><button class="rowlink" data-act="togglesound"><span>Sonnerie à la réception</span><span class="state">' + (getPrefs().sound ? 'Activée' : 'Désactivée') + '</span>' + I.chev + '</button></div>' + toneChipsHTML() + '<div class="list" style="margin-top:12px"><button class="rowlink" data-act="togglenotif"><span>Notifications quand l’appli est fermée</span><span class="state">' + (getPrefs().notif ? (getPrefs().push ? 'Activées' : 'En attente') : 'Désactivées') + '</span>' + I.chev + '</button></div>' + notifHintHTML() + '<p class="hint">La sonnerie joue à chaque message ou demande reçus, tant que l’appli est ouverte (et vibre sur Android).</p></section>' +
       '<section><div class="section-title">Sauvegarde</div><div class="list"><button class="rowlink" data-act="go" data-arg="sauvegarde"><span>Sauvegarder mes contacts</span>' + I.chev + '</button><button class="rowlink" data-act="go" data-arg="installer"><span>Installer une sauvegarde</span>' + I.chev + '</button></div><p class="hint">' + (LS.get('lastBackup', 0) ? 'Dernière sauvegarde : ' + esc(new Date(LS.get('lastBackup', 0)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })) : 'Pas encore de sauvegarde. Sans elle, vos contacts ne sont que dans ce navigateur.') + '</p></section>' +
@@ -1882,6 +1947,7 @@ button.chip{cursor:pointer;font:inherit}
     b.setAttribute('aria-label', envoi ? 'Envoyer' : 'Message vocal');
   }
   function render() {
+    if (S.screen !== 'identite' && (S.effacement || decompteTimer)) quitterEffacement();
     expireOpened();
     chargerEmpreintes();
     const app = $('#app');
@@ -2346,6 +2412,8 @@ button.chip{cursor:pointer;font:inherit}
     setlecture: (arg) => { const [cid, v] = String(arg).split('|'); const cs = contacts(); const c = cs.find((x) => x.cid === cid); if (c) { c.lecture = Number(v); LS.set('contacts', cs); } render(); },
     cut: (cid) => { S.plusOpen = false; S.plusPanneau = null; S.plusMsg = ''; go('couper', cid); },
     cutyes: (cid) => actCut(cid),
+    effacerdemarre: () => actEffacerDemarre(),
+    effacerstop: () => actEffacerArrete(),
     deleteme: () => actDeleteMe(false),
     supprimerkeep: () => { S.delMode = true; go('sauvegarde'); },
     deletekeep: () => actDeleteMe(true),
@@ -2452,7 +2520,7 @@ button.chip{cursor:pointer;font:inherit}
     S.plusOpen = false;   // le menu « + » se referme après le choix
     render();
   });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) stopVoice(true); else { poll(); verifierVersion(); } });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { stopVoice(true); arreterParArriere(); } else { poll(); verifierVersion(); } });
   document.addEventListener('input', (ev) => { if (ev.target && ev.target.id === 'draft') { autoGrow(); syncComposerAct(); } });
 
   function tick() {

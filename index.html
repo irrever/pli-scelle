@@ -283,7 +283,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v90';
+  const APP_VERSION = 'v91';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
@@ -673,6 +673,7 @@ button.chip{cursor:pointer;font:inherit}
       case 'pause': return onPause(m);
       case 'reprise': return onReprise(m);
       case 'reprise-ok': return onRepriseOk(m);
+      case 'reprise-refus': return onRepriseRefus(m);
       default: return false;
     }
   }
@@ -886,8 +887,11 @@ button.chip{cursor:pointer;font:inherit}
     S.flash = { t: (x.name || x.pseudo) + ' a repris le lien avec vous.', ok: true };
     go('accueil');
   }
-  function refuserReprise(pid) {
+  async function refuserReprise(pid) {
+    const p = pendingById(pid);
     dropPending(pid);
+    // Le refus part vers la nouvelle identité, pour qu’elle le voie sur son écran.
+    if (p && p.type === 'reprise-verif') { try { await sendAuth(p.peer, 'reprise-refus', { ts: Date.now() }); } catch (e) { /* le refus n’est pas renvoyé automatiquement */ } }
     S.flash = { t: 'Reprise refusée. Le lien ne bouge pas.', ok: true };
     go('accueil');
   }
@@ -900,10 +904,20 @@ button.chip{cursor:pointer;font:inherit}
     if (!p || p.type !== 'reprise-verif') return viewAccueil();
     const nom = esc(nomContactPending(p) || 'Cette personne');
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Reprise du lien' }) +
-      '<div><h1>Reprendre le lien</h1><p class="lead" style="margin-top:6px">' + nom + ' veut reprendre le lien avec vous depuis un nouvel appareil. Comparez ces six mots avec ceux qui s’affichent chez cette personne, au téléphone ou en face à face.</p></div>' +
-      wordsBlock('Mots d’empreinte à comparer', 'Confirmez seulement si les mots sont identiques. Sinon, refusez : le lien ne bouge pas.') +
-      '<div class="dock stack"><button class="btn btn-primary" data-act="repriseok" data-arg="' + esc(p.pid) + '">Les mots sont identiques</button><button class="btn btn-danger" data-act="reprisenon" data-arg="' + esc(p.pid) + '">Ce ne sont pas les mêmes</button></div>' +
+      '<div><h1>Reprendre le lien</h1><p class="lead" style="margin-top:6px">' + nom + ' reprend le lien avec vous depuis un nouvel appareil.</p></div>' +
+      '<section class="card"><p class="hint">Si c’est bien cette personne, confirmez : le lien revient. Si vous ne reconnaissez pas cette demande, refusez : le lien ne bouge pas.</p></section>' +
+      '<div class="dock stack"><button class="btn btn-primary" data-act="repriseok" data-arg="' + esc(p.pid) + '">Oui, c’est bien cette personne</button><button class="btn btn-danger" data-act="reprisenon" data-arg="' + esc(p.pid) + '">Refuser</button></div>' +
     '</div>';
+  }
+  // Le contact a refusé la reprise : la ligne le dit, le lien reste à réactiver.
+  async function onRepriseRefus(m) {
+    const c = contacts().find((x) => x.raw === m.from);
+    if (!c || !c.pend) return false;
+    try { await decryptFrom(await sharedKey(c.raw), m.iv, m.ct); } catch (e) { return false; }
+    const all = contacts(); const x = all.find((y) => y.cid === c.cid);
+    x.pend.refus = Date.now(); delete x.pend.envoyee;
+    LS.set('contacts', all);
+    return true;
   }
   // Confirmation : le lien est rétabli de notre côté aussi.
   async function onRepriseOk(m) {
@@ -928,7 +942,7 @@ button.chip{cursor:pointer;font:inherit}
   async function openPending(pid, screen) {
     const p = pendingById(pid);
     if (!p) return go('accueil');
-    S.words = (screen === 'demande' || screen === 'verifier-ff' || screen === 'lien-ouvert' || screen === 'nommer' || screen === 'attente' || screen === 'verif' || screen === 'finir' || screen === 'reprise') ? await wordsFor(unb64u(S.me.raw), unb64u(p.peer)) : null;
+    S.words = (screen === 'demande' || screen === 'verifier-ff' || screen === 'lien-ouvert' || screen === 'nommer' || screen === 'attente' || screen === 'verif' || screen === 'finir') ? await wordsFor(unb64u(S.me.raw), unb64u(p.peer)) : null;
     go(screen, pid);
   }
   async function afterPoll() {
@@ -984,7 +998,7 @@ button.chip{cursor:pointer;font:inherit}
       'code-envoye': [esc(p.name || 'La personne') + ' a reçu son code', 'Pas encore ajouté : la personne doit toucher « Finir l’invitation »', 'lien-ouvert'],
       'ff-accepted': [esc(p.peerPseudo || 'La personne') + ' a accepté votre demande', 'Comparer les mots', 'verifier-ff'],
       'remote-accepted': [esc(p.peerPseudo || 'La personne') + ' a accepté votre invitation', 'Donner un nom', 'nommer'],
-      'reprise-verif': [esc(nomContactPending(p) || 'Quelqu’un') + ' veut reprendre le lien', 'Comparer les six mots avec cette personne', 'reprise']
+      'reprise-verif': [esc(nomContactPending(p) || 'Quelqu’un') + ' reprend son lien', 'Confirmer, ou refuser si vous ne reconnaissez pas la demande', 'reprise']
     };
     const m = map[p.type];
     if (!m) return '';
@@ -1371,6 +1385,12 @@ button.chip{cursor:pointer;font:inherit}
       '<p class="hint">Vos messages restent sur cet appareil.</p>' +
     '</div>';
   }
+  // Où en est une demande de reprise, pour une ligne « lien à reprendre ».
+  function statutReprise(c) {
+    if (c.pend && c.pend.refus) return 'Refusée par ' + esc(c.name || 'la personne') + '. Touchez « Réactiver les liens » pour renvoyer la demande.';
+    if (c.pend && c.pend.envoyee) return 'Demande envoyée : en attente de sa confirmation';
+    return 'À réactiver';
+  }
   function viewAccueil() {
     const notices = pendingAll().filter((p) => ['ff-request', 'remote-claim', 'ff-accepted', 'remote-accepted', 'remote-sent', 'verif', 'code', 'code-envoye', 'reprise-verif'].indexOf(p.type) >= 0).map(noticeHTML).join('');
     const ms = msgsAll();
@@ -1380,7 +1400,7 @@ button.chip{cursor:pointer;font:inherit}
     const ligne = (c) => {
       const n = ms.filter((m) => m.cid === c.cid && m.dir === 'in' && m.state === 'new' && !m.seen).length;
       if (c.pause || c.pend) {
-        return '<div class="row-item is-off" aria-disabled="true"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · ' + (c.pause ? 'En pause, en attente de sa reprise' : 'À réactiver') + (!c.pause && c.pend && c.pend.mots ? '<br><span class="more">Mots à lire à ' + esc(c.name || c.pseudo || 'la personne') + ' : ' + esc(c.pend.mots.join(' ')) + '</span>' : '') + '</span></span>' + miniQR(c) + '<button class="btn btn-secondary" style="min-height:40px;width:auto;padding:0 12px" data-act="cut" data-arg="' + esc(c.cid) + '">Couper le lien</button></div>';
+        return '<div class="row-item is-off" aria-disabled="true"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · ' + (c.pause ? 'En pause, en attente de sa reprise' : statutReprise(c)) + '</span></span>' + miniQR(c) + '<button class="btn btn-secondary" style="min-height:40px;width:auto;padding:0 12px" data-act="cut" data-arg="' + esc(c.cid) + '">Couper le lien</button></div>';
       }
       return '<button class="row-item conv" data-act="conv" data-arg="' + esc(c.cid) + '"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · Vérifié</span></span>' + miniQR(c) + (n ? '<span class="count">' + n + '</span>' : '') + I.chev + '</button>';
     };
@@ -1397,7 +1417,7 @@ button.chip{cursor:pointer;font:inherit}
       (versionNouvelle ? '<div class="pending-stack"><button class="notice warn" data-act="recharger">' + I.refresh + '<span class="grow">Nouvelle version (' + esc(versionNouvelle) + ') disponible<br><span class="more">Touchez pour la charger. Vos données restent sur cet appareil.</span></span>' + I.chev + '</button></div>' : '') +
       (getPrefs().sound && !sonPret() ? notice('info', 'La sonnerie est en pause. Touchez l’écran une fois pour la réactiver.') : '') +
       (cs.length && !(getPrefs().notif && getPrefs().push) ? '<div class="pending-stack"><button class="notice warn" data-act="togglenotif">' + I.msg + '<span class="grow">Notifications quand l’appli est fermée : ' + (getPrefs().notif ? 'pas encore prêtes' : 'désactivées') + '<br><span class="more">Touchez pour ' + (getPrefs().notif ? 'réessayer' : 'les activer sur cet appareil') + '.</span></span>' + I.chev + '</button></div>' : '') +
-      (cs.some((c) => c.pend) ? '<div class="pending-stack"><button class="notice warn" data-act="reactiver">' + I.link + '<span class="grow">Réactiver les liens<br><span class="more">Vos contacts sont installés. Touchez pour leur envoyer la demande de reprise.</span></span>' + I.chev + '</button></div>' : '') +
+      (cs.some((c) => c.pend) ? '<div class="pending-stack"><button class="notice warn" data-act="reactiver">' + I.link + '<span class="grow">Réactiver les liens<br><span class="more">Vos contacts sont installés. Touchez pour leur envoyer la demande : chacun confirme dans son appli.</span></span>' + I.chev + '</button></div>' : '') +
       (cs.length && !LS.get('lastBackup', 0) ? '<div class="pending-stack"><button class="notice warn" data-act="go" data-arg="sauvegarde">' + I.shield + '<span class="grow">Sauvegardez vos contacts<br><span class="more">Sans sauvegarde, ils restent dans ce navigateur seulement.</span></span>' + I.chev + '</button></div>' : '') +
       '<section><div class="section-title">Contacts</div>' + list + '</section>' +
       '<div class="dock"><button class="btn btn-primary" data-act="go" data-arg="ajouter">' + I.plus + '<span>Ajouter une personne</span></button></div>' +
@@ -2440,14 +2460,14 @@ button.chip{cursor:pointer;font:inherit}
     for (const c of contacts().filter((x) => x.pend)) {
       try {
         await sendReprise(c);
-        // Les six mots de ce contact : on les garde pour pouvoir les lui lire.
+        // La demande est partie : la personne confirme dans son appli.
         const all = contacts(); const x = all.find((y) => y.cid === c.cid);
-        if (x && x.pend) { x.pend.mots = await wordsFor(unb64u(S.me.raw), unb64u(x.raw)); LS.set('contacts', all); }
+        if (x && x.pend) { x.pend.envoyee = Date.now(); delete x.pend.refus; LS.set('contacts', all); }
         envoyes++;
       } catch (e) { /* réessayé au prochain appui */ }
     }
-    render();   // affiche les six mots à lire à chaque personne
-    flashNow({ t: envoyes ? 'Demande envoyée. Chaque lien revient dès que la personne a comparé les mots.' : 'Envoi impossible pour l’instant. Réessayez.', ok: envoyes > 0 });
+    render();
+    flashNow({ t: envoyes ? 'Demande envoyée. Chaque lien revient quand la personne a confirmé dans son appli.' : 'Envoi impossible pour l’instant. Réessayez.', ok: envoyes > 0 });
   }
 
   const ACTS = {

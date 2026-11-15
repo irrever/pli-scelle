@@ -20,13 +20,13 @@ h1{margin:0;font:600 26px/1.2 "Bricolage Grotesque","Segoe UI",system-ui,sans-se
 h2{margin:0;font:600 17px/1.3 "Bricolage Grotesque",system-ui,sans-serif}
 p{margin:0}
 .lead{color:var(--muted);font-size:15px}
-.hint{color:var(--muted);font-size:13px;line-height:1.45}
+.hint{color:var(--muted);font-size:15px;line-height:1.45}
 .center{text-align:center;align-items:center}
 .center-col{align-items:center;text-align:center}
 .stack{display:flex;flex-direction:column;gap:10px}
 .row-between{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .row-title{font-weight:600;font-size:16px}
-.row-sub{color:var(--muted);font-size:13px}
+.row-sub{color:var(--muted);font-size:15px}
 .section-title{font:500 11px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:6px 2px 8px}
 .mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
 .code{font:600 34px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.16em;color:var(--ink)}
@@ -56,7 +56,7 @@ p{margin:0}
 /* cartes et listes */
 .card{background:var(--surface);border:1px solid var(--line-2);border-radius:18px;padding:16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px}
 .form{gap:8px}
-.label{font-size:13px;font-weight:600;color:var(--ink-2);margin-top:4px}
+.label{font-size:15px;font-weight:600;color:var(--ink-2);margin-top:4px}
 .field{width:100%;min-height:50px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font-size:16px;outline:none}
 .field:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 textarea.field{resize:vertical;min-height:72px;font-size:16px;line-height:1.4}
@@ -77,20 +77,20 @@ textarea.field{resize:vertical;min-height:72px;font-size:16px;line-height:1.4}
 .rowlink{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:54px;padding:0 16px;border:0;border-top:1px solid var(--line-2);background:transparent;color:var(--ink);font-weight:500;text-align:left;cursor:pointer}
 .rowlink:first-child{border-top:0}
 .rowlink.danger{color:var(--danger)}
-.rowlink .state{margin-left:auto;font-size:14px;font-weight:400;color:var(--muted)}
+.rowlink .state{margin-left:auto;font-size:16px;font-weight:400;color:var(--muted)}
 .rowlink .ico{width:18px;height:18px}
 .choice{display:flex;align-items:center;gap:14px;width:100%;padding:16px;border-radius:18px;border:1px solid var(--line-2);background:var(--surface);box-shadow:var(--shadow);text-align:left;cursor:pointer;color:var(--ink)}
 .choice:hover{border-color:var(--line)}
 .choice-icon{width:44px;height:44px;border-radius:14px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;flex:none}
 .choice-text{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0}
 .choice-text b{font-size:16px;font-weight:600}
-.choice-text span{color:var(--muted);font-size:13px;line-height:1.4}
+.choice-text span{color:var(--muted);font-size:15px;line-height:1.4}
 .chev{width:18px;height:18px;color:var(--muted);flex:none}
 .avatar{width:44px;height:44px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font:600 17px "Bricolage Grotesque",system-ui,sans-serif;flex:none}
 .avatar.lg{width:56px;height:56px;font-size:21px}
 .avatar.xl{width:76px;height:76px;font-size:30px}
-.count{min-width:24px;height:24px;padding:0 7px;border-radius:12px;background:var(--accent);color:var(--on-accent);font-size:12px;font-weight:600;display:grid;place-items:center}
-.badge{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.count{min-width:24px;height:24px;padding:0 7px;border-radius:12px;background:var(--accent);color:var(--on-accent);font-size:14px;font-weight:600;display:grid;place-items:center}
+.badge{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-size:14px;font-weight:600;white-space:nowrap}
 .badge-ok{background:var(--accent-soft);color:var(--accent)}
 .badge-warn{background:var(--warn-soft);color:var(--warn)}
 .badge-muted{background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
@@ -98,10 +98,10 @@ textarea.field{resize:vertical;min-height:72px;font-size:16px;line-height:1.4}
 .notice.warn{background:var(--warn-soft);color:var(--warn)}
 .notice .ico{width:22px;height:22px}
 .notice .grow{flex:1}
-.notice .more{font-weight:500;font-size:13px;color:var(--ink-2)}
+.notice .more{font-weight:500;font-size:15px;color:var(--ink-2)}
 .notice.alert{background:var(--accent);color:#fff;box-shadow:0 8px 22px rgba(0,0,0,.18)}
 .notice.alert .more{color:rgba(255,255,255,.92)}
-.status{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:14px;font-size:14px;line-height:1.45}
+.status{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:14px;font-size:16px;line-height:1.45}
 .status[hidden]{display:none}
 .status-ok{background:var(--accent-soft);color:var(--accent)}
 .status-err{background:var(--danger-soft);color:var(--danger)}
@@ -116,7 +116,7 @@ textarea.field{resize:vertical;min-height:72px;font-size:16px;line-height:1.4}
 .code-card{align-items:center;text-align:center}
 .code-card .row-between{width:100%}
 .fallback{border:1px solid var(--line-2);border-radius:14px;padding:12px 14px;background:var(--surface);color:var(--ink-2)}
-.fallback summary{cursor:pointer;font-weight:600;font-size:14px}
+.fallback summary{cursor:pointer;font-weight:600;font-size:16px}
 .fallback[open] summary{margin-bottom:10px}
 .fallback .stack{margin-top:10px}
 /* étapes */
@@ -134,7 +134,7 @@ textarea.field{resize:vertical;min-height:72px;font-size:16px;line-height:1.4}
 .pstep.done .dot{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .pstep.now .dot{border-color:var(--accent);color:var(--accent)}
 .pstep b{display:block;font-weight:600}
-.pstep span{color:var(--muted);font-size:13px}
+.pstep span{color:var(--muted);font-size:15px}
 .spinner{width:26px;height:26px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:spin 1s linear infinite;align-self:center}
 @keyframes spin{to{transform:rotate(360deg)}}
 /* mots d’empreinte */
@@ -149,7 +149,7 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 .id-top{display:flex;justify-content:space-between;font:500 11px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;color:var(--id-accent)}
 .id-label{font:500 11px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--id-muted)}
 .id-name{font:700 32px/1.1 "Bricolage Grotesque",system-ui,sans-serif;letter-spacing:-.01em}
-.id-foot{font-size:13px;color:var(--id-muted);line-height:1.45}
+.id-foot{font-size:15px;color:var(--id-muted);line-height:1.45}
 .id-body{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
 .id-main{display:flex;flex-direction:column;gap:10px;min-width:0}
 .id-name{overflow-wrap:anywhere}
@@ -191,21 +191,21 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 .tile.unread{background:var(--accent-soft);border:2px solid var(--accent);box-shadow:0 2px 12px rgba(0,0,0,.14)}
 .tile.unread b{color:var(--accent)}
 .tile.read{opacity:.6;box-shadow:none}
-.nouveau{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;background:var(--accent);color:var(--on-accent);font-size:11px;font-weight:700;vertical-align:middle}
+.nouveau{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;background:var(--accent);color:var(--on-accent);font-size:13px;font-weight:700;vertical-align:middle}
 .btn-send{width:auto;min-width:96px;min-height:50px;padding:0 16px;border-radius:14px}
-.chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:12px;font-weight:600;color:var(--ink-2);align-self:flex-start}
+.chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:14px;font-weight:600;color:var(--ink-2);align-self:flex-start}
 .chip.on{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
-.bubble-timer{margin-top:6px;font-size:12px;color:var(--muted)}
+.bubble-timer{margin-top:6px;font-size:14px;color:var(--muted)}
 .bubble-ouvert{display:block;width:auto;text-align:left;cursor:pointer}
 .bubble-ouvert .bubble-timer{display:block}
-.bubble-fin{display:block;margin-top:6px;font-size:12px;color:var(--muted)}
+.bubble-fin{display:block;margin-top:6px;font-size:14px;color:var(--muted)}
 .grille-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:18px 6px;padding:4px 0}
 .grille-actions .act{width:78px;flex:none}
-.act{display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0;width:100%;background:none;border:0;color:var(--ink);font-size:13px;line-height:1.25;text-align:center;cursor:pointer}
+.act{display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0;width:100%;background:none;border:0;color:var(--ink);font-size:15px;line-height:1.25;text-align:center;cursor:pointer}
 .act .rond{width:62px;height:62px;border-radius:50%;background:var(--surface-2);display:grid;place-items:center;color:var(--accent)}
 .act.on .rond{background:var(--accent);color:#fff}
 .act.danger .rond{color:var(--danger);box-shadow:0 0 0 3px var(--surface),0 0 0 5px var(--danger)}
-.act small{display:block;color:var(--muted);font-size:12px}
+.act small{display:block;color:var(--muted);font-size:14px}
 .plus-sheet{background:var(--surface);border:1px solid var(--line-2);border-radius:18px;padding:16px 10px 12px;box-shadow:var(--shadow);display:grid;gap:12px;margin:0 0 8px}
 .event-row{display:grid;gap:8px;margin:0 0 8px}
 .event-row[hidden]{display:none}
@@ -251,7 +251,7 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 button.chip{cursor:pointer;font:inherit}
 .attach-row{display:flex;gap:6px;flex-wrap:wrap}
 .attach-row:empty{display:none}
-.attach-chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 6px 0 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:13px;font-weight:600;max-width:100%}
+.attach-chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 6px 0 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:15px;font-weight:600;max-width:100%}
 .attach-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
 .attach-chip button{width:24px;height:24px;border:0;border-radius:50%;background:transparent;color:inherit;font-size:16px;line-height:1;cursor:pointer}
 .link-row{display:flex;gap:8px}
@@ -283,7 +283,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v105';
+  const APP_VERSION = 'v106';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -1409,7 +1409,7 @@ button.chip{cursor:pointer;font:inherit}
         '<label class="label" for="s2">Répétez le code secret</label>' +
         '<input id="s2" class="field" type="password" autocomplete="new-password">' +
         '<p class="hint">Il ouvre l’application sur cet appareil. Il ne se récupère pas.</p>' +
-        '<label style="display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(--ink-2);margin-top:10px"><input id="averti" type="checkbox" style="margin-top:4px;flex:none"><span>J’ai compris : si je me trompe trois fois de suite au déverrouillage, tous les messages que j’ai reçus sont effacés.</span></label>' +
+        '<label style="display:flex;gap:10px;align-items:flex-start;font-size:16px;color:var(--ink-2);margin-top:10px"><input id="averti" type="checkbox" style="margin-top:4px;flex:none"><span>J’ai compris : si je me trompe trois fois de suite au déverrouillage, tous les messages que j’ai reçus sont effacés.</span></label>' +
         formStatus() +
       '</div>' +
       qrDecorCard() +

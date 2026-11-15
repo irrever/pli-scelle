@@ -268,7 +268,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v79';
+  const APP_VERSION = 'v80';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1668,18 +1668,18 @@ button.chip{cursor:pointer;font:inherit}
     if (!c) return viewAccueil();
     return '<div class="screen">' + topbar({ backAct: 'conv', backArg: c.cid, title: 'Réglages' }) +
       '<div class="card code-card"><span class="code-label">Code de ce contact</span><div class="code">' + esc(c.label) + '</div></div>' +
-      (S.motsCle && S.motsCle.cid === c.cid ? wordsBlock('Mots d’empreinte', [
-        'Ces six mots forment l’empreinte de votre conversation. Ils sont calculés à partir des clés de chiffrement des deux personnes, et doivent être identiques sur les deux téléphones.',
-        'Une seule comparaison suffit, au moment d’ajouter le contact : lisez les six mots à voix haute, ou au téléphone, dans le même ordre. S’ils sont identiques des deux côtés, personne ne s’est intercalé pour lire ou modifier vos messages : vous pouvez alors communiquer en toute sécurité.',
-        'Vous n’avez rien à revérifier ensuite, quel que soit le nombre de messages. Il faudra seulement recommencer si l’un de vous recrée son identité. Si un seul mot diffère, ne faites pas confiance à ce lien : coupez-le, puis recréez-le ensemble, en vous voyant ou en vous entendant.',
-        'Pli Scellé chiffre les messages sur votre téléphone : seuls vous deux pouvez les lire. Il n’y a ni compte, ni numéro de téléphone, et le serveur qui transporte les messages ne voit que du contenu chiffré.'
-      ], S.motsCle.mots) : '') +
       '<section class="stack"><div class="section-title">Durée de lecture</div><p class="hint">Un message ouvert reste lisible ce temps, puis il est effacé. Touchez-le pour le fermer tout de suite.</p><div style="display:flex;gap:8px;flex-wrap:wrap">' +
         DUREES_LECTURE.map(([v, t]) => '<button class="chip' + ((typeof c.lecture === 'number' ? c.lecture : 60) === v ? ' on' : '') + '" type="button" data-act="setlecture" data-arg="' + esc(c.cid) + '|' + v + '">' + t + '</button>').join('') +
       '</div></section>' +
       '<section class="list"><button class="rowlink" data-act="go" data-arg="verrouille"><span>Verrouiller l’application</span>' + I.chev + '</button>' +
       '<button class="rowlink danger" data-act="cut" data-arg="' + esc(c.cid) + '"><span>Couper le lien</span>' + I.chev + '</button></section>' +
       '<p class="hint">Couper le lien efface la conversation des deux côtés. Pour reprendre contact, il faut une nouvelle connexion.</p>' +
+      (S.motsCle && S.motsCle.cid === c.cid ? wordsBlock('Mots d’empreinte', [
+        'Ces six mots forment l’empreinte de votre conversation. Ils sont calculés à partir des clés de chiffrement des deux personnes, et doivent être identiques sur les deux téléphones.',
+        'Une seule comparaison suffit, au moment d’ajouter le contact : lisez les six mots à voix haute, ou au téléphone, dans le même ordre. S’ils sont identiques des deux côtés, personne ne s’est intercalé pour lire ou modifier vos messages : vous pouvez alors communiquer en toute sécurité.',
+        'Vous n’avez rien à revérifier ensuite, quel que soit le nombre de messages. Il faudra seulement recommencer si l’un de vous recrée son identité. Si un seul mot diffère, ne faites pas confiance à ce lien : coupez-le, puis recréez-le ensemble, en vous voyant ou en vous entendant.',
+        'Pli Scellé chiffre les messages sur votre téléphone : seuls vous deux pouvez les lire. Il n’y a ni compte, ni numéro de téléphone, et le serveur qui transporte les messages ne voit que du contenu chiffré.'
+      ], S.motsCle.mots) : '') +
     '</div>';
   }
   function viewLienCoupe() {

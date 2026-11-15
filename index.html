@@ -283,7 +283,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v104';
+  const APP_VERSION = 'v105';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -1393,7 +1393,7 @@ button.chip{cursor:pointer;font:inherit}
   function viewCreer() {
     if (!S.draftPseudo) S.draftPseudo = genPseudo();
     const note = S.arg === 'invite' ? notice('info', 'Vous répondez à une invitation. Une fois votre identité créée, vous pourrez accepter l’invitation.')
-      : S.arg === 'sauvegarde' ? notice('info', 'Vous reprenez vos contacts. Créez d’abord votre identité : l’appli vous demandera ensuite votre fichier de sauvegarde.') : '';
+      : '';
     const ajout = S.arg === 'ajout';
     return '<div class="screen">' +
       (ajout ? topbar({ back: 'identite', title: 'Ajouter une identité' }) : '<div class="brand">' + LOGO + '<span>Pli Scellé</span></div>') +
@@ -2119,11 +2119,11 @@ button.chip{cursor:pointer;font:inherit}
     const app = $('#app');
     const fn = VIEWS[S.screen] || VIEWS.boot;
     // Même écran et même contact : brouillon, lien en cours et focus survivent au redessin.
-    const key = S.screen + ':' + S.arg;
+    const key = S.screen + ':' + (S.screen === 'creer' ? '' : S.arg);
     const same = app.dataset.view === key;
     if (!same) { S.attach = []; S.linkOpen = false; S.eventOpen = false; S.plusOpen = false; S.plusPanneau = null; S.plusMsg = ''; }
     const keep = {};
-    if (same) ['draft', 'linkIn', 'fcode', 'qrtext', 'invlabel', 'v0', 'v1', 'v2', 'cname'].forEach((id) => { const el = document.getElementById(id); if (el) keep[id] = el.value; });
+    if (same) ['draft', 'linkIn', 'fcode', 'qrtext', 'invlabel', 'v0', 'v1', 'v2', 'cname', 'pseudo', 's1', 's2'].forEach((id) => { const el = document.getElementById(id); if (el) keep[id] = el.value; });
     const act = document.activeElement;
     const focusId = same && act && (act.id === 'draft' || act.id === 'linkIn') ? act.id : null;
     let html;

@@ -194,6 +194,12 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 .bubble-ouvert{display:block;width:auto;text-align:left;cursor:pointer}
 .bubble-ouvert .bubble-timer{display:block}
 .bubble-fin{display:block;margin-top:6px;font-size:12px;color:var(--muted)}
+.grille-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:18px 6px;justify-items:center;padding:4px 0}
+.act{display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0;width:100%;background:none;border:0;color:var(--ink);font-size:13px;line-height:1.25;text-align:center;cursor:pointer}
+.act .rond{width:62px;height:62px;border-radius:50%;background:var(--surface-2);display:grid;place-items:center;color:var(--accent)}
+.act.on .rond{background:var(--accent);color:#fff}
+.act.danger .rond{color:var(--danger)}
+.act small{display:block;color:var(--muted);font-size:12px}
 .voice-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px;border-radius:14px;background:var(--accent-soft);color:var(--accent)}
 .voice-bar audio{width:100%;height:40px}
 .voice-dot{width:10px;height:10px;border-radius:50%;background:#d93025;animation:voicepulse 1s infinite}
@@ -268,7 +274,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v81';
+  const APP_VERSION = 'v82';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -277,6 +283,10 @@ button.chip{cursor:pointer;font:inherit}
   const svg = (inner) => '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
   const I = {
     back: svg('<path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>'),
+    clock: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+    eye: svg('<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>'),
+    eyeoff: svg('<path d="M17.94 17.94A10.07 10.07 0 0 1 12 19c-7 0-11-7-11-7a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 7 11 7a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/>'),
+    finger: svg('<path d="M12 4a8 8 0 0 0-8 8v2"/><path d="M12 8a4 4 0 0 0-4 4v4"/><path d="M16 12a4 4 0 0 0-4-4"/><path d="M20 12a8 8 0 0 0-8-8"/><path d="M12 12v6"/>'),
     plus: svg('<path d="M12 5v14"/><path d="M5 12h14"/>'),
     qr: svg('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v3M14 20h3M18 18h3v3"/>'),
     camera: svg('<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>'),
@@ -1666,21 +1676,28 @@ button.chip{cursor:pointer;font:inherit}
   function viewReglages() {
     const c = contacts().find((x) => x.cid === S.arg);
     if (!c) return viewAccueil();
+    const panneau = S.reglagesPanneau && S.reglagesPanneau.cid === c.cid ? S.reglagesPanneau.quoi : null;
+    const v = typeof c.lecture === 'number' ? c.lecture : 60;
+    const sousDuree = v < 0 ? 'Jusqu’à fermeture' : (v < 60 ? v + ' s' : (v / 60) + ' min');
+    const tuile = (act, arg, icone, libelle, sous, classe) => '<button class="act' + (classe ? ' ' + classe : '') + '" type="button" data-act="' + act + '" data-arg="' + esc(arg) + '"><span class="rond">' + icone + '</span><span>' + libelle + (sous ? '<small>' + sous + '</small>' : '') + '</span></button>';
+    const listeDurees = '<section class="list">' + DUREES_LECTURE.map(([d, t]) => '<button class="rowlink' + (v === d ? ' on' : '') + '" type="button" data-act="setlecture" data-arg="' + esc(c.cid) + '|' + d + '"><span>' + t + '</span>' + (v === d ? '<span class="state" style="color:var(--accent)">' + I.check + '</span>' : '') + '</button>').join('') + '</section>';
     return '<div class="screen">' + topbar({ backAct: 'conv', backArg: c.cid, title: 'Réglages' }) +
       '<div class="card code-card"><span class="code-label">Code de ce contact</span><div class="code">' + esc(c.label) + '</div></div>' +
-      '<section class="stack"><div class="section-title">Durée de lecture</div><p class="hint">Un message ouvert reste lisible ce temps, puis il est effacé. Touchez-le pour le fermer tout de suite.</p>' +
-      '<section class="list">' +
-        DUREES_LECTURE.map(([v, t]) => { const choisi = (typeof c.lecture === 'number' ? c.lecture : 60) === v; return '<button class="rowlink' + (choisi ? ' on' : '') + '" type="button" data-act="setlecture" data-arg="' + esc(c.cid) + '|' + v + '"><span>' + t + '</span>' + (choisi ? '<span class="state" style="color:var(--accent)">' + I.check + '</span>' : '') + '</button>'; }).join('') +
-      '</section></section>' +
-      '<section class="list"><button class="rowlink" data-act="go" data-arg="verrouille"><span>Verrouiller l’application</span>' + I.chev + '</button>' +
-      '<button class="rowlink danger" data-act="cut" data-arg="' + esc(c.cid) + '"><span>Couper le lien</span>' + I.chev + '</button></section>' +
-      '<p class="hint">Couper le lien efface la conversation des deux côtés. Pour reprendre contact, il faut une nouvelle connexion.</p>' +
-      (S.motsCle && S.motsCle.cid === c.cid ? wordsBlock('Mots d’empreinte', [
+      '<div class="grille-actions">' +
+        tuile('reglpanneau', c.cid + '|duree', I.clock, 'Durée', sousDuree, panneau === 'duree' ? 'on' : '') +
+        tuile('togglemode', '', S.once !== false ? I.eye : I.eyeoff, 'Mode', S.once !== false ? 'Lecture unique' : 'Relisible') +
+        tuile('reglpanneau', c.cid + '|empreinte', I.finger, 'Empreinte', '', panneau === 'empreinte' ? 'on' : '') +
+        tuile('go', 'verrouille', I.lock, 'Verrouiller', '') +
+        tuile('cut', c.cid, I.unlink, 'Couper le lien', '', 'danger') +
+      '</div>' +
+      (panneau === 'duree' ? '<section class="stack"><p class="hint">Un message ouvert reste lisible ce temps, puis il est effacé. Touchez-le pour le fermer tout de suite.</p>' + listeDurees + '</section>' : '') +
+(panneau === 'empreinte' && S.motsCle && S.motsCle.cid === c.cid ? wordsBlock('Mots d’empreinte', [
         'Ces six mots forment l’empreinte de votre conversation. Ils sont calculés à partir des clés de chiffrement des deux personnes, et doivent être identiques sur les deux téléphones.',
         'Une seule comparaison suffit, au moment d’ajouter le contact : lisez les six mots à voix haute, ou au téléphone, dans le même ordre. S’ils sont identiques des deux côtés, personne ne s’est intercalé pour lire ou modifier vos messages : vous pouvez alors communiquer en toute sécurité.',
         'Vous n’avez rien à revérifier ensuite, quel que soit le nombre de messages. Il faudra seulement recommencer si l’un de vous recrée son identité. Si un seul mot diffère, ne faites pas confiance à ce lien : coupez-le, puis recréez-le ensemble, en vous voyant ou en vous entendant.',
         'Pli Scellé chiffre les messages sur votre téléphone : seuls vous deux pouvez les lire. Il n’y a ni compte, ni numéro de téléphone, et le serveur qui transporte les messages ne voit que du contenu chiffré.'
       ], S.motsCle.mots) : '') +
+      '<p class="hint">Couper le lien efface la conversation des deux côtés. Pour reprendre contact, il faut une nouvelle connexion.</p>' +
     '</div>';
   }
   function viewLienCoupe() {
@@ -2245,7 +2262,18 @@ button.chip{cursor:pointer;font:inherit}
     go: (a) => { const p = String(a).split('|'); go(p[0], p[1] || null); },
     openp: (a) => { const p = String(a).split('|'); return openPending(p[1], p[0]); },
     conv: (cid) => go('conv', cid),
+    reglpanneau: async (arg) => {
+      const [cid, quoi] = String(arg).split('|');
+      const ouvert = S.reglagesPanneau && S.reglagesPanneau.cid === cid && S.reglagesPanneau.quoi === quoi;
+      S.reglagesPanneau = ouvert ? null : { cid: cid, quoi: quoi };
+      if (!ouvert && quoi === 'empreinte') {
+        const c = contacts().find((x) => x.cid === cid);
+        try { if (c && c.raw && S.me && S.me.raw) S.motsCle = { cid: cid, mots: await wordsFor(unb64u(S.me.raw), unb64u(c.raw)) }; } catch (e) { S.motsCle = null; }
+      }
+      go('reglages', cid);
+    },
     reglages: async (cid) => {
+      S.reglagesPanneau = null;
       // Les six mots de ce contact sont calculés avant d’ouvrir la page des réglages.
       const c = contacts().find((x) => x.cid === cid);
       try { if (c && c.raw && S.me && S.me.raw) S.motsCle = { cid: cid, mots: await wordsFor(unb64u(S.me.raw), unb64u(c.raw)) }; } catch (e) { S.motsCle = null; }
@@ -2297,7 +2325,7 @@ button.chip{cursor:pointer;font:inherit}
     install: () => actInstall(),
     reactiver: () => actReactivate(),
     recharger: recharger,
-    togglemode: () => { S.once = S.once === false; LS.set('lectureUnique', S.once !== false); updateOnceChip(); },
+    togglemode: () => { S.once = S.once === false; LS.set('lectureUnique', S.once !== false); updateOnceChip(); if (S.screen === 'reglages') go('reglages', S.arg); },
     voicerec: () => startVoice(true),
     plusmenu: () => { S.plusOpen = !S.plusOpen; render(); },
     voicestop: () => stopVoice(),

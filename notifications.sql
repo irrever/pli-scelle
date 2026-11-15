@@ -82,3 +82,8 @@ revoke execute on function public.pli_push_on_message() from public, anon, authe
 
 grant execute on function public.pli_push_put(text, text, jsonb) to anon, authenticated;
 grant execute on function public.pli_push_delete(text, text) to anon, authenticated;
+
+-- Droits de la fonction « push » (clé de service) : lecture des messages, lecture et mise à jour des abonnements.
+-- Sur les projets récents, Supabase n’accorde pas ces droits automatiquement (erreur 42501 sinon).
+grant select on public.messages to service_role;
+grant select, update, delete on public.push_subscriptions to service_role;

@@ -34,12 +34,20 @@ La clé publiable dans `index.html` est publique par conception : la protection 
 
 Elles passent par les notifications web, et ne fonctionnent qu'après ces étapes :
 
-1. Lancer `notifications.sql` dans l'éditeur SQL, après les deux scripts précédents.
+1. Lancer `notifications.sql` dans l'éditeur SQL, après les deux scripts précédents. Il accorde à la clé de service les droits de lecture nécessaires : sur les projets récents, Supabase ne les accorde pas automatiquement.
 2. Créer une fonction Edge nommée `push` (Edge Functions → New function), avec le contenu de `supabase/functions/push/index.ts`. Désactiver la vérification du jeton (« Verify JWT ») : le relais appelle cette fonction sans jeton.
 3. Ajouter deux secrets à la fonction :
    - `VAPID_PUBLIC_KEY` : la clé publique VAPID, la même que `PUSH_KEY` dans `index.html`.
    - `VAPID_PRIVATE_KEY` : la clé privée correspondante. Elle ne doit jamais être publiée dans le dépôt.
    `SUPABASE_URL` et `SUPABASE_SECRET_KEYS` sont fournies par Supabase : rien à ajouter.
+
+Pour créer la paire de clés (Node.js 18 ou plus récent), lance dans un terminal :
+
+```bash
+node -e "const c=require('crypto');const {privateKey:k}=c.generateKeyPairSync('ec',{namedCurve:'prime256v1'});const j=k.export({format:'jwk'});console.log('publique : '+Buffer.concat([Buffer.from([4]),Buffer.from(j.x,'base64url'),Buffer.from(j.y,'base64url')]).toString('base64url'));console.log('privée : '+Buffer.from(j.d,'base64url').toString('base64url'));"
+```
+
+Chaque valeur tient sur une seule ligne, sans espace ni retour à la ligne. Mets la clé publique dans `PUSH_KEY` de `index.html`, puis désactive et réactive les notifications sur chaque téléphone.
 
 La notification affiche seulement « Une nouvelle activité vous attend. ». Le serveur sait qu'une boîte reçoit un message, mais jamais son contenu ni le nom du contact. Une seule notification au plus toutes les 15 secondes par boîte. Le son de la notification est celui du téléphone : le choix de sonnerie ne s'applique qu'à l'intérieur de l'appli.
 

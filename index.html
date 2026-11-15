@@ -211,7 +211,6 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 .qr-build i.l{background:transparent}
 @keyframes build{0%{opacity:0;transform:scale(.2)}35%{opacity:1;transform:scale(1)}75%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.2)}}
 @keyframes fondu{0%,100%{opacity:.15}50%{opacity:1}}
-@keyframes douce{0%,100%{opacity:.3}50%{opacity:1}}
 @media (prefers-reduced-motion: reduce){.qr-build i:not(.l){animation-name:fondu}}
 .qr-card.plain{background:none;border:0;box-shadow:none;padding:12px 0 4px}
 .qr-card.plain .qr-build{width:min(200px,58vw)}
@@ -219,7 +218,7 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 .qr-mini i{display:block}
 .qr-mini i.l{background:transparent}
 .qr-mini i.f{background:#10233A}
-.qr-mini i:not(.l):not(.f){background:#10233A;animation:douce 4s ease-in-out infinite both}
+.qr-mini i:not(.l):not(.f){background:#10233A;animation:build 3.2s ease-in-out infinite both}
 @media (prefers-reduced-motion: reduce){.qr-mini i:not(.l):not(.f){animation-name:fondu}}
 
 
@@ -269,7 +268,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v77';
+  const APP_VERSION = 'v78';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();

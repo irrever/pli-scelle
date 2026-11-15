@@ -290,7 +290,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v112';
+  const APP_VERSION = 'v113';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -620,7 +620,7 @@ button.chip{cursor:pointer;font:inherit}
   const RELAY_URL = 'https://lvdkwatbqesxvsllnthz.supabase.co';
   const RELAY_KEY = 'sb_publishable_bEARM04rOXlQ5sJZQ2152w_W2ypAKTP';
   // Clé publique VAPID : elle identifie le serveur d’envoi auprès des services de notification. La clé privée reste sur le serveur.
-  const PUSH_KEY = 'BHyzzvyoC9B19RvQ1uM9LstQDBlQeJ10q8A6uzqCLdAV1cpXpLEELPp8rZXKyeIJLwmTcDrqAtmRvyjVMIZPvJ0';
+  const PUSH_KEY = 'BNAW1kDwgKFlJUJkwOWGV9sEDjOT2MKxWoYFwFqz4cwjtF8r_Xu1QWyKg2tQvNl47aK5rJPC6IJ0OhcnJEyJcww';
   async function rpc(name, args) {
     const r = await fetch(RELAY_URL + '/rest/v1/rpc/' + name, {
       method: 'POST',

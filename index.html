@@ -289,7 +289,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v110';
+  const APP_VERSION = 'v111';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -2129,7 +2129,7 @@ button.chip{cursor:pointer;font:inherit}
       (del && S.backupDone
         ? '<div class="dock stack" style="position:static"><button class="btn btn-danger-solid" data-act="deletekeep">J’ai copié la sauvegarde : supprimer mon identité</button><button class="btn btn-ghost" data-act="go" data-arg="identite">Annuler</button></div>'
         : (!del && (S.backupText || S.backupDone)
-          ? ''
+          ? (S.backupText ? '' : '<div class="dock"><button class="btn btn-primary" data-act="go" data-arg="identite">Terminé</button></div>')
           : '<section class="card form"><label class="label" for="bcode">Code secret : il chiffre cette sauvegarde</label><input id="bcode" class="field" type="password" autocomplete="off">' + formStatus() +
             '<p class="hint">Vous le retaperez pour ouvrir ce fichier. L’application ne le garde pas.</p></section>' +
             '<div class="dock"><button class="btn btn-primary" data-act="backup">Préparer la sauvegarde</button></div>')) +
@@ -2894,7 +2894,7 @@ button.chip{cursor:pointer;font:inherit}
       }
       LS.set('lastBackup', Date.now()); S.backupDone = true;
       S.backupText = null;   // le fichier est enregistré : plus de « Fichier prêt », plus de bouton « Enregistrer »
-      S.backupMessage = { kind: 'ok', text: 'Sauvegarde enregistrée. Gardez ce fichier en lieu sûr.' };
+      S.backupMessage = { kind: 'ok', text: 'Fichier enregistré dans vos fichiers. Il est prêt à être utilisé.' };
     } catch (e) {
       const annule = e && (e.name === 'AbortError' || e.code === 'declined');
       S.backupMessage = { kind: 'info', text: annule ? 'Enregistrement annulé. Vous pouvez aussi copier le texte.' : 'Le fichier n’a pas pu être enregistré. Vous pouvez copier le texte.' };

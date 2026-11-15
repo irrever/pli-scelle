@@ -5,7 +5,7 @@
 // Le téléphone affiche seulement « Une nouvelle activité vous attend. ».
 //
 // Secrets du projet : VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY.
-// SUPABASE_URL et la clé de service (SUPABASE_SECRET_KEY, ou SUPABASE_SERVICE_ROLE_KEY) sont fournies par Supabase.
+// SUPABASE_URL et SUPABASE_SECRET_KEYS sont fournies par Supabase : rien à ajouter.
 // Déployée sans vérification de jeton (verify_jwt = false) : le relais l’appelle sans authentification.
 //
 // Journal : chaque étape écrit une ligne dans les journaux de la fonction (Supabase → Edge Functions → push → Logs).
@@ -122,20 +122,39 @@ export async function handle(req: Request, env: Env, fetchFn: Fetcher, now: numb
   return json(200, { ok: true });
 }
 
+// Clé de service de la base. Supabase fournit SUPABASE_SECRET_KEYS, un dictionnaire JSON de clés secrètes
+// (par exemple {"default": "sb_secret_…"}) : on prend la première. Sinon, les anciens noms (dépréciés).
+// Les journaux ne donnent que le nom de la variable utilisée, jamais la valeur.
+function cleSecrete(): { valeur: string; nom: string } {
+  const dictionnaire = Deno.env.get('SUPABASE_SECRET_KEYS') ?? '';
+  if (dictionnaire) {
+    try {
+      const obj = JSON.parse(dictionnaire);
+      const valeurs: unknown[] = obj && typeof obj === 'object' ? Object.values(obj) : [];
+      const cles = valeurs.filter((v): v is string => typeof v === 'string' && v.length > 0);
+      if (cles.length) return { valeur: cles[0], nom: 'SUPABASE_SECRET_KEYS' };
+    } catch (e) { /* format inattendu : on essaie les noms suivants */ }
+  }
+  const nouvelle = Deno.env.get('SUPABASE_SECRET_KEY') ?? '';
+  if (nouvelle) return { valeur: nouvelle, nom: 'SUPABASE_SECRET_KEY' };
+  const ancienne = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  if (ancienne) return { valeur: ancienne, nom: 'SUPABASE_SERVICE_ROLE_KEY' };
+  return { valeur: '', nom: 'MANQUANTE' };
+}
+
 // Point d’entrée sur Supabase (Deno). Absent quand le fichier est chargé ailleurs (tests).
 if (typeof Deno !== 'undefined') {
   Deno.serve(async (req: Request) => {
     try {
-      // Clé de service : le nom de la nouvelle génération (SUPABASE_SECRET_KEY) d’abord, puis l’ancien (SUPABASE_SERVICE_ROLE_KEY).
-      const cleNouvelle = Deno.env.get('SUPABASE_SECRET_KEY') ?? '';
-      const cleAncienne = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+      // Clé de service de la base : fournie par Supabase (voir cleSecrete).
+      const cle = cleSecrete();
       const env: Env = {
         SUPABASE_URL: Deno.env.get('SUPABASE_URL') ?? '',
-        SUPABASE_SERVICE_ROLE_KEY: cleNouvelle || cleAncienne,
+        SUPABASE_SERVICE_ROLE_KEY: cle.valeur,
         VAPID_PUBLIC_KEY: Deno.env.get('VAPID_PUBLIC_KEY') ?? '',
         VAPID_PRIVATE_KEY: Deno.env.get('VAPID_PRIVATE_KEY') ?? '',
       };
-      journal('secrets : publique', env.VAPID_PUBLIC_KEY ? 'présente' : 'MANQUANTE', '| privée', env.VAPID_PRIVATE_KEY ? 'présente' : 'MANQUANTE', '| clé de service', cleNouvelle ? 'SUPABASE_SECRET_KEY' : cleAncienne ? 'SUPABASE_SERVICE_ROLE_KEY' : 'MANQUANTE');
+      journal('secrets : publique', env.VAPID_PUBLIC_KEY ? 'présente' : 'MANQUANTE', '| privée', env.VAPID_PRIVATE_KEY ? 'présente' : 'MANQUANTE', '| clé de service', cle.nom);
       return await handle(req, env, fetch, Date.now());
     } catch (e) {
       journal('erreur :', sansAdresse(e instanceof Error ? e.message : String(e)));

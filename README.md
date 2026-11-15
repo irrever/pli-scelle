@@ -39,7 +39,7 @@ Elles passent par les notifications web, et ne fonctionnent qu'après ces étape
 3. Ajouter deux secrets à la fonction :
    - `VAPID_PUBLIC_KEY` : la clé publique VAPID, la même que `PUSH_KEY` dans `index.html`.
    - `VAPID_PRIVATE_KEY` : la clé privée correspondante. Elle ne doit jamais être publiée dans le dépôt.
-   `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY` sont fournies par Supabase.
+   `SUPABASE_URL` et `SUPABASE_SECRET_KEYS` sont fournies par Supabase : rien à ajouter.
 
 La notification affiche seulement « Une nouvelle activité vous attend. ». Le serveur sait qu'une boîte reçoit un message, mais jamais son contenu ni le nom du contact. Une seule notification au plus toutes les 15 secondes par boîte. Le son de la notification est celui du téléphone : le choix de sonnerie ne s'applique qu'à l'intérieur de l'appli.
 

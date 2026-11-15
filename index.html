@@ -283,7 +283,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v103';
+  const APP_VERSION = 'v104';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -2042,14 +2042,17 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="screen">' + topbar({ back: del ? 'supprimer' : 'identite', title: del ? 'Supprimer mon identité' : 'Sauvegarder mes contacts' }) +
       '<div><h1>' + (del ? 'Gardez vos contacts' : 'Sauvegarde de vos contacts') + '</h1><p class="lead" style="margin-top:6px">' + (del ? 'Avant de supprimer votre identité, copiez cette sauvegarde. Elle permet de reprendre le lien avec chaque contact.' : 'Elle contient vos contacts et de quoi reprendre le lien avec chacun. Votre code secret la protège : sans lui, le fichier ne s’ouvre pas.') + '</p></div>' +
       (when ? notice('ok', 'Dernière sauvegarde : ' + esc(when)) : '') +
-      (S.backupText ? '<section class="card form"><span class="label">Copiez ce texte et gardez-le en lieu sûr</span><textarea id="btext" class="field" rows="6" readonly>' + esc(S.backupText) + '</textarea><button class="btn btn-secondary" data-act="copybackup">' + I.copy + '<span>Copier la sauvegarde</span></button></section>' : '') +
+      (S.backupMessage ? notice(S.backupMessage.kind, esc(S.backupMessage.text)) : '') +
+      (S.backupText ? '<section class="card form"><span class="label">Fichier prêt</span><p class="hint">pli-sauvegarde-' + new Date().toISOString().slice(0, 10) + '.json · ' + enc.encode(S.backupText).length + ' octets</p><p class="hint">Dans le menu qui s’ouvre, touchez « Enregistrer dans Fichiers ».</p></section>' +
+        '<div class="dock"><button class="btn btn-primary" data-act="enregistrerfichier">Enregistrer le fichier</button></div>' +
+        '<details class="fallback"><summary>Je n’arrive pas à enregistrer le fichier</summary><div class="stack" style="margin-top:10px"><textarea id="btext" class="field" rows="6" readonly>' + esc(S.backupText) + '</textarea><button class="btn btn-secondary" data-act="copybackup">' + I.copy + '<span>Copier la sauvegarde</span></button></div></details>' : '') +
       (del && S.backupDone
         ? '<div class="dock stack" style="position:static"><button class="btn btn-danger-solid" data-act="deletekeep">J’ai copié la sauvegarde : supprimer mon identité</button><button class="btn btn-ghost" data-act="go" data-arg="identite">Annuler</button></div>'
         : (!del && S.backupText
           ? ''
           : '<section class="card form"><label class="label" for="bcode">Code secret : il chiffre cette sauvegarde</label><input id="bcode" class="field" type="password" autocomplete="off">' + formStatus() +
             '<p class="hint">Vous le retaperez pour ouvrir ce fichier. L’application ne le garde pas.</p></section>' +
-            '<div class="dock"><button class="btn btn-primary" data-act="backup">Enregistrer dans un fichier</button></div>')) +
+            '<div class="dock"><button class="btn btn-primary" data-act="backup">Préparer la sauvegarde</button></div>')) +
     '</div>';
   }
   // Juste après la création : l’identité, le pseudo, et ce qui reste privé. Rien de nouveau à voir ici : tout se fait ensuite.
@@ -2084,7 +2087,7 @@ button.chip{cursor:pointer;font:inherit}
   function go(screen, arg) {
     cancelVoice();   // quitter l’écran arrête le micro et jette l’enregistrement en cours
     if (screen !== 'lien-coupe') S.cut = null;
-    if (screen !== 'sauvegarde') { S.delMode = false; S.backupText = null; S.backupDone = false; }
+    if (screen !== 'sauvegarde') { S.delMode = false; S.backupText = null; S.backupDone = false; S.backupMessage = null; }
     if (screen !== 'scanner') { S.scanKind = null; S.scanText = ''; S.scanLink = false; }
     S.screen = screen;
     S.arg = (arg == null ? null : arg);
@@ -2787,21 +2790,32 @@ button.chip{cursor:pointer;font:inherit}
         if (e && e.code === 'declined') return setStatus('formstatus', 'info', 'Enregistrement annulé.');
       }
     }
-    // La sauvegarde n’est marquée comme faite qu’une fois le fichier enregistré, ou le texte copié.
-    S.backupText = text; S.backupDone = false;
+    // Le fichier est prêt : l’écran propose ensuite de l’enregistrer. Rien n’est marqué comme fait ici.
+    S.backupText = text; S.backupDone = false; S.backupMessage = null;
+    go('sauvegarde');
+  }
+  // Enregistrer le fichier : le menu de partage propose « Enregistrer dans Fichiers ». Rien n’est marqué sans enregistrement réel.
+  async function actEnregistrerFichier() {
+    if (!S.backupText) return;
+    const nom = 'pli-sauvegarde-' + new Date().toISOString().slice(0, 10) + '.json';
     try {
-      const fichier = new File([enc.encode(text)], 'pli-sauvegarde-' + new Date().toISOString().slice(0, 10) + '.json', { type: 'application/json' });
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [fichier] })) {
+      if (S.downloads) {
+        await S.downloads.save({ filename: nom, data: enc.encode(S.backupText) });
+      } else {
+        const fichier = new File([enc.encode(S.backupText)], nom, { type: 'application/json' });
+        if (!(navigator.share && navigator.canShare && navigator.canShare({ files: [fichier] }))) {
+          S.backupMessage = { kind: 'info', text: 'Ce téléphone ne permet pas d’enregistrer le fichier ici. Utilisez « Je n’arrive pas à enregistrer le fichier ».' };
+          return go('sauvegarde');
+        }
         await navigator.share({ files: [fichier], title: 'Sauvegarde Pli Scellé' });
-        LS.set('lastBackup', Date.now()); S.backupDone = true;
-        go('sauvegarde');
-        return flashNow({ t: 'Sauvegarde enregistrée. Gardez ce fichier en lieu sûr.', ok: true });
       }
+      LS.set('lastBackup', Date.now()); S.backupDone = true;
+      S.backupMessage = { kind: 'ok', text: 'Sauvegarde enregistrée. Gardez ce fichier en lieu sûr.' };
     } catch (e) {
-      if (e && e.name === 'AbortError') { go('sauvegarde'); return flashNow({ t: 'Enregistrement annulé. Vous pouvez copier le texte ci-dessous.', ok: false }); }
+      const annule = e && (e.name === 'AbortError' || e.code === 'declined');
+      S.backupMessage = { kind: 'info', text: annule ? 'Enregistrement annulé. Vous pouvez aussi copier le texte.' : 'Le fichier n’a pas pu être enregistré. Vous pouvez copier le texte.' };
     }
     go('sauvegarde');
-    flashNow({ t: 'Copiez le texte ci-dessous et gardez-le en lieu sûr.', ok: true });
   }
   // Installer la sauvegarde des contacts : ils apparaissent « À réactiver » jusqu’à la réponse de chaque personne.
   async function actInstall() {
@@ -2949,7 +2963,12 @@ button.chip{cursor:pointer;font:inherit}
     pickcontact: pickContactName,
     setname: (a) => { const el = $('#cname'); if (el) el.value = String(a || '').slice(0, 40); const l = $('#vcardlist'); if (l) l.innerHTML = ''; },
     backup: actMakeBackup,
-    copybackup: async () => { if (await copyText(S.backupText || '', 'Sauvegarde copiée. Gardez-la en lieu sûr.')) { LS.set('lastBackup', Date.now()); S.backupDone = true; go('sauvegarde'); flashNow({ t: 'Sauvegarde copiée. Gardez-la en lieu sûr.', ok: true }); } }
+    copybackup: async () => {
+      try { await navigator.clipboard.writeText(S.backupText || ''); LS.set('lastBackup', Date.now()); S.backupDone = true; S.backupMessage = { kind: 'ok', text: 'Sauvegarde copiée. Gardez-la en lieu sûr.' }; }
+      catch (e) { S.backupMessage = { kind: 'info', text: 'Copie impossible : sélectionnez le texte et copiez-le à la main.' }; }
+      go('sauvegarde');
+    },
+    enregistrerfichier: actEnregistrerFichier,
   };
 
   document.addEventListener('click', (ev) => {

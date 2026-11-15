@@ -283,7 +283,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v87';
+  const APP_VERSION = 'v88';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
@@ -491,7 +491,7 @@ button.chip{cursor:pointer;font:inherit}
   // Reprise du lien : chiffrée avec la clé de l’ancien lien, et adressée avec l’ancienne identité.
   async function sendReprise(c) {
     const body = await encryptFor(await importLinkKey(unb64u(c.pend.lk)), { raw: S.me.raw, pseudo: S.me.pseudo, ts: Date.now() });
-    await S.db.collection('box').add({ to: await mailboxOf(c.raw), from: S.me.raw, kind: 'reprise', old: c.pend.old, ts: Date.now(), iv: body.iv, ct: body.ct });
+    await envoyerSigne(c.raw, { kind: 'reprise', old: c.pend.old, iv: body.iv, ct: body.ct });
   }
   const PAUSE_MS = 7 * 24 * 3600 * 1000;   // pause d’un lien : 7 jours pour reprendre le contact
 
@@ -621,6 +621,13 @@ button.chip{cursor:pointer;font:inherit}
   };
 
   // ---------- relais (suite) ----------
+  // Envoi signé : le serveur vérifie que l’expéditeur possède le secret de sa boîte, puis ajoute « auth ».
+  // Sert aux coupures et aux reprises. Si le serveur refuse, rien n’est effacé et rien n’est repris.
+  async function envoyerSigne(peerRaw, body) {
+    const to = await mailboxOf(peerRaw);
+    const payload = Object.assign({}, body, { from: S.me.raw, ts: Date.now() });
+    return rpc('pli_send_auth', { p_mailbox: to, p_payload: payload, p_secret: S.me.secret });
+  }
   async function sendTo(peerRaw, body) {
     const to = await mailboxOf(peerRaw);
     await S.db.collection('box').add(Object.assign({ to: to, from: S.me.raw, ts: Date.now() }, body));
@@ -823,6 +830,8 @@ button.chip{cursor:pointer;font:inherit}
     return true;
   }
   async function onCut(m) {
+    // Coupure : seulement si le serveur a vérifié l’expéditeur.
+    if (m.auth !== true) return false;
     const c = contacts().find((x) => x.raw === m.from);
     if (!c) return false;
     removeContact(c.cid);
@@ -844,22 +853,57 @@ button.chip{cursor:pointer;font:inherit}
   }
   // Reprise : la personne a installé ses contacts avec sa nouvelle identité. Le lien repart, sans nouveau QR code.
   async function onReprise(m) {
-    if (typeof m.old !== 'string') return false;
+    // Reprise : seulement si le serveur a vérifié l’expéditeur, que c’est bien celui du message, et que la clé du lien est juste.
+    if (m.auth !== true || typeof m.old !== 'string' || typeof m.from !== 'string') return false;
     const c = contacts().find((x) => x.raw === m.old || x.prev === m.old);
     if (!c) return false;
     let p;
     try { p = await decryptFrom(await sharedKey(m.old), m.iv, m.ct); } catch (e) { return false; }
-    if (!p || typeof p.raw !== 'string' || p.raw.length < 40) return false;
+    if (!p || typeof p.raw !== 'string' || p.raw.length < 40 || p.raw !== m.from) return false;
+    if (c.prev === m.old) {
+      // Ce lien a déjà été repris : le fichier ne sert plus. Seule la même nouvelle identité peut redemander, pour recevoir l’accusé.
+      if (c.raw !== p.raw) return false;
+      try { await sendAuth(c.raw, 'reprise-ok', { ts: Date.now() }); } catch (e) { /* renvoyé à la prochaine reprise */ }
+      return true;
+    }
     if (c.rts && Number(p.ts) <= c.rts) return false;
-    const all = contacts(); const x = all.find((y) => y.cid === c.cid);
-    if (x.raw === m.old) { x.prev = m.old; x.raw = p.raw; }
-    x.pseudo = String(p.pseudo || x.pseudo || '');
-    x.rts = Number(p.ts) || Date.now();
-    delete x.pause;
+    // Rien ne bouge tout de suite : la personne compare les six mots avec celle qui reprend, puis confirme.
+    LS.set('pending', pendingAll().filter((q) => !(q.type === 'reprise-verif' && q.cid === c.cid)));
+    pushPending({ type: 'reprise-verif', cid: c.cid, peer: p.raw, oldRaw: m.old, pseudo: String(p.pseudo || ''), ts: Number(p.ts) || Date.now() });
+    return true;
+  }
+  // La personne a comparé les six mots : le lien passe sur la nouvelle identité. Une seule fois.
+  async function confirmerReprise(pid) {
+    const p = pendingById(pid);
+    if (!p || p.type !== 'reprise-verif') return go('accueil');
+    dropPending(pid);
+    const all = contacts();
+    const x = all.find((y) => y.cid === p.cid);
+    if (!x || x.raw !== p.oldRaw) { S.flash = { t: 'Cette reprise n’est plus valable.', ok: false }; return go('accueil'); }
+    x.prev = p.oldRaw; x.raw = p.peer; x.pseudo = p.pseudo || x.pseudo || ''; x.rts = p.ts; delete x.pause;
     LS.set('contacts', all);
     try { await sendAuth(x.raw, 'reprise-ok', { ts: Date.now() }); } catch (e) { /* renvoyé à la prochaine reprise */ }
     S.flash = { t: (x.name || x.pseudo) + ' a repris le lien avec vous.', ok: true };
-    return true;
+    go('accueil');
+  }
+  function refuserReprise(pid) {
+    dropPending(pid);
+    S.flash = { t: 'Reprise refusée. Le lien ne bouge pas.', ok: true };
+    go('accueil');
+  }
+  function nomContactPending(p) {
+    const c = contacts().find((x) => x.cid === p.cid);
+    return c ? (c.name || c.pseudo || '') : '';
+  }
+  function viewRepriseLien() {
+    const p = pendingById(S.arg);
+    if (!p || p.type !== 'reprise-verif') return viewAccueil();
+    const nom = esc(nomContactPending(p) || 'Cette personne');
+    return '<div class="screen">' + topbar({ back: 'accueil', title: 'Reprise du lien' }) +
+      '<div><h1>Reprendre le lien</h1><p class="lead" style="margin-top:6px">' + nom + ' veut reprendre le lien avec vous depuis un nouvel appareil. Comparez ces six mots avec ceux qui s’affichent chez cette personne, au téléphone ou en face à face.</p></div>' +
+      wordsBlock('Mots d’empreinte à comparer', 'Confirmez seulement si les mots sont identiques. Sinon, refusez : le lien ne bouge pas.') +
+      '<div class="dock stack"><button class="btn btn-primary" data-act="repriseok" data-arg="' + esc(p.pid) + '">Les mots sont identiques</button><button class="btn btn-danger" data-act="reprisenon" data-arg="' + esc(p.pid) + '">Ce ne sont pas les mêmes</button></div>' +
+    '</div>';
   }
   // Confirmation : le lien est rétabli de notre côté aussi.
   async function onRepriseOk(m) {
@@ -884,7 +928,7 @@ button.chip{cursor:pointer;font:inherit}
   async function openPending(pid, screen) {
     const p = pendingById(pid);
     if (!p) return go('accueil');
-    S.words = (screen === 'demande' || screen === 'verifier-ff' || screen === 'lien-ouvert' || screen === 'nommer' || screen === 'attente' || screen === 'verif' || screen === 'finir') ? await wordsFor(unb64u(S.me.raw), unb64u(p.peer)) : null;
+    S.words = (screen === 'demande' || screen === 'verifier-ff' || screen === 'lien-ouvert' || screen === 'nommer' || screen === 'attente' || screen === 'verif' || screen === 'finir' || screen === 'reprise') ? await wordsFor(unb64u(S.me.raw), unb64u(p.peer)) : null;
     go(screen, pid);
   }
   async function afterPoll() {
@@ -939,11 +983,12 @@ button.chip{cursor:pointer;font:inherit}
       'code': ['Code reçu', 'Finir l’invitation', 'finir'],
       'code-envoye': [esc(p.name || 'La personne') + ' a reçu son code', 'Pas encore ajouté : la personne doit toucher « Finir l’invitation »', 'lien-ouvert'],
       'ff-accepted': [esc(p.peerPseudo || 'La personne') + ' a accepté votre demande', 'Comparer les mots', 'verifier-ff'],
-      'remote-accepted': [esc(p.peerPseudo || 'La personne') + ' a accepté votre invitation', 'Donner un nom', 'nommer']
+      'remote-accepted': [esc(p.peerPseudo || 'La personne') + ' a accepté votre invitation', 'Donner un nom', 'nommer'],
+      'reprise-verif': [esc(nomContactPending(p) || 'Quelqu’un') + ' veut reprendre le lien', 'Comparer les six mots avec cette personne', 'reprise']
     };
     const m = map[p.type];
     if (!m) return '';
-    return '<button class="notice' + (['ff-request', 'remote-claim', 'verif', 'code'].indexOf(p.type) >= 0 ? ' alert' : '') + '" data-act="openp" data-arg="' + m[2] + '|' + esc(p.pid) + '">' + I.inbox + '<span class="grow">' + m[0] + '<br><span class="more">' + m[1] + '</span></span>' + I.chev + '</button>';
+    return '<button class="notice' + (['ff-request', 'remote-claim', 'verif', 'code', 'reprise-verif'].indexOf(p.type) >= 0 ? ' alert' : '') + '" data-act="openp" data-arg="' + m[2] + '|' + esc(p.pid) + '">' + I.inbox + '<span class="grow">' + m[0] + '<br><span class="more">' + m[1] + '</span></span>' + I.chev + '</button>';
   }
   function personCard(pseudo, badgeText) {
     return '<div class="card"><div class="row-between"><div style="display:flex;gap:12px;align-items:center;min-width:0"><span class="avatar lg">' + esc(initial(pseudo)) + '</span><div style="min-width:0"><div class="row-title">' + esc(pseudo) + '</div><span class="hint">Pseudo reçu</span></div></div><span class="badge badge-ok">' + I.check + esc(badgeText) + '</span></div></div>';
@@ -1213,7 +1258,7 @@ button.chip{cursor:pointer;font:inherit}
     scanner: viewScanner,
     inviter: viewInviter, attente: viewAttente, demande: viewDemande, 'verifier-ff': viewVerifierFF,
     'lien-ouvert': viewLienOuvert, nommer: viewNommer, contact: viewContact, conv: viewConv,
-    reglages: viewReglages, couper: viewCouper, 'lien-coupe': viewLienCoupe, identite: viewIdentite, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, 'identite-prete': viewIdentitePrete, verif: viewVerif, finir: viewFinir,
+    reglages: viewReglages, couper: viewCouper, 'lien-coupe': viewLienCoupe, identite: viewIdentite, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, 'identite-prete': viewIdentitePrete, verif: viewVerif, finir: viewFinir, reprise: viewRepriseLien,
     invalide: viewInvalide
   };
 
@@ -1321,7 +1366,7 @@ button.chip{cursor:pointer;font:inherit}
     '</div>';
   }
   function viewAccueil() {
-    const notices = pendingAll().filter((p) => ['ff-request', 'remote-claim', 'ff-accepted', 'remote-accepted', 'remote-sent', 'verif', 'code', 'code-envoye'].indexOf(p.type) >= 0).map(noticeHTML).join('');
+    const notices = pendingAll().filter((p) => ['ff-request', 'remote-claim', 'ff-accepted', 'remote-accepted', 'remote-sent', 'verif', 'code', 'code-envoye', 'reprise-verif'].indexOf(p.type) >= 0).map(noticeHTML).join('');
     const ms = msgsAll();
     const cs = contacts();
     // Lien en pause ou à réactiver : la ligne est grisée, on ne peut plus l’ouvrir ; elle reste dans une section à part.
@@ -1329,7 +1374,7 @@ button.chip{cursor:pointer;font:inherit}
     const ligne = (c) => {
       const n = ms.filter((m) => m.cid === c.cid && m.dir === 'in' && m.state === 'new' && !m.seen).length;
       if (c.pause || c.pend) {
-        return '<div class="row-item is-off" aria-disabled="true"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · ' + (c.pause ? 'En pause, en attente de sa reprise' : 'À réactiver') + '</span></span>' + miniQR(c) + '<button class="btn btn-secondary" style="min-height:40px;width:auto;padding:0 12px" data-act="cut" data-arg="' + esc(c.cid) + '">Couper le lien</button></div>';
+        return '<div class="row-item is-off" aria-disabled="true"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · ' + (c.pause ? 'En pause, en attente de sa reprise' : 'À réactiver') + (!c.pause && c.pend && c.pend.mots ? '<br><span class="more">Mots à lire à ' + esc(c.name || c.pseudo || 'la personne') + ' : ' + esc(c.pend.mots.join(' ')) + '</span>' : '') + '</span></span>' + miniQR(c) + '<button class="btn btn-secondary" style="min-height:40px;width:auto;padding:0 12px" data-act="cut" data-arg="' + esc(c.cid) + '">Couper le lien</button></div>';
       }
       return '<button class="row-item conv" data-act="conv" data-arg="' + esc(c.cid) + '"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · Vérifié</span></span>' + miniQR(c) + (n ? '<span class="count">' + n + '</span>' : '') + I.chev + '</button>';
     };
@@ -2298,14 +2343,21 @@ button.chip{cursor:pointer;font:inherit}
   async function actCut(cid) {
     const c = contacts().find((x) => x.cid === cid);
     if (!c) return go('accueil');
-    try { await sendTo(c.raw, { kind: 'cut' }); } catch (e) {}
+    try { await envoyerSigne(c.raw, { kind: 'cut' }); } catch (e) {}
     removeContact(cid);
     S.cut = { name: c.name || c.pseudo };   // le nom donné à ce contact, pas son pseudo
     go('lien-coupe');
   }
   // Supprimer l’identité : avec « keep », les contacts sont mis en pause (ils pourront reprendre le lien) ; sinon, les liens sont coupés.
   async function actDeleteMe(keep) {
-    for (const c of contacts()) { try { if (keep === true) await sendAuth(c.raw, 'pause', { ts: Date.now() }); else await sendTo(c.raw, { kind: 'cut' }); } catch (e) {} }
+    if (keep === true) {
+      for (const c of contacts()) { try { await sendAuth(c.raw, 'pause', { ts: Date.now() }); } catch (e) {} }
+    } else {
+      // Effacer = d’abord prévenir chaque contact, par une coupure vérifiée par le serveur. Si l’un ne peut pas être prévenu, rien n’est effacé.
+      const echecs = [];
+      for (const c of contacts()) { try { await envoyerSigne(c.raw, { kind: 'cut' }); } catch (e) { echecs.push(c.name || c.pseudo || 'un contact'); } }
+      if (echecs.length) { S.flash = { t: 'Rien n’a été effacé : impossible de prévenir ' + echecs.join(', ') + '. Réessayez en ligne.', ok: false }; return go('identite'); }
+    }
     for (const i of invitesAll()) { if (i.status === 'open') await closeInviteDoc(i.id); }
     LS.clearAll();
     try { indexedDB.deleteDatabase('pli-voix'); vdbP = null; } catch (e) { /* rien à effacer */ }
@@ -2357,8 +2409,17 @@ button.chip{cursor:pointer;font:inherit}
   // Envoie la demande de reprise à chaque contact en attente. Le lien revient quand la personne répond.
   async function actReactivate() {
     let envoyes = 0;
-    for (const c of contacts().filter((x) => x.pend)) { try { await sendReprise(c); envoyes++; } catch (e) { /* réessayé au prochain appui */ } }
-    flashNow({ t: envoyes ? 'Demande envoyée. Chaque lien revient dès que la personne répond.' : 'Envoi impossible pour l’instant. Réessayez.', ok: envoyes > 0 });
+    for (const c of contacts().filter((x) => x.pend)) {
+      try {
+        await sendReprise(c);
+        // Les six mots de ce contact : on les garde pour pouvoir les lui lire.
+        const all = contacts(); const x = all.find((y) => y.cid === c.cid);
+        if (x && x.pend) { x.pend.mots = await wordsFor(unb64u(S.me.raw), unb64u(x.raw)); LS.set('contacts', all); }
+        envoyes++;
+      } catch (e) { /* réessayé au prochain appui */ }
+    }
+    render();   // affiche les six mots à lire à chaque personne
+    flashNow({ t: envoyes ? 'Demande envoyée. Chaque lien revient dès que la personne a comparé les mots.' : 'Envoi impossible pour l’instant. Réessayez.', ok: envoyes > 0 });
   }
 
   const ACTS = {
@@ -2419,6 +2480,8 @@ button.chip{cursor:pointer;font:inherit}
     deletekeep: () => actDeleteMe(true),
     install: () => actInstall(),
     reactiver: () => actReactivate(),
+    repriseok: (a) => confirmerReprise(a),
+    reprisenon: (a) => refuserReprise(a),
     recharger: recharger,
     togglemode: () => { S.once = S.once === false; LS.set('lectureUnique', S.once !== false); updateOnceChip(); render(); },
     voicerec: () => startVoice(true),

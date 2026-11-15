@@ -7,7 +7,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification('Pli Scellé', {
     body: 'Une nouvelle activité vous attend.',
     tag: 'pli-msg',
-    renotify: false,
+    // Avec « renotify: false », une notification qui remplace la précédente (même tag) ne sonne pas.
+    renotify: true,
   }));
 });
 self.addEventListener('notificationclick', (event) => {

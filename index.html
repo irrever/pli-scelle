@@ -283,7 +283,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v92';
+  const APP_VERSION = 'v94';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -907,7 +907,9 @@ button.chip{cursor:pointer;font:inherit}
     if (!p || p.type !== 'reprise-verif') return viewAccueil();
     const nom = esc(nomContactPending(p) || 'Cette personne');
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Reprise du lien' }) +
-      '<div><h1>Reprendre le lien</h1><p class="lead" style="margin-top:6px">' + nom + ' reprend le lien avec vous depuis un nouvel appareil.</p></div>' +
+      '<div><h1>Reprendre le lien</h1>' +
+      '<p class="nom-reprise" style="font-size:30px;font-weight:700;line-height:1.2;margin-top:14px;overflow-wrap:anywhere">' + nom + '</p>' +
+      '<p class="lead" style="margin-top:6px">reprend le lien avec vous depuis un nouvel appareil.</p></div>' +
       '<section class="card"><p class="hint">Si c’est bien cette personne, confirmez : le lien revient. Si vous ne reconnaissez pas cette demande, refusez : le lien ne bouge pas.</p></section>' +
       '<div class="dock stack"><button class="btn btn-primary" data-act="repriseok" data-arg="' + esc(p.pid) + '">Oui, c’est bien cette personne</button><button class="btn btn-danger" data-act="reprisenon" data-arg="' + esc(p.pid) + '">Refuser</button></div>' +
     '</div>';

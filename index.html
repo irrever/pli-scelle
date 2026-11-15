@@ -109,6 +109,7 @@ textarea.field{resize:vertical;min-height:72px;font-size:16px;line-height:1.4}
 .notice.alert .more{color:rgba(255,255,255,.92)}
 .status{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:14px;font-size:16px;line-height:1.45}
 .status[hidden]{display:none}
+.flash{position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));z-index:30;margin:0!important;box-shadow:var(--shadow);pointer-events:none}
 .status-ok{background:var(--accent-soft);color:var(--accent)}
 .status-err{background:var(--danger-soft);color:var(--danger)}
 .status.big{font-size:17px;font-weight:600;padding:16px;border-radius:16px}
@@ -289,7 +290,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v111';
+  const APP_VERSION = 'v112';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -3259,20 +3260,20 @@ button.chip{cursor:pointer;font:inherit}
     return actEnableNotif();
   }
   async function actEnableNotif() {
-    if (surIphone() && !standalone()) { S.flash = { t: 'Sur iPhone, ajoutez d’abord l’appli à l’écran d’accueil (Partager → Sur l’écran d’accueil), puis ouvrez-la depuis cette icône.' }; return go('identite'); }
-    if (!('Notification' in window) || !('PushManager' in window)) { S.flash = { t: 'Les notifications ne sont pas disponibles dans ce navigateur.' }; return go('identite'); }
+    if (surIphone() && !standalone()) { go('identite'); return flashNow({ t: 'Sur iPhone, ajoutez d’abord l’appli à l’écran d’accueil (Partager → Sur l’écran d’accueil), puis ouvrez-la depuis cette icône.' }); }
+    if (!('Notification' in window) || !('PushManager' in window)) { go('identite'); return flashNow({ t: 'Les notifications ne sont pas disponibles dans ce navigateur.' }); }
     let perm = Notification.permission;
     if (perm === 'default') { try { perm = await Notification.requestPermission(); } catch (e) { perm = 'denied'; } }
-    if (perm !== 'granted') { S.flash = { t: 'Notifications refusées. Autorisez-les pour cette appli dans les réglages du téléphone.' }; return go('identite'); }
+    if (perm !== 'granted') { go('identite'); return flashNow({ t: 'Notifications refusées. Autorisez-les pour cette appli dans les réglages du téléphone.' }); }
     await registerWorker();
     let push = false;
     try { push = await subscribePush(); } catch (e) { push = false; }
     setPref('notif', true);
     setPref('push', push);
-    S.flash = push
-      ? { t: 'Notifications activées. Elles arrivent aussi quand l’appli est fermée.', ok: true }
-      : { t: 'Notifications activées, mais l’envoi quand l’appli est fermée n’est pas encore prêt. Touchez la ligne « Notifications » pour réessayer.', ok: true };
     go('identite');
+    flashNow(push
+      ? { t: 'Notifications activées. Elles arrivent aussi quand l’appli est fermée.', ok: true }
+      : { t: 'Notifications activées, mais l’envoi quand l’appli est fermée n’est pas encore prêt. Touchez la ligne « Notifications » pour réessayer.', ok: true });
   }
   // Mise à jour : l’appli compare sa version à celle du site. Une version plus récente fait apparaître un bandeau pour recharger.
   let versionNouvelle = null;
@@ -3303,8 +3304,8 @@ button.chip{cursor:pointer;font:inherit}
     if (getPrefs().sound) { setPref('sound', false); return go('identite'); }
     setPref('sound', true);
     playChime(undefined, true);
-    S.flash = { t: 'Sonnerie activée. Elle sonne à l’arrivée d’un message, tant que l’appli est ouverte.', ok: true };
     go('identite');
+    flashNow({ t: 'Sonnerie activée. Elle sonne à l’arrivée d’un message, tant que l’appli est ouverte.', ok: true });
   }
 
   // ---------- déverrouillage par empreinte ou Face ID (WebAuthn, extension PRF) ----------

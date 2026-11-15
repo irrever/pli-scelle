@@ -283,7 +283,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v101';
+  const APP_VERSION = 'v102';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -2046,10 +2046,10 @@ button.chip{cursor:pointer;font:inherit}
       (del && S.backupDone
         ? '<div class="dock stack" style="position:static"><button class="btn btn-danger-solid" data-act="deletekeep">J’ai copié la sauvegarde : supprimer mon identité</button><button class="btn btn-ghost" data-act="go" data-arg="identite">Annuler</button></div>'
         : (!del && S.backupText
-          ? '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="nouveaufichier">Créer un nouveau fichier</button><button class="btn btn-secondary" data-act="go" data-arg="installer">Ouvrir un fichier</button><button class="btn btn-ghost" data-act="installertexte">Installer la copie</button></div>'
+          ? '<div class="dock stack" style="position:static"><button class="btn btn-secondary" data-act="nouveaufichier">Créer un nouveau fichier</button><button class="btn btn-primary" data-act="go" data-arg="installer">Installer une sauvegarde</button></div>'
           : '<section class="card form"><label class="label" for="bcode">Code secret : il chiffre cette sauvegarde</label><input id="bcode" class="field" type="password" autocomplete="off">' + formStatus() +
             '<p class="hint">Vous le retaperez pour ouvrir ce fichier. L’application ne le garde pas.</p></section>' +
-            '<div class="dock stack"><button class="btn btn-primary" data-act="backup">Enregistrer la sauvegarde</button><button class="btn btn-secondary" data-act="go" data-arg="installer">Ouvrir un fichier</button><button class="btn btn-ghost" data-act="installertexte">Installer la copie</button></div>')) +
+            '<div class="dock"><button class="btn btn-primary" data-act="backup">Enregistrer la sauvegarde</button></div>')) +
     '</div>';
   }
   // Juste après la création : l’identité, le pseudo, et ce qui reste privé. Rien de nouveau à voir ici : tout se fait ensuite.
@@ -2069,11 +2069,11 @@ button.chip{cursor:pointer;font:inherit}
     '</div>';
   }
   function viewInstaller() {
-    return '<div class="screen">' + topbar({ back: 'accueil', title: 'Installer mes contacts' }) +
-      '<div><h1>Installer mes contacts</h1><p class="lead" style="margin-top:6px">Chaque contact apparaît en « À réactiver ». Touchez ensuite « Réactiver les liens » dans l’accueil.</p></div>' +
+    return '<div class="screen">' + topbar({ back: 'accueil', title: 'Installer une sauvegarde' }) +
+      '<div><h1>Installer une sauvegarde</h1><p class="lead" style="margin-top:6px">Chaque contact apparaît en « À réactiver ». Touchez ensuite « Réactiver les liens » dans l’accueil.</p></div>' +
       '<section class="card form"><span class="label">Fichier de sauvegarde</span>' +
         '<label class="btn btn-secondary file-btn">' + I.download + '<span>Choisir le fichier</span><input id="restorefile" class="sr-only" type="file"></label>' +
-        '<details class="fallback"' + (S.arg === 'texte' ? ' open' : '') + '><summary>Je n’arrive pas à choisir le fichier</summary><div class="stack" style="margin-top:10px"><textarea id="rtext" class="field" rows="4" placeholder="Collez ici le contenu de la sauvegarde"></textarea></div></details>' +
+        '<details class="fallback"><summary>Je n’arrive pas à choisir le fichier</summary><div class="stack" style="margin-top:10px"><textarea id="rtext" class="field" rows="4" placeholder="Collez ici le contenu de la sauvegarde"></textarea></div></details>' +
         '<label class="label" for="rcode">Code secret de l’ancienne identité</label><input id="rcode" class="field" type="password" autocomplete="off">' + formStatus() +
       '</section>' +
       '<div class="dock"><button class="btn btn-primary" data-act="install">Installer</button></div>' +
@@ -2845,7 +2845,6 @@ button.chip{cursor:pointer;font:inherit}
     ajouterverifier: actVerifierAjout,
     raccourcivu: () => { LS.set('raccourci', RACCOURCI_REVISION); go('accueil'); },
     nouveaufichier: () => { S.backupText = null; S.backupDone = false; go('sauvegarde'); },
-    installertexte: () => go('installer', 'texte'),
     retrouveractuel: actRetrouver,
     enablebio: actEnableBio,
     disablebio: () => { LS.set('bio', null); S.flash = { t: 'Déverrouillage biométrique désactivé.', ok: true }; go('identite'); },

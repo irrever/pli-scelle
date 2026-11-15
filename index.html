@@ -278,7 +278,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v85';
+  const APP_VERSION = 'v86';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -1207,7 +1207,7 @@ button.chip{cursor:pointer;font:inherit}
     scanner: viewScanner,
     inviter: viewInviter, attente: viewAttente, demande: viewDemande, 'verifier-ff': viewVerifierFF,
     'lien-ouvert': viewLienOuvert, nommer: viewNommer, contact: viewContact, conv: viewConv,
-    reglages: viewReglages, 'lien-coupe': viewLienCoupe, identite: viewIdentite, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, 'identite-prete': viewIdentitePrete, verif: viewVerif, finir: viewFinir,
+    reglages: viewReglages, couper: viewCouper, 'lien-coupe': viewLienCoupe, identite: viewIdentite, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, 'identite-prete': viewIdentitePrete, verif: viewVerif, finir: viewFinir,
     invalide: viewInvalide
   };
 
@@ -1722,6 +1722,19 @@ button.chip{cursor:pointer;font:inherit}
       '<button class="rowlink danger" data-act="cut" data-arg="' + esc(c.cid) + '"><span>Couper le lien</span>' + I.chev + '</button></section>' +
       '<p class="hint">Couper le lien efface la conversation des deux côtés. Pour reprendre contact, il faut une nouvelle connexion.</p>' +
       motsEmpreinteHTML(c) +
+    '</div>';
+  }
+  // Confirmation avant de couper le lien : la conversation est effacée des deux côtés.
+  function viewCouper() {
+    const c = contacts().find((x) => x.cid === S.arg);
+    if (!c) return viewAccueil();
+    const enPause = !!(c.pause || c.pend);
+    const retour = enPause ? 'accueil' : c.cid;
+    const actRetour = enPause ? 'go' : 'conv';
+    return '<div class="screen center-col">' + topbar({ backAct: actRetour, backArg: retour, title: 'Couper le lien' }) +
+      '<div class="hero-icon danger">' + I.unlink + '</div>' +
+      '<div><h1>Couper le lien avec ' + esc(c.name || c.pseudo || 'ce contact') + ' ?</h1><p class="lead" style="margin-top:8px">La conversation sera effacée des deux côtés. Pour reprendre contact, il faudra une nouvelle connexion.</p></div>' +
+      '<div class="dock stack" style="width:100%"><button class="btn btn-danger" data-act="cutyes" data-arg="' + esc(c.cid) + '">Couper le lien</button><button class="btn btn-secondary" data-act="' + actRetour + '" data-arg="' + esc(retour) + '">Annuler</button></div>' +
     '</div>';
   }
   function viewLienCoupe() {
@@ -2331,7 +2344,8 @@ button.chip{cursor:pointer;font:inherit}
     reveal: actReveal,
     fermermsg: (mid) => actFermerMessage(mid),
     setlecture: (arg) => { const [cid, v] = String(arg).split('|'); const cs = contacts(); const c = cs.find((x) => x.cid === cid); if (c) { c.lecture = Number(v); LS.set('contacts', cs); } render(); },
-    cut: actCut,
+    cut: (cid) => { S.plusOpen = false; S.plusPanneau = null; S.plusMsg = ''; go('couper', cid); },
+    cutyes: (cid) => actCut(cid),
     deleteme: () => actDeleteMe(false),
     supprimerkeep: () => { S.delMode = true; go('sauvegarde'); },
     deletekeep: () => actDeleteMe(true),

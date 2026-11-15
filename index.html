@@ -284,7 +284,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v98';
+  const APP_VERSION = 'v99';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -389,6 +389,9 @@ button.chip{cursor:pointer;font:inherit}
   migrerStockage();
   const IDENTITES = ['a', 'b'];   // la première identité, et la seconde (cachée)
   const presente = (id) => localStorage.getItem('pli.' + id + '.me') !== null;
+  // Raccourci vers la seconde identité : sa révision est gardée par identité. Une révision plus récente signale le changement, une fois.
+  const RACCOURCI_REVISION = 1;
+  const RACCOURCI_TEXTE = 'appui long de 2 secondes sur le titre « Messages ».';
   const contacts = () => LS.get('contacts', []);
   const msgsAll = () => LS.get('msgs', []);
   const pendingAll = () => LS.get('pending', []);
@@ -1313,7 +1316,7 @@ button.chip{cursor:pointer;font:inherit}
     scanner: viewScanner,
     inviter: viewInviter, attente: viewAttente, demande: viewDemande, 'verifier-ff': viewVerifierFF,
     'lien-ouvert': viewLienOuvert, nommer: viewNommer, contact: viewContact, conv: viewConv,
-    reglages: viewReglages, couper: viewCouper, 'lien-coupe': viewLienCoupe, identite: viewIdentite, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, retrouver: viewRetrouver, ajouteridentite: viewAjouterIdentite, 'identite-prete': viewIdentitePrete, verif: viewVerif, finir: viewFinir, reprise: viewRepriseLien,
+    reglages: viewReglages, couper: viewCouper, 'lien-coupe': viewLienCoupe, identite: viewIdentite, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, retrouver: viewRetrouver, ajouteridentite: viewAjouterIdentite, 'seconde-prete': viewSecondePrete, 'identite-prete': viewIdentitePrete, verif: viewVerif, finir: viewFinir, reprise: viewRepriseLien,
     codeoublie: viewCodeOublie, 'codeoublie-decompte': viewCodeOublieDecompte, urgence: viewUrgence,
     invalide: viewInvalide
   };
@@ -1474,6 +1477,8 @@ button.chip{cursor:pointer;font:inherit}
   }
   function viewAccueil() {
     const notices = pendingAll().filter((p) => ['ff-request', 'remote-claim', 'ff-accepted', 'remote-accepted', 'remote-sent', 'verif', 'code', 'code-envoye', 'reprise-verif'].indexOf(p.type) >= 0).map(noticeHTML).join('');
+    // Seconde identité : si le raccourci a changé depuis qu’elle a été présentée, un avis le signale, une fois.
+    const avisRaccourci = (idActif === 'b' && LS.get('raccourci', RACCOURCI_REVISION) < RACCOURCI_REVISION) ? '<div class="pending-stack"><button class="notice alert" data-act="raccourcivu">' + I.inbox + '<span class="grow">Le raccourci vers votre seconde identité a changé : ' + RACCOURCI_TEXTE + '<br><span class="more">Touchez pour fermer.</span></span>' + I.chev + '</button></div>' : '';
     const ms = msgsAll();
     const cs = contacts();
     // Lien en pause ou à réactiver : la ligne est grisée, on ne peut plus l’ouvrir ; elle reste dans une section à part.
@@ -1494,6 +1499,7 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="screen">' +
       topbar({ titleHTML: 'Messages' + (idActif === 'b' ? '<span class="repere">Identité 2</span>' : ''), right: '<button class="iconbtn" data-act="go" data-arg="identite" aria-label="Mon identité">' + I.user + '</button><button class="iconbtn" data-act="lock" aria-label="Verrouiller">' + I.lock + '</button>' }) +
       (notices ? '<div class="pending-stack">' + notices + '</div>' : '') +
+      avisRaccourci +
       invitationsEnAttenteHTML() +
       (versionNouvelle ? '<div class="pending-stack"><button class="notice warn" data-act="recharger">' + I.refresh + '<span class="grow">Nouvelle version (' + esc(versionNouvelle) + ') disponible<br><span class="more">Touchez pour la charger. Vos données restent sur cet appareil.</span></span>' + I.chev + '</button></div>' : '') +
       (getPrefs().sound && !sonPret() ? notice('info', 'La sonnerie est en pause. Touchez l’écran une fois pour la réactiver.') : '') +
@@ -2225,8 +2231,9 @@ button.chip{cursor:pointer;font:inherit}
     catch (e) { return setStatus('formstatus', 'err', 'Création impossible : le relais ne répond pas. Réessayez.'); }
     if (presente('b')) await effacerSeconde();
     rangerIdentite('b', prete);
+    LS.set('raccourci', RACCOURCI_REVISION);   // la seconde identité a été présentée avec ce raccourci
     S.draftPseudo = null; S.arg = null; S.afterCreate = false;
-    go('accueil');
+    go('seconde-prete');
   }
   // Efface la seconde identité : ses contacts sont prévenus si c’est possible, puis ses données. La session ouverte n’est pas touchée.
   async function effacerSeconde() {
@@ -2239,6 +2246,14 @@ button.chip{cursor:pointer;font:inherit}
     }
     effacerDonneesIdentite('b');
     idActif = ouverte; S.me = avant; S.priv = avantPriv;
+  }
+  // Affiché une seule fois, à la création de la seconde identité : c’est la seule information sur le raccourci.
+  function viewSecondePrete() {
+    return '<div class="screen">' +
+      '<div><h1>Votre seconde identité est prête</h1><p class="lead" style="margin-top:6px">Pour passer de l’une à l’autre : appuyez sur le cadenas, puis tapez le code de l’identité voulue.</p></div>' +
+      '<section class="card"><h2>Raccourci</h2><p class="hint">Un appui long de 2 secondes sur le titre « Messages » ramène à l’écran de déverrouillage. Ce raccourci peut changer lors d’une mise à jour : l’appli vous le signalera alors.</p></section>' +
+      '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="go" data-arg="accueil">J’ai compris</button></div>' +
+    '</div>';
   }
   function viewAjouterIdentite() {
     return '<div class="screen">' + topbar({ back: 'identite', title: 'Ajouter une identité' }) +
@@ -2827,6 +2842,7 @@ button.chip{cursor:pointer;font:inherit}
     settone: (t) => { setPref('tone', t); playChime(t, true); go('identite'); },
     togglenotif: actToggleNotif,
     ajouterverifier: actVerifierAjout,
+    raccourcivu: () => { LS.set('raccourci', RACCOURCI_REVISION); go('accueil'); },
     retrouveractuel: actRetrouver,
     enablebio: actEnableBio,
     disablebio: () => { LS.set('bio', null); S.flash = { t: 'Déverrouillage biométrique désactivé.', ok: true }; go('identite'); },
@@ -3294,7 +3310,7 @@ button.chip{cursor:pointer;font:inherit}
     document.addEventListener('pointerdown', (e) => {
       const titre = e.target && e.target.closest ? e.target.closest('.topbar-title') : null;
       if (!titre || S.screen !== 'accueil' || !presente('b')) return;
-      minuteurGeste = setTimeout(() => { minuteurGeste = null; S.priv = null; idActif = 'a'; stopPolling(); go('verrouille'); }, 1200);
+      minuteurGeste = setTimeout(() => { minuteurGeste = null; S.priv = null; idActif = 'a'; stopPolling(); go('verrouille'); }, 2000);
     }, true);
     ['pointerup', 'pointermove', 'pointercancel', 'pointerleave'].forEach((ev) => document.addEventListener(ev, () => { if (minuteurGeste) { clearTimeout(minuteurGeste); minuteurGeste = null; } }, true));
     if (!S.me) return go('creer', S.inviteId ? 'invite' : null);

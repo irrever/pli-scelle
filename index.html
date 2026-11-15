@@ -66,6 +66,7 @@ textarea.field{resize:vertical;min-height:72px;font-size:16px;line-height:1.4}
 .btn-inline{width:auto;min-height:50px;padding:0 14px;border-radius:12px}
 .list{background:var(--surface);border:1px solid var(--line-2);border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
 .row-item{display:flex;align-items:center;gap:12px;width:100%;padding:14px 16px;border:0;border-top:1px solid var(--line-2);background:transparent;text-align:left;cursor:pointer;color:var(--ink)}
+.row-item[hidden]{display:none}
 .row-item:first-child{border-top:0}
 .row-item:hover{background:var(--surface-2)}
 .row-item.is-off{cursor:default}
@@ -288,7 +289,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v108';
+  const APP_VERSION = 'v109';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -332,7 +333,8 @@ button.chip{cursor:pointer;font:inherit}
     volume: svg('<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>'),
     music: svg('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>'),
     bell: svg('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>'),
-    upload: svg('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>')
+    upload: svg('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>'),
+    edit: svg('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>')
   };
   const LOGO = '<svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="21" fill="currentColor" opacity=".14"/><path d="M15.5 24.5l5.7 5.7L32.5 18.9" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
@@ -872,6 +874,7 @@ button.chip{cursor:pointer;font:inherit}
     const all = msgsAll();
     all.push({ mid: docId, cid: c.cid, dir: 'in', text: String(body.t || ''), state: 'new', ts: body.ts || Date.now(), once: body.once !== false });
     LS.set('msgs', all);
+    marqueConversation(c.cid, body.ts || Date.now());
     return true;
   }
   async function onCut(m) {
@@ -1270,6 +1273,7 @@ button.chip{cursor:pointer;font:inherit}
       const all = msgsAll();
       all.push({ mid: rid(10), cid: cid, dir: 'out', kind: 'voice', dur: v.dur, state: 'sent', ts: Date.now(), once: S.once !== false });
       LS.set('msgs', all);
+      marqueConversation(cid, Date.now());
       cancelVoice();
       go('conv', cid);
     } catch (e) {
@@ -1293,6 +1297,7 @@ button.chip{cursor:pointer;font:inherit}
     const all = msgsAll();
     all.push({ mid: m.vid, cid: c.cid, dir: 'in', kind: 'voice', dur: body.dur || 0, state: 'new', ts: body.ts || Date.now(), once: body.once !== false });
     LS.set('msgs', all);
+    marqueConversation(c.cid, body.ts || Date.now());
     return true;
   }
   function msgVoiceHTML(m) {
@@ -1324,7 +1329,7 @@ button.chip{cursor:pointer;font:inherit}
     scanner: viewScanner,
     inviter: viewInviter, attente: viewAttente, demande: viewDemande, 'verifier-ff': viewVerifierFF,
     'lien-ouvert': viewLienOuvert, nommer: viewNommer, contact: viewContact, conv: viewConv,
-    reglages: viewReglages, couper: viewCouper, 'lien-coupe': viewLienCoupe, identite: viewIdentite, sonnerie: viewSonnerie, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, retrouver: viewRetrouver, ajouteridentite: viewAjouterIdentite, 'seconde-prete': viewSecondePrete, 'identite-prete': viewIdentitePrete, verif: viewVerif, finir: viewFinir, reprise: viewRepriseLien,
+    nouveau: viewNouveau, reglages: viewReglages, couper: viewCouper, 'lien-coupe': viewLienCoupe, identite: viewIdentite, sonnerie: viewSonnerie, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, retrouver: viewRetrouver, ajouteridentite: viewAjouterIdentite, 'seconde-prete': viewSecondePrete, 'identite-prete': viewIdentitePrete, verif: viewVerif, finir: viewFinir, reprise: viewRepriseLien,
     codeoublie: viewCodeOublie, 'codeoublie-decompte': viewCodeOublieDecompte, urgence: viewUrgence,
     invalide: viewInvalide
   };
@@ -1483,6 +1488,56 @@ button.chip{cursor:pointer;font:inherit}
     if (c.pend && c.pend.envoyee) return 'Demande envoyée : en attente de sa confirmation';
     return 'À réactiver';
   }
+  // Recherche et zones : outils partagés par l’accueil et « Nouveau message ».
+  // Un contact garde la date de son dernier message, même quand le message lui-même est effacé.
+  function marqueConversation(cid, ts) {
+    const cs = contacts();
+    const c = cs.find((x) => x.cid === cid);
+    if (!c) return;
+    c.lastMsg = Math.max(c.lastMsg || 0, ts || Date.now());
+    LS.set('contacts', cs);
+  }
+  // Date du dernier message de chaque contact : messages encore là, ou date gardée sur le contact.
+  function dernierMessageParContact(cs, ms) {
+    const dernier = {};
+    ms.forEach((m) => { if ((m.ts || 0) > (dernier[m.cid] || 0)) dernier[m.cid] = m.ts || 0; });
+    cs.forEach((c) => { if ((c.lastMsg || 0) > (dernier[c.cid] || 0)) dernier[c.cid] = c.lastMsg; });
+    return dernier;
+  }
+  // Recherche de contact : sans majuscules ni accents.
+  function normaliser(t) { return String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim(); }
+  // Filtre les lignes déjà affichées, sans redessiner l’écran : le clavier reste ouvert pendant la frappe.
+  function appliquerRecherche() {
+    const champ = document.getElementById('recherche');
+    if (!champ) return;
+    const q = normaliser(champ.value);
+    let visibles = 0;
+    document.querySelectorAll('[data-cherche]').forEach((el) => {
+      const ok = !q || el.getAttribute('data-cherche').indexOf(q) >= 0;
+      el.hidden = !ok;
+      if (ok) visibles++;
+    });
+    document.querySelectorAll('[data-zone]').forEach((z) => { z.hidden = !z.querySelector('[data-cherche]:not([hidden])'); });
+    const vide = document.getElementById('recherche-vide');
+    if (vide) vide.hidden = !(q && visibles === 0);
+  }
+  // « Nouveau message » : on ouvre la recherche d’abord, puis on touche la personne à qui écrire.
+  function viewNouveau() {
+    const cs = contacts();
+    const actifs = cs.filter((c) => !c.pause && !c.pend);
+    const dernier = dernierMessageParContact(cs, msgsAll());
+    const ordre = actifs.filter((c) => dernier[c.cid] > 0).sort((a, b) => dernier[b.cid] - dernier[a.cid])
+      .concat(actifs.filter((c) => !(dernier[c.cid] > 0)));
+    const ligneNouveau = (c) => '<button class="row-item conv" data-cherche="' + esc(normaliser(c.name)) + '" data-act="conv" data-arg="' + esc(c.cid) + '"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · Vérifié</span></span>' + I.chev + '</button>';
+    return '<div class="screen">' + topbar({ back: 'accueil', title: 'Nouveau message' }) +
+      '<div><h1>À qui écrivez-vous ?</h1><p class="lead" style="margin-top:6px">Tapez son nom, puis touchez la personne pour écrire.</p></div>' +
+      (actifs.length
+        ? '<div class="stack"><input id="recherche" class="field" type="search" placeholder="Rechercher un contact" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Rechercher un contact"></div>' +
+          '<div class="list">' + ordre.map(ligneNouveau).join('') + '</div>' +
+          '<p class="hint" id="recherche-vide" hidden>Aucun contact ne correspond à cette recherche.</p>'
+        : emptyState()) +
+      '</div>';
+  }
   function viewAccueil() {
     const notices = pendingAll().filter((p) => ['ff-request', 'remote-claim', 'ff-accepted', 'remote-accepted', 'remote-sent', 'verif', 'code', 'code-envoye', 'reprise-verif'].indexOf(p.type) >= 0).map(noticeHTML).join('');
     // Seconde identité : si le raccourci a changé depuis qu’elle a été présentée, un avis le signale, une fois.
@@ -1494,15 +1549,22 @@ button.chip{cursor:pointer;font:inherit}
     const ligne = (c) => {
       const n = ms.filter((m) => m.cid === c.cid && m.dir === 'in' && m.state === 'new' && !m.seen).length;
       if (c.pause || c.pend) {
-        return '<div class="row-item is-off" aria-disabled="true"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · ' + (c.pause ? 'En pause, en attente de sa reprise' : statutReprise(c)) + '</span></span>' + miniQR(c) + '<button class="btn btn-secondary" style="min-height:40px;width:auto;padding:0 12px" data-act="cut" data-arg="' + esc(c.cid) + '">Couper le lien</button></div>';
+        return '<div class="row-item is-off" data-cherche="' + esc(normaliser(c.name)) + '" aria-disabled="true"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · ' + (c.pause ? 'En pause, en attente de sa reprise' : statutReprise(c)) + '</span></span>' + miniQR(c) + '<button class="btn btn-secondary" style="min-height:40px;width:auto;padding:0 12px" data-act="cut" data-arg="' + esc(c.cid) + '">Couper le lien</button></div>';
       }
-      return '<button class="row-item conv" data-act="conv" data-arg="' + esc(c.cid) + '"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · Vérifié</span></span>' + miniQR(c) + (n ? '<span class="count">' + n + '</span>' : '') + I.chev + '</button>';
+      return '<button class="row-item conv" data-cherche="' + esc(normaliser(c.name)) + '" data-act="conv" data-arg="' + esc(c.cid) + '"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · Vérifié</span></span>' + miniQR(c) + (n ? '<span class="count">' + n + '</span>' : '') + I.chev + '</button>';
     };
     const actifs = cs.filter((c) => !c.pause && !c.pend);
     const attente = cs.filter((c) => c.pause || c.pend);
+    // Deux zones : « Conversations » (contacts avec un message reçu ou envoyé, le plus récent en haut) et « Contacts » (les autres).
+    const dernier = dernierMessageParContact(cs, ms);
+    const conversations = actifs.filter((c) => dernier[c.cid] > 0).sort((a, b) => dernier[b.cid] - dernier[a.cid]);
+    const autres = actifs.filter((c) => !(dernier[c.cid] > 0));
     const list = cs.length
-      ? (actifs.length ? '<div class="list">' + actifs.map(ligne).join('') + '</div>' : '') +
-        (attente.length ? '<div class="section-title" style="margin-top:14px">Liens en attente</div><div class="list">' + attente.map(ligne).join('') + '</div>' : '')
+      ? '<div class="stack"><input id="recherche" class="field" type="search" placeholder="Rechercher un contact" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Rechercher un contact"></div>' +
+        (conversations.length ? '<section data-zone="conversations"><div class="section-title">Conversations</div><div class="list">' + conversations.map(ligne).join('') + '</div></section>' : '') +
+        (autres.length ? '<section data-zone="contacts"><div class="section-title">Contacts</div><div class="list">' + autres.map(ligne).join('') + '</div></section>' : '') +
+        (attente.length ? '<section data-zone="attente"><div class="section-title" style="margin-top:14px">Liens en attente</div><div class="list">' + attente.map(ligne).join('') + '</div></section>' : '') +
+        '<p class="hint" id="recherche-vide" hidden>Aucun contact ne correspond à cette recherche.</p>'
       : emptyState();
     return '<div class="screen">' +
       topbar({ titleHTML: 'Messages', right: '<button class="iconbtn" data-act="go" data-arg="identite" aria-label="Mon identité"' + (idActif === 'b' ? ' style="color:var(--danger)"' : '') + '>' + I.user + '</button><button class="iconbtn" data-act="lock" aria-label="Verrouiller">' + I.lock + '</button>' }) +
@@ -1514,8 +1576,8 @@ button.chip{cursor:pointer;font:inherit}
       (idActif === 'a' && cs.length && !(getPrefs().notif && getPrefs().push) ? '<div class="pending-stack"><button class="notice warn" data-act="togglenotif">' + I.msg + '<span class="grow">Notifications quand l’appli est fermée : ' + (getPrefs().notif ? 'pas encore prêtes' : 'désactivées') + '<br><span class="more">Touchez pour ' + (getPrefs().notif ? 'réessayer' : 'les activer sur cet appareil') + '.</span></span>' + I.chev + '</button></div>' : '') +
       (cs.some((c) => c.pend) ? '<div class="pending-stack"><button class="notice warn" data-act="reactiver">' + I.link + '<span class="grow">Réactiver les liens<br><span class="more">Vos contacts sont installés. Touchez pour leur envoyer la demande : chacun confirme dans son appli.</span></span>' + I.chev + '</button></div>' : '') +
       (cs.length && !LS.get('lastBackup', 0) ? '<div class="pending-stack"><button class="notice warn" data-act="go" data-arg="sauvegarde">' + I.shield + '<span class="grow">Sauvegardez vos contacts<br><span class="more">Sans sauvegarde, ils restent dans ce navigateur seulement.</span></span>' + I.chev + '</button></div>' : '') +
-      '<section><div class="section-title">Contacts</div>' + list + '</section>' +
-      '<div class="dock"><button class="btn btn-primary" data-act="go" data-arg="ajouter">' + I.plus + '<span>Ajouter une personne</span></button></div>' +
+      '<section>' + list + '</section>' +
+      '<div class="dock stack"><button class="btn btn-primary" data-act="go" data-arg="nouveau">' + I.edit + '<span>Nouveau message</span></button><button class="btn btn-secondary" data-act="go" data-arg="ajouter">' + I.plus + '<span>Ajouter une personne</span></button></div>' +
     '</div>';
   }
   // Un seul endroit pour ajouter quelqu’un : scanner le QR code d’une personne, ou montrer le sien.
@@ -2141,9 +2203,9 @@ button.chip{cursor:pointer;font:inherit}
     const same = app.dataset.view === key;
     if (!same) { S.attach = []; S.linkOpen = false; S.eventOpen = false; S.plusOpen = false; S.plusPanneau = null; S.plusMsg = ''; }
     const keep = {};
-    if (same) ['draft', 'linkIn', 'fcode', 'qrtext', 'invlabel', 'v0', 'v1', 'v2', 'cname', 'pseudo', 's1', 's2'].forEach((id) => { const el = document.getElementById(id); if (el) keep[id] = el.value; });
+    if (same) ['draft', 'linkIn', 'fcode', 'qrtext', 'invlabel', 'v0', 'v1', 'v2', 'cname', 'pseudo', 's1', 's2', 'recherche'].forEach((id) => { const el = document.getElementById(id); if (el) keep[id] = el.value; });
     const act = document.activeElement;
-    const focusId = same && act && (act.id === 'draft' || act.id === 'linkIn') ? act.id : null;
+    const focusId = same && act && (act.id === 'draft' || act.id === 'linkIn' || act.id === 'recherche') ? act.id : null;
     let html;
     try { html = fn(); } catch (e) { console.error(e); html = '<div class="screen">' + notice('err', 'Affichage impossible : ' + esc(e.message)) + '</div>'; }
     const flash = S.flash ? notice(S.flash.ok ? 'ok' : 'info', esc(S.flash.t)) : '';
@@ -2173,6 +2235,8 @@ button.chip{cursor:pointer;font:inherit}
     app.classList.toggle('meme-ecran', same);   // même écran redessiné : il ne rejoue pas son apparition
     hydrateVoices();
     Object.keys(keep).forEach((id) => { const el = document.getElementById(id); if (el) el.value = keep[id]; });
+    appliquerRecherche();
+    if (S.screen === 'nouveau' && !same) { const r = document.getElementById('recherche'); if (r) r.focus({ preventScroll: true }); }
     autoGrow();          // la zone reprend la hauteur du brouillon restauré…
     syncComposerAct();   // …et le bon bouton : micro, ou envoi s’il y a du texte
     // Conversation : on s’ouvre sur le dernier message, et il suit les nouveaux si on était déjà en bas
@@ -2704,6 +2768,7 @@ button.chip{cursor:pointer;font:inherit}
     all.push({ mid: rid(10), cid: cid, dir: 'out', state: 'sent', ts: Date.now(), once: S.once !== false });
     S.forceBas = true;
     LS.set('msgs', all);
+    marqueConversation(cid, Date.now());
     if ((S.attach || []).length) { S.attach = []; S.flash = { t: 'Seul le texte est envoyé pour l’instant.', ok: true }; }
     inp.value = '';
     go('conv', cid);
@@ -3045,7 +3110,7 @@ button.chip{cursor:pointer;font:inherit}
     render();
   });
   document.addEventListener('visibilitychange', () => { if (document.hidden) { stopVoice(true); arreterParArriere(); } else { poll(); verifierVersion(); } });
-  document.addEventListener('input', (ev) => { if (ev.target && ev.target.id === 'draft') { autoGrow(); syncComposerAct(); } });
+  document.addEventListener('input', (ev) => { if (ev.target && ev.target.id === 'draft') { autoGrow(); syncComposerAct(); } if (ev.target && ev.target.id === 'recherche') appliquerRecherche(); });
 
   function tick() {
     const cd = document.getElementById('cd');

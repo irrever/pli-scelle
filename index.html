@@ -283,7 +283,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v88';
+  const APP_VERSION = 'v89';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
@@ -1334,7 +1334,8 @@ button.chip{cursor:pointer;font:inherit}
   }
   function viewCreer() {
     if (!S.draftPseudo) S.draftPseudo = genPseudo();
-    const note = S.arg === 'invite' ? notice('info', 'Vous répondez à une invitation. Une fois votre identité créée, vous pourrez accepter l’invitation.') : '';
+    const note = S.arg === 'invite' ? notice('info', 'Vous répondez à une invitation. Une fois votre identité créée, vous pourrez accepter l’invitation.')
+      : S.arg === 'sauvegarde' ? notice('info', 'Vous reprenez vos contacts. Créez d’abord votre identité : l’appli vous demandera ensuite votre fichier de sauvegarde.') : '';
     return '<div class="screen">' +
       '<div class="brand">' + LOGO + '<span>Pli Scellé</span></div>' +
       '<div><h1>Créer votre identité</h1><p class="lead" style="margin-top:6px">Un pseudo et un code secret. Pas de numéro, pas d’e-mail.</p></div>' +
@@ -1344,14 +1345,19 @@ button.chip{cursor:pointer;font:inherit}
         '<div class="input-row"><input id="pseudo" class="field" value="' + esc(S.draftPseudo) + '" autocomplete="off"><button class="btn btn-secondary btn-inline" data-act="regen" aria-label="Générer un pseudo">' + I.refresh + '<span>Autre pseudo</span></button></div>' +
         '<p class="hint">C’est le seul nom que les autres voient.</p>' +
         '<label class="label" for="s1">Code secret</label>' +
-        '<input id="s1" class="field" type="password" autocomplete="new-password" placeholder="6 caractères minimum">' +
+        '<input id="s1" class="field" type="password" autocomplete="new-password" placeholder="8 caractères minimum, lettres et chiffres">' +
+        '<p class="hint">Au moins 8 caractères, lettres et chiffres mélangés. Les majuscules comptent.</p>' +
         '<label class="label" for="s2">Répétez le code secret</label>' +
         '<input id="s2" class="field" type="password" autocomplete="new-password">' +
         '<p class="hint">Il ouvre l’application sur cet appareil. Il ne se récupère pas.</p>' +
         formStatus() +
       '</div>' +
       qrDecorCard() +
-      '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="create">Créer mon identité</button></div>' +
+      '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="create">Créer mon identité</button>' +
+        (S.arg === 'invite' ? '' : S.arg === 'sauvegarde'
+          ? '<button class="btn btn-ghost" data-act="go" data-arg="creer">Je n’ai pas de sauvegarde</button>'
+          : '<button class="btn btn-ghost" data-act="go" data-arg="creer|sauvegarde">J’ai une sauvegarde de mes contacts</button>') +
+      '</div>' +
     '</div>';
   }
   function viewVerrouille() {
@@ -2067,16 +2073,38 @@ button.chip{cursor:pointer;font:inherit}
   }
 
   // ---------- actions ----------
+  // Code secret : au moins 8 caractères, lettres et chiffres mélangés, 32 au maximum.
+  // Refusé : une suite ou une répétition de 4 caractères (1234, abcd, aaaa).
+  function suiteOuRepetition(c) {
+    const v = String(c).toLowerCase().split('').map((x) => x.charCodeAt(0));
+    for (let i = 0; i + 3 < v.length; i++) {
+      const a = v[i], b = v[i + 1], d = v[i + 2], e = v[i + 3];
+      const monte = b === a + 1 && d === b + 1 && e === d + 1;
+      const descend = b === a - 1 && d === b - 1 && e === d - 1;
+      const meme = a === b && b === d && d === e;
+      if (monte || descend || meme) return true;
+    }
+    return false;
+  }
+  function erreurCodeSecret(c) {
+    if (c.length < 8) return 'Le code secret compte au moins 8 caractères.';
+    if (c.length > 32) return 'Le code secret compte 32 caractères au maximum.';
+    if (!/^[A-Za-z0-9]+$/.test(c)) return 'Le code secret ne contient que des lettres sans accent et des chiffres.';
+    if (!/[A-Za-z]/.test(c) || !/[0-9]/.test(c)) return 'Mélangez des lettres et des chiffres.';
+    if (suiteOuRepetition(c)) return 'Trop simple : 4 caractères qui se suivent ou se répètent.';
+    return null;
+  }
   async function actCreate() {
     const pseudo = ($('#pseudo').value || '').trim();
     const s1 = $('#s1').value, s2 = $('#s2').value;
     if (pseudo.length < 2 || pseudo.length > 24) return setStatus('formstatus', 'err', 'Le pseudo fait entre 2 et 24 caractères.');
-    if (s1.length < 6) return setStatus('formstatus', 'err', 'Le code secret compte au moins 6 caractères.');
+    const erreur = erreurCodeSecret(s1);
+    if (erreur) return setStatus('formstatus', 'err', erreur);
     if (s1 !== s2) return setStatus('formstatus', 'err', 'Les deux codes secrets ne sont pas identiques.');
     try { await createIdentity(pseudo, s1); }
     catch (e) { return setStatus('formstatus', 'err', 'Création impossible : le relais ne répond pas. Réessayez.'); }
     S.draftPseudo = null;
-    S.afterCreate = true;   // après une nouvelle identité, on propose de reprendre ses contacts
+    S.afterCreate = S.arg === 'sauvegarde' ? 'installer' : true;   // après une nouvelle identité : la sauvegarde si elle a été demandée, sinon « Reprendre vos contacts »
     afterAuth();
   }
   async function actUnlock() {
@@ -2098,7 +2126,7 @@ button.chip{cursor:pointer;font:inherit}
       S.scanKind = 'inv'; S.scanText = invTextFor(S.invite); S.scanLink = true;
       return go('scanner');
     }
-    if (S.afterCreate) { S.afterCreate = false; return go('identite-prete'); }
+    if (S.afterCreate) { const suite = S.afterCreate === 'installer' ? 'installer' : 'identite-prete'; S.afterCreate = false; return go(suite); }
     return go('accueil');
   }
   async function actSendFF() {

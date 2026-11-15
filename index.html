@@ -283,7 +283,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v89';
+  const APP_VERSION = 'v90';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
@@ -1961,9 +1961,9 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Installer mes contacts' }) +
       '<div><h1>Installer mes contacts</h1><p class="lead" style="margin-top:6px">Chaque contact apparaît en « À réactiver ». Touchez ensuite « Réactiver les liens » dans l’accueil.</p></div>' +
       '<section class="card form"><span class="label">Fichier de sauvegarde</span>' +
-        '<label class="btn btn-secondary file-btn">' + I.download + '<span>Choisir le fichier</span><input id="restorefile" class="sr-only" type="file" accept=".json,application/json"></label>' +
+        '<label class="btn btn-secondary file-btn">' + I.download + '<span>Choisir le fichier</span><input id="restorefile" class="sr-only" type="file"></label>' +
         '<details class="fallback"><summary>Je n’arrive pas à choisir le fichier</summary><div class="stack" style="margin-top:10px"><textarea id="rtext" class="field" rows="4" placeholder="Collez ici le contenu de la sauvegarde"></textarea></div></details>' +
-        '<label class="label" for="rcode">Code secret de la sauvegarde</label><input id="rcode" class="field" type="password" autocomplete="off">' + formStatus() +
+        '<label class="label" for="rcode">Code secret de l’ancienne identité</label><input id="rcode" class="field" type="password" autocomplete="off">' + formStatus() +
       '</section>' +
       '<div class="dock"><button class="btn btn-primary" data-act="install">Installer</button></div>' +
     '</div>';

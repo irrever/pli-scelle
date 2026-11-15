@@ -288,7 +288,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v107';
+  const APP_VERSION = 'v108';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -1587,7 +1587,7 @@ button.chip{cursor:pointer;font:inherit}
           '<div class="stack"><button class="btn btn-secondary" data-act="renewinv" data-arg="' + esc(inv.id) + '">' + I.refresh + '<span>Nouveau QR code</span></button></div>' +
           '<p class="hint center">Face à face : la personne scanne ce QR code. À distance : envoyez-lui le lien. Ensuite, l’appli vous demande trois mots à vérifier, puis vous envoyez le code, dans l’appli.</p>' +
           '<details class="fallback"><summary>Le QR code ne s’affiche pas ? Copiez son texte.</summary><div class="stack"><textarea id="invtextout" class="field" readonly>' + esc(invTextFor(inv)) + '</textarea><button class="btn btn-secondary" data-act="copyinv">' + I.copy + '<span>Copier le texte</span></button></div></details>' +
-          '<div class="dock"><button class="btn btn-danger" data-act="cancelinv" data-arg="' + esc(inv.id) + '">Annuler l’invitation</button></div>'
+          '<div class="stack"><button class="btn btn-danger" data-act="cancelinv" data-arg="' + esc(inv.id) + '">Annuler l’invitation</button></div>'
         : notice('info', 'Cette invitation n’est plus valable.') + '<div class="dock"><button class="btn btn-secondary" data-act="go" data-arg="accueil">Retour aux messages</button></div>') +
     '</div>';
   }

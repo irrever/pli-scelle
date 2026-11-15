@@ -194,13 +194,16 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 .bubble-ouvert{display:block;width:auto;text-align:left;cursor:pointer}
 .bubble-ouvert .bubble-timer{display:block}
 .bubble-fin{display:block;margin-top:6px;font-size:12px;color:var(--muted)}
-.grille-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:18px 6px;justify-items:center;padding:4px 0}
+.grille-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:18px 6px;padding:4px 0}
+.grille-actions .act{width:78px;flex:none}
 .act{display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0;width:100%;background:none;border:0;color:var(--ink);font-size:13px;line-height:1.25;text-align:center;cursor:pointer}
 .act .rond{width:62px;height:62px;border-radius:50%;background:var(--surface-2);display:grid;place-items:center;color:var(--accent)}
 .act.on .rond{background:var(--accent);color:#fff}
 .act.danger .rond{color:var(--danger)}
 .act small{display:block;color:var(--muted);font-size:12px}
 .plus-sheet{background:var(--surface);border:1px solid var(--line-2);border-radius:18px;padding:16px 10px 12px;box-shadow:var(--shadow);display:grid;gap:12px;margin:0 0 8px}
+.event-row{display:grid;gap:8px;margin:0 0 8px}
+.event-row[hidden]{display:none}
 .voice-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px;border-radius:14px;background:var(--accent-soft);color:var(--accent)}
 .voice-bar audio{width:100%;height:40px}
 .voice-dot{width:10px;height:10px;border-radius:50%;background:#d93025;animation:voicepulse 1s infinite}
@@ -275,7 +278,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v83';
+  const APP_VERSION = 'v84';
   const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -290,6 +293,9 @@ button.chip{cursor:pointer;font:inherit}
     finger: svg('<path d="M12 4a8 8 0 0 0-8 8v2"/><path d="M12 8a4 4 0 0 0-4 4v4"/><path d="M16 12a4 4 0 0 0-4-4"/><path d="M20 12a8 8 0 0 0-8-8"/><path d="M12 12v6"/>'),
     plus: svg('<path d="M12 5v14"/><path d="M5 12h14"/>'),
     qr: svg('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v3M14 20h3M18 18h3v3"/>'),
+    image: svg('<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>'),
+    pin: svg('<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>'),
+    calendar: svg('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>'),
     camera: svg('<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>'),
     link: svg('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>'),
     unlink: svg('<path d="M18.84 12.25l1.72-1.71a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M5.17 11.75l-1.71 1.71a5 5 0 0 0 7.07 7.07l1.71-1.71"/><line x1="8" y1="2" x2="8" y2="5"/><line x1="2" y1="8" x2="5" y2="8"/><line x1="16" y1="19" x2="16" y2="22"/><line x1="19" y1="16" x2="22" y2="16"/>'),
@@ -1545,7 +1551,7 @@ button.chip{cursor:pointer;font:inherit}
     '</div>';
   }
   // ---------- composeur : photo, document, lien, lecture unique ----------
-  // Le menu « + » de la zone de message : une feuille de boutons ronds, avec les options utiles aux messages.
+  // Le menu « + » de la zone de message : une feuille de boutons ronds. Les pièces (photo, caméra, document, position, événement, lien) attendent le texte, comme les réglages de la conversation.
   function plusFeuilleHTML(cid) {
     const c = contacts().find((x) => x.cid === cid);
     if (!c) return '';
@@ -1553,18 +1559,20 @@ button.chip{cursor:pointer;font:inherit}
     const panneau = S.plusPanneau;
     const v = typeof c.lecture === 'number' ? c.lecture : 60;
     const bouton = (classe, action, arg, icone, libelle, sous) => '<button class="act' + (classe ? ' ' + classe : '') + '" type="button" data-act="' + action + '" data-arg="' + esc(arg) + '"><span class="rond">' + icone + '</span><span>' + libelle + (sous ? '<small>' + sous + '</small>' : '') + '</span></button>';
+    const fichier = (id, icone, libelle, accept, capture) => '<label class="act"><span class="rond">' + icone + '</span><span>' + libelle + '</span><input id="' + id + '" class="sr-only" type="file"' + (accept ? ' accept="' + accept + '"' : '') + (capture ? ' capture="' + capture + '"' : '') + '></label>';
     const listeDurees = panneau === 'duree' ? '<section class="list">' + DUREES_LECTURE.map(([d, t]) => '<button class="rowlink' + (v === d ? ' on' : '') + '" type="button" data-act="setlecture" data-arg="' + esc(cid) + '|' + d + '"><span>' + t + '</span>' + (v === d ? '<span class="state" style="color:var(--accent)">' + I.check + '</span>' : '') + '</button>').join('') + '</section>' : '';
-    const mots = panneau === 'empreinte' ? motsEmpreinteHTML(c, true) : '';
     return '<div class="plus-sheet"><div class="grille-actions">' +
-      '<label class="act"><span class="rond">' + I.camera + '</span><span>Photo</span><input id="pickPhoto" class="sr-only" type="file" accept="image/*"></label>' +
-      '<label class="act"><span class="rond">' + I.file + '</span><span>Document</span><input id="pickDoc" class="sr-only" type="file"></label>' +
+      fichier('pickPhoto', I.image, 'Photo', 'image/*', '') +
+      fichier('pickCamera', I.camera, 'Caméra', 'image/*', 'environment') +
+      fichier('pickDoc', I.file, 'Document', '', '') +
+      bouton('', 'plusloc', cid, I.pin, 'Localisation', '') +
+      bouton('', 'showevent', '', I.calendar, 'Événement', '') +
       bouton('', 'showlink', '', I.link, 'Lien', '') +
       bouton(panneau === 'duree' ? 'on' : '', 'plusduree', '', I.clock, 'Durée', libelleDuree(cid)) +
       bouton('', 'togglemode', '', on ? I.eye : I.eyeoff, 'Mode', on ? 'Lecture unique' : 'Relisible') +
-      bouton(panneau === 'empreinte' ? 'on' : '', 'plusempreinte', cid, I.finger, 'Empreinte', '') +
       bouton('', 'go', 'verrouille', I.lock, 'Verrouiller', '') +
       bouton('danger', 'cut', cid, I.unlink, 'Couper le lien', '') +
-      '</div>' + listeDurees + mots + '</div>';
+      '</div>' + (S.plusMsg ? '<p class="hint plus-msg">' + esc(S.plusMsg) + '</p>' : '') + listeDurees + '</div>';
   }
   function composerHTML(cid) {
     const lien = contacts().find((x) => x.cid === cid);
@@ -1580,6 +1588,7 @@ button.chip{cursor:pointer;font:inherit}
       '</div>' +
       (S.plusOpen ? plusFeuilleHTML(cid) : '') +
       '<div id="linkRow" class="link-row"' + (S.linkOpen ? '' : ' hidden') + '><input id="linkIn" class="field" placeholder="Adresse du lien" inputmode="url" autocomplete="off"><button class="btn btn-secondary btn-send" type="button" data-act="addlink">Ajouter</button></div>' +
+      '<div id="eventRow" class="event-row"' + (S.eventOpen ? '' : ' hidden') + '><input id="evTitre" class="field" placeholder="Titre de l’événement" maxlength="60" autocomplete="off"><input id="evQuand" class="field" type="datetime-local" aria-label="Date et heure"><button class="btn btn-secondary" type="button" data-act="addevent">Ajouter l’événement</button></div>' +
       '<div id="attachRow" class="attach-row">' + attachChipsHTML() + '</div>' +
       (S.voice ? voiceBarHTML(cid) : '<div class="composer-row">' +
         '<button class="btn-plus" type="button" data-act="plusmenu" aria-label="Ajouter une photo, un document ou un lien">+</button>' +
@@ -1691,9 +1700,9 @@ button.chip{cursor:pointer;font:inherit}
       '' + composerHTML(c.cid) + '' +
     '</div>';
   }
-  // Les six mots de l’empreinte, affichés dans les réglages et dans le menu « + ».
-  function motsEmpreinteHTML(c, court) {
-    return (S.motsCle && S.motsCle.cid === c.cid ? wordsBlock('Mots d’empreinte', court ? ['Lisez ces six mots à voix haute : ils doivent être identiques sur les deux téléphones.'] : [
+  // Les six mots de l’empreinte, affichés dans les réglages de la conversation.
+  function motsEmpreinteHTML(c) {
+    return (S.motsCle && S.motsCle.cid === c.cid ? wordsBlock('Mots d’empreinte', [
         'Ces six mots forment l’empreinte de votre conversation. Ils sont calculés à partir des clés de chiffrement des deux personnes, et doivent être identiques sur les deux téléphones.',
         'Une seule comparaison suffit, au moment d’ajouter le contact : lisez les six mots à voix haute, ou au téléphone, dans le même ordre. S’ils sont identiques des deux côtés, personne ne s’est intercalé pour lire ou modifier vos messages : vous pouvez alors communiquer en toute sécurité.',
         'Vous n’avez rien à revérifier ensuite, quel que soit le nombre de messages. Il faudra seulement recommencer si l’un de vous recrée son identité. Si un seul mot diffère, ne faites pas confiance à ce lien : coupez-le, puis recréez-le ensemble, en vous voyant ou en vous entendant.',
@@ -1867,7 +1876,7 @@ button.chip{cursor:pointer;font:inherit}
     // Même écran et même contact : brouillon, lien en cours et focus survivent au redessin.
     const key = S.screen + ':' + S.arg;
     const same = app.dataset.view === key;
-    if (!same) { S.attach = []; S.linkOpen = false; S.plusOpen = false; S.plusPanneau = null; }
+    if (!same) { S.attach = []; S.linkOpen = false; S.eventOpen = false; S.plusOpen = false; S.plusPanneau = null; S.plusMsg = ''; }
     const keep = {};
     if (same) ['draft', 'linkIn', 'fcode', 'qrtext', 'invlabel', 'v0', 'v1', 'v2', 'cname'].forEach((id) => { const el = document.getElementById(id); if (el) keep[id] = el.value; });
     const act = document.activeElement;
@@ -2331,21 +2340,40 @@ button.chip{cursor:pointer;font:inherit}
     recharger: recharger,
     togglemode: () => { S.once = S.once === false; LS.set('lectureUnique', S.once !== false); updateOnceChip(); render(); },
     voicerec: () => startVoice(true),
-    plusmenu: () => { S.plusOpen = !S.plusOpen; if (!S.plusOpen) S.plusPanneau = null; render(); },
+    plusmenu: () => { S.plusOpen = !S.plusOpen; S.plusMsg = ''; if (!S.plusOpen) S.plusPanneau = null; render(); },
     plusduree: () => { S.plusPanneau = S.plusPanneau === 'duree' ? null : 'duree'; render(); },
-    plusempreinte: async (cid) => {
-      const ouvert = S.plusPanneau === 'empreinte';
-      S.plusPanneau = ouvert ? null : 'empreinte';
-      if (!ouvert) {
-        const c = contacts().find((x) => x.cid === cid);
-        try { if (c && c.raw && S.me && S.me.raw) S.motsCle = { cid: cid, mots: await wordsFor(unb64u(S.me.raw), unb64u(c.raw)) }; } catch (e) { S.motsCle = null; }
-      }
-      render();
-    },
     voicestop: () => stopVoice(),
     voicecancel: () => { cancelVoice(); render(); },
     voicesend: (cid) => actSendVoice(cid),
-    showlink: () => { S.linkOpen = !S.linkOpen; S.plusOpen = false; render(); const r = $('#linkRow'); if (r) { r.hidden = !S.linkOpen; if (S.linkOpen) $('#linkIn').focus(); } },
+    showlink: () => { S.linkOpen = !S.linkOpen; S.eventOpen = false; S.plusOpen = false; render(); const r = $('#linkRow'); if (r) { r.hidden = !S.linkOpen; if (S.linkOpen) $('#linkIn').focus(); } },
+    plusloc: (cid) => {
+      if (!navigator.geolocation) { S.plusMsg = 'Localisation indisponible sur ce téléphone.'; render(); return; }
+      S.plusMsg = 'Recherche de votre position…';
+      render();
+      navigator.geolocation.getCurrentPosition((p) => {
+        if (S.screen !== 'conv' || S.arg !== cid) return;
+        const fr = (n) => n.toFixed(4).replace('.', ',');
+        S.attach = S.attach || [];
+        S.attach.push({ kind: 'position', label: 'Position : ' + fr(p.coords.latitude) + ' ; ' + fr(p.coords.longitude) });
+        S.plusOpen = false; S.plusMsg = ''; S.plusPanneau = null;
+        render();
+      }, () => {
+        S.plusMsg = 'Localisation refusée ou indisponible. Autorisez-la pour ce site dans les réglages de votre téléphone.';
+        render();
+      }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 });
+    },
+    showevent: () => { S.eventOpen = !S.eventOpen; S.linkOpen = false; S.plusOpen = false; S.plusMsg = ''; render(); const t = $('#evTitre'); if (S.eventOpen && t) t.focus(); },
+    addevent: () => {
+      const titre = ($('#evTitre') ? $('#evTitre').value : '').trim();
+      if (!titre) { const t = $('#evTitre'); if (t) t.focus(); return; }
+      const quand = $('#evQuand') ? $('#evQuand').value : '';
+      const d = quand ? new Date(quand) : null;
+      const quandTxt = d && !isNaN(d) ? d.toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+      S.attach = S.attach || [];
+      S.attach.push({ kind: 'event', label: 'Événement : ' + titre + (quandTxt ? ' · ' + quandTxt : '') });
+      S.eventOpen = false;
+      render();
+    },
     addlink: addLinkAttach,
     rmattach: (i) => { S.attach = S.attach || []; S.attach.splice(Number(i), 1); renderAttach(); },
     savecontact: saveContactFile,
@@ -2403,9 +2431,9 @@ button.chip{cursor:pointer;font:inherit}
   // Photo ou document choisis : ils s'affichent comme pièces jointes (l'envoi viendra ensuite).
   document.addEventListener('change', (ev) => {
     const t = ev.target;
-    if (!t || (t.id !== 'pickPhoto' && t.id !== 'pickDoc') || !t.files || !t.files[0]) return;
+    if (!t || ['pickPhoto', 'pickCamera', 'pickDoc'].indexOf(t.id) < 0 || !t.files || !t.files[0]) return;
     S.attach = S.attach || [];
-    S.attach.push({ kind: t.id === 'pickPhoto' ? 'photo' : 'document', label: t.files[0].name });
+    S.attach.push({ kind: t.id === 'pickDoc' ? 'document' : 'photo', label: t.files[0].name });
     t.value = '';
     S.plusOpen = false;   // le menu « + » se referme après le choix
     render();

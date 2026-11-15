@@ -89,14 +89,18 @@ export async function handle(req: Request, env: Env, fetchFn: Fetcher, now: numb
 
   // 1. Il faut un message en attente dans la boîte.
   const rMessages = await db('messages?select=id&mailbox=eq.' + mailbox + '&limit=1');
-  const pending = await rMessages.json();
-  if (!Array.isArray(pending)) { journal('lecture des messages : réponse inattendue, statut', rMessages.status); return json(200, { ok: true }); }
+  const texteMessages = await rMessages.text();
+  let pending: unknown = null;
+  try { pending = JSON.parse(texteMessages); } catch (e) { pending = null; }
+  if (!Array.isArray(pending)) { journal('lecture des messages : réponse inattendue, statut', rMessages.status, sansAdresse(texteMessages.slice(0, 200))); return json(200, { ok: true }); }
   if (pending.length === 0) { journal('aucun message en attente : déjà lu, ou rien à notifier'); return json(200, { ok: true }); }
 
   // 2. Il faut un abonnement, et pas une notification trop rapprochée de la précédente.
   const rSubs = await db('push_subscriptions?select=subscription,last_push_at&mailbox=eq.' + mailbox);
-  const rows = await rSubs.json();
-  if (!Array.isArray(rows)) { journal('lecture des abonnements : réponse inattendue, statut', rSubs.status); return json(200, { ok: true }); }
+  const texteSubs = await rSubs.text();
+  let rows: any = null;
+  try { rows = JSON.parse(texteSubs); } catch (e) { rows = null; }
+  if (!Array.isArray(rows)) { journal('lecture des abonnements : réponse inattendue, statut', rSubs.status, sansAdresse(texteSubs.slice(0, 200))); return json(200, { ok: true }); }
   if (rows.length === 0) { journal('aucun abonnement pour cette boîte : l’appareil ne s’est pas inscrit'); return json(200, { ok: true }); }
   const last = rows[0].last_push_at ? Date.parse(rows[0].last_push_at) : 0;
   if (now - last < RATE_LIMIT_MS) { journal('une notification a été envoyée il y a moins de 15 s : pas de nouvel envoi'); return json(200, { ok: true }); }

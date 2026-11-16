@@ -290,7 +290,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v115';
+  const APP_VERSION = 'v116';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -1328,7 +1328,7 @@ button.chip{cursor:pointer;font:inherit}
     scanner: viewScanner,
     inviter: viewInviter, attente: viewAttente, demande: viewDemande, 'verifier-ff': viewVerifierFF,
     'lien-ouvert': viewLienOuvert, nommer: viewNommer, contact: viewContact, conv: viewConv,
-    nouveau: viewNouveau, reglages: viewReglages, couper: viewCouper, 'lien-coupe': viewLienCoupe, identite: viewIdentite, sonnerie: viewSonnerie, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, seconde: viewSeconde, ajouteridentite: viewAjouterIdentite, 'seconde-prete': viewSecondePrete, 'identite-prete': viewIdentitePrete, verif: viewVerif, finir: viewFinir, reprise: viewRepriseLien,
+    nouveau: viewNouveau, reglages: viewReglages, couper: viewCouper, 'lien-coupe': viewLienCoupe, identite: viewIdentite, sonnerie: viewSonnerie, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, seconde: viewSeconde, 'couper-liens': viewCouperLiens, 'effacer-seconde': viewEffacerSeconde, ajouteridentite: viewAjouterIdentite, 'seconde-prete': viewSecondePrete, 'identite-prete': viewIdentitePrete, verif: viewVerif, finir: viewFinir, reprise: viewRepriseLien,
     codeoublie: viewCodeOublie, 'codeoublie-decompte': viewCodeOublieDecompte, urgence: viewUrgence,
     invalide: viewInvalide
   };
@@ -2035,8 +2035,10 @@ button.chip{cursor:pointer;font:inherit}
     rafraichirZoneEffacer();
   }
   function viewIdentite() {
+    // Le bouton, dans la carte, bascule entre les deux identités tant qu’elles sont ouvertes toutes les deux (jusqu’au verrouillage de l’appli).
+    const boutonBasculer = S.autre ? '<button type="button" data-act="basculer" style="margin-top:6px;width:100%;height:46px;border-radius:12px;border:1px solid var(--id-accent);background:transparent;color:var(--id-ink);font-weight:600;font-size:15px">Passer à l’autre identité</button>' : '';
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Mon identité' }) +
-      '<div class="id-card"><div class="id-top"><span>PLI SCELLÉ</span><span>IDENTITÉ</span></div><div class="id-body"><div class="id-main"><div class="id-label">Mon pseudo</div><div class="id-name">' + esc(S.me.pseudo) + '</div></div><div class="id-qr" aria-hidden="true"><div class="qr-build">' + qrDecorCells() + '</div></div></div><div class="id-foot">Ni numéro, ni e-mail. Ce pseudo permet seulement de vous écrire.</div></div>' +
+      '<div class="id-card"><div class="id-top"><span>PLI SCELLÉ</span><span>IDENTITÉ</span></div><div class="id-body"><div class="id-main"><div class="id-label">Mon pseudo</div><div class="id-name">' + esc(S.me.pseudo) + '</div></div><div class="id-qr" aria-hidden="true"><div class="qr-build">' + qrDecorCells() + '</div></div></div><div class="id-foot">Ni numéro, ni e-mail. Ce pseudo permet seulement de vous écrire.</div>' + boutonBasculer + '</div>' +
       (idActif === 'a' ? zoneEffacementHTML() +
       '<section><div class="section-title">Accès à l’appli</div><div class="list">' +
         (S.bioAvail && idActif === 'a' ? '<button class="rowlink" data-act="go" data-arg="biometrie"><span class="rico">' + I.finger + '</span><span>Empreinte ou Face ID</span><span class="state">' + (LS.get('bio', null) ? 'Activé' : 'Désactivé') + '</span>' + I.chev + '</button>' : '') +
@@ -2044,7 +2046,7 @@ button.chip{cursor:pointer;font:inherit}
       '<section><div class="section-title">Identités</div><div class="list"><button class="rowlink" data-act="go" data-arg="ajouteridentite"><span class="rico">' + I.user + '</span><span>Ajouter une identité</span>' + I.chev + '</button></div></section>' +
       (idActif === 'a' ? '<section><div class="section-title">Alertes</div><div class="list"><button class="rowlink" data-act="togglesound"><span class="rico warn">' + I.volume + '</span><span>Sonnerie à la réception</span><span class="state">' + (getPrefs().sound ? 'Activée' : 'Désactivée') + '</span>' + I.chev + '</button><button class="rowlink" data-act="go" data-arg="sonnerie"><span class="rico warn">' + I.music + '</span><span>Choisir la sonnerie</span><span class="state">' + TONES[getPrefs().tone].label + '</span>' + I.chev + '</button></div><div class="list" style="margin-top:12px"><button class="rowlink" data-act="togglenotif"><span class="rico warn">' + I.bell + '</span><span>Notifications quand l’appli est fermée</span><span class="state">' + (getPrefs().notif ? (getPrefs().push ? 'Activées' : 'En attente') : 'Désactivées') + '</span>' + I.chev + '</button></div>' + notifHintHTML() + '<p class="hint">La sonnerie joue à chaque message ou demande reçus, tant que l’appli est ouverte (et vibre sur Android).</p></section>' : '') +
       '<section><div class="section-title">Sauvegarde</div><div class="list"><button class="rowlink" data-act="go" data-arg="sauvegarde"><span class="rico">' + I.download + '</span><span>Sauvegarder mes contacts</span>' + I.chev + '</button><button class="rowlink" data-act="go" data-arg="installer"><span class="rico">' + I.upload + '</span><span>Installer une sauvegarde</span>' + I.chev + '</button></div><p class="hint">' + (LS.get('lastBackup', 0) ? 'Dernière sauvegarde : ' + esc(new Date(LS.get('lastBackup', 0)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })) : 'Pas encore de sauvegarde. Sans elle, vos contacts ne sont que dans ce navigateur.') + '</p></section>' +
-      '<section><div class="section-title">Sécurité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="supprimer"><span class="rico danger">' + I.trash + '</span><span>Supprimer mon identité</span>' + I.chev + '</button></div></section>' + '' : '') +
+      '<section><div class="section-title">Sécurité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="supprimer"><span class="rico danger">' + I.trash + '</span><span>Supprimer mon identité</span>' + I.chev + '</button></div></section>' + '' : '<section><div class="section-title">Liens et identité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="couper-liens"><span class="rico danger">' + I.unlink + '</span><span>Couper tous les liens</span>' + I.chev + '</button><button class="rowlink danger" data-act="go" data-arg="effacer-seconde"><span class="rico danger">' + I.trash + '</span><span>Supprimer cette identité</span>' + I.chev + '</button></div></section>') +
       '<p class="hint center" style="padding-top:8px">Version ' + APP_VERSION + ' · dernière synchronisation : ' + esc(LS.get('lastSync', 0) ? new Date(LS.get('lastSync', 0)).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'jamais') + ' · messages reçus : ' + LS.get('recus', 0) + '</p>' +
     '</div>';
   }
@@ -2338,7 +2340,10 @@ button.chip{cursor:pointer;font:inherit}
   function viewSecondePrete() {
     return '<div class="screen">' +
       '<div><h1>Votre seconde identité est prête</h1><p class="lead" style="margin-top:6px">Pour l’ouvrir : appui de 2 secondes sur la carte « Mon identité », puis son code secret.</p></div>' +
-      '<section class="card"><h2>Pour la fermer</h2><p class="hint">Touchez le cadenas, ou tapotez trois fois l’écran, n’importe où. L’appli revient à votre première identité, sans se verrouiller.</p></section>' +
+      '<section class="card"><h2>Pour passer de l’une à l’autre</h2><p class="hint">Le bouton « Passer à l’autre identité », sur la carte. Les deux restent ouvertes jusqu’au verrouillage de l’appli.</p></section>' +
+      '<section class="card"><h2>Pour fermer la seconde</h2><p class="hint">Le cadenas, ou trois appuis rapides n’importe où : l’appli revient à votre première identité, sans se verrouiller.</p></section>' +
+      '<section class="card"><h2>Ce qu’elle permet</h2><p class="hint">Couper tous ses liens, ou se supprimer, sans toucher à la première. Ses contacts et ses messages sont séparés de la première. Elle n’a pas de sauvegarde : elle ne se retrouve pas sur un autre téléphone.</p></section>' +
+      '<section class="card"><h2>Verrouillage</h2><p class="hint">Le cadenas sur la première, ou trois minutes sans toucher l’écran, verrouille tout. Effacer la première efface aussi la seconde.</p></section>' +
       '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="go" data-arg="accueil">J’ai compris</button></div>' +
     '</div>';
   }
@@ -2406,6 +2411,52 @@ button.chip{cursor:pointer;font:inherit}
     S.autre = null;
     if (!await changerSession(premiere)) { S.autre = premiere; return flashNow({ t: 'Synchronisation en cours : réessayez dans un instant.', ok: false }); }
     go('accueil');
+  }
+  // Passe de l’identité affichée à l’autre, toutes deux ouvertes : rien n’est refermé, et la carte montre l’identité choisie.
+  async function actBasculer() {
+    if (!S.autre || S.changement) return;
+    const courante = { id: idActif, priv: S.priv, me: S.me };
+    const cible = S.autre;
+    if (!await changerSession(cible)) return flashNow({ t: 'Synchronisation en cours : réessayez dans un instant.', ok: false });
+    S.autre = courante;
+    go('identite');
+  }
+  // Seconde identité : couper tous ses liens. Chaque contact est prévenu, puis retiré avec sa conversation. L’identité reste.
+  async function actCouperTousLesLiens() {
+    if (idActif !== 'b') return go('identite');
+    for (const c of contacts()) {
+      try { await envoyerSigne(c.raw, { kind: 'cut' }); } catch (e) { /* hors ligne : même règle que « Couper le lien » */ }
+      removeContact(c.cid);
+    }
+    S.flash = { t: 'Tous les liens de cette identité sont coupés.', ok: true };
+    go('identite');
+  }
+  // Seconde identité : la supprimer, sans toucher à la première. Ses liens sont coupés, ses données effacées, et la première reste ouverte.
+  async function actEffacerCetteIdentite() {
+    if (idActif !== 'b' || !S.autre || S.changement) return;
+    const premiere = S.autre;
+    if (await effacerIdentite(false) === false) return go('identite');   // un contact injoignable : rien n’est effacé
+    S.autre = null;
+    idActif = premiere.id; S.priv = premiere.priv; S.me = premiere.me;
+    S.flash = { t: 'Cette identité est supprimée. La première reste ouverte.', ok: true };
+    startPolling();
+    go('accueil');
+  }
+  // Seconde identité : couper tous ses liens, après confirmation.
+  function viewCouperLiens() {
+    return '<div class="screen center-col">' + topbar({ back: 'identite', title: 'Couper les liens' }) +
+      '<div class="hero-icon danger">' + I.unlink + '</div>' +
+      '<div><h1>Couper tous les liens ?</h1><p class="lead" style="margin-top:8px">Chaque contact de cette identité est prévenu, et sa conversation est effacée. L’identité reste ouverte. La première identité n’est pas touchée.</p></div>' +
+      '<div class="dock stack" style="width:100%"><button class="btn btn-danger" data-act="confirmercouperliens">Couper tous les liens</button><button class="btn btn-secondary" data-act="go" data-arg="identite">Annuler</button></div>' +
+    '</div>';
+  }
+  // Seconde identité : la supprimer, après confirmation. La première reste ouverte.
+  function viewEffacerSeconde() {
+    return '<div class="screen center-col">' + topbar({ back: 'identite', title: 'Supprimer cette identité' }) +
+      '<div class="hero-icon danger">' + I.trash + '</div>' +
+      '<div><h1>Supprimer cette identité ?</h1><p class="lead" style="margin-top:8px">Ses contacts et ses messages sont effacés de cet appareil, et chaque lien est coupé. Rien ne se récupère. La première identité reste ouverte.</p></div>' +
+      '<div class="dock stack" style="width:100%"><button class="btn btn-danger" data-act="confirmereffacerseconde">Supprimer cette identité</button><button class="btn btn-secondary" data-act="go" data-arg="identite">Annuler</button></div>' +
+    '</div>';
   }
   // Code de la seconde identité : elle s’ouvre, et la première reste en mémoire pour y revenir sans code.
   async function actOuvrirSeconde() {
@@ -2910,6 +2961,7 @@ button.chip{cursor:pointer;font:inherit}
     if (await effacerIdentite(keep) === false) return go('identite');
     // La seconde est reliée à la première : elle est effacée avec elle.
     if (presente('b')) await effacerSeconde();
+    S.autre = null;
     idActif = 'a';
     go(presente('a') ? 'verrouille' : 'creer');
   }
@@ -3010,6 +3062,9 @@ button.chip{cursor:pointer;font:inherit}
     togglenotif: actToggleNotif,
     ajouterverifier: actVerifierAjout,
     ouvrirseconde: actOuvrirSeconde,
+    basculer: actBasculer,
+    confirmercouperliens: actCouperTousLesLiens,
+    confirmereffacerseconde: actEffacerCetteIdentite,
     enablebio: actEnableBio,
     disablebio: () => { LS.set('bio', null); S.flash = { t: 'Déverrouillage biométrique désactivé.', ok: true }; go('identite'); },
     biounlock: actBioUnlock,
@@ -3476,7 +3531,7 @@ button.chip{cursor:pointer;font:inherit}
     const annulerGeste = () => { if (minuteurGeste) { clearTimeout(minuteurGeste); minuteurGeste = null; } };
     document.addEventListener('pointerdown', (e) => {
       const carte = e.target && e.target.closest ? e.target.closest('.id-card') : null;
-      if (!carte || S.screen !== 'identite' || idActif !== 'a' || !presente('b')) return;
+      if (!carte || S.screen !== 'identite' || idActif !== 'a' || S.autre || !presente('b')) return;
       annulerGeste();
       minuteurGeste = setTimeout(() => { minuteurGeste = null; if (S.screen === 'identite' && idActif === 'a') go('seconde'); }, 2000);
     }, true);

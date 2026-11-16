@@ -290,7 +290,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v116';
+  const APP_VERSION = 'v117';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -2464,7 +2464,7 @@ button.chip{cursor:pointer;font:inherit}
     if (!code) return setStatus('formstatus', 'err', 'Entrez le code secret.');
     if (idActif !== 'a' || !S.priv || !presente('b')) return go('identite');
     const seconde = await ouvrirSeconde(code);
-    if (!seconde) return setStatus('formstatus', 'err', 'Ce code ne correspond pas.');
+    if (!seconde) return;   // un mauvais code n’a ni effet ni message : rien ne laisse deviner la seconde identité
     S.autre = { id: idActif, priv: S.priv, me: S.me };
     if (!await changerSession(seconde)) { S.autre = null; return setStatus('formstatus', 'err', 'Synchronisation en cours : réessayez dans un instant.'); }
     if (!await ensureSecret()) { await fermerSeconde(); return flashNow({ t: 'Cette identité ne peut pas être ouverte ici : sa boîte est déjà prise.', ok: false }); }

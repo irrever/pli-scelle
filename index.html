@@ -292,7 +292,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v119';
+  const APP_VERSION = 'v120';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -457,7 +457,7 @@ button.chip{cursor:pointer;font:inherit}
   }
 
   // ---------- état ----------
-  const S = { db: null, downloads: null, me: null, priv: null, screen: 'boot', arg: null, flash: null, cut: null, invite: null, inviteId: null, words: null, qr: null, invQR: null, qrText: '', draftPseudo: null, needRender: false, pollBusy: false, routed: new Set(), autre: null, changement: false, pollFins: [] };
+  const S = { db: null, downloads: null, me: null, priv: null, screen: 'boot', arg: null, flash: null, cut: null, invite: null, inviteId: null, words: null, qr: null, invQR: null, qrText: '', draftPseudo: null, needRender: false, pollBusy: false, routed: new Set(), autre: null, changement: false, pollFins: [], releveBusy: false };
 
   // ---------- clés et chiffrement ----------
   async function wrapPriv(priv, code) {
@@ -680,16 +680,55 @@ button.chip{cursor:pointer;font:inherit}
   }
   async function closeInviteDoc(id) { try { await S.db.doc('inv/' + id).delete(); } catch (e) {} }
 
+  // ---------- synchro des deux identités ouvertes ----------
+  // Une identité ouverte mais pas affichée garde ses messages, chiffrés, dans sa boîte brute (sous son emplacement).
+  // Elle les traite quand elle est affichée, avec ses propres clés.
+  const brutCle = (id) => 'pli.' + id + '.brut';
+  function lireBrut(id) { try { const v = localStorage.getItem(brutCle(id)); return v === null ? [] : JSON.parse(v); } catch (e) { return []; } }
+  function ecrireBrut(id, liste) {
+    try { if (liste.length) localStorage.setItem(brutCle(id), JSON.stringify(liste)); else localStorage.removeItem(brutCle(id)); return true; } catch (e) { return false; }
+  }
+  // Relève les messages arrivés sur la boîte de l’autre identité ouverte : ils sont gardés, puis retirés du relais.
+  async function releveFond() {
+    const b = S.autre;
+    if (!b || !S.db || S.changement || S.releveBusy || !presente(b.id)) return;
+    S.releveBusy = true;
+    try {
+      const to = await mailboxOf(b.me.raw);
+      // La boîte de l’autre identité se lit avec son propre secret, et non celui de l’identité affichée.
+      const rows = (await rpc('pli_fetch', { p_mailbox: to, p_secret: b.me.secret })) || [];
+      if (!S.autre || S.autre.id !== b.id || S.changement || !presente(b.id)) return;   // identité changée pendant la lecture : rien n’est gardé
+      if (!rows.length) return;
+      const liste = lireBrut(b.id).concat(rows.map((x) => ({ id: x.msg_id, m: x.msg_payload || {} })));
+      if (!ecrireBrut(b.id, liste)) return;   // stockage plein : les messages restent sur le relais
+      try { localStorage.setItem('pli.' + b.id + '.recus', JSON.stringify((Number(JSON.parse(localStorage.getItem('pli.' + b.id + '.recus') || '0')) || 0) + rows.length)); } catch (e) { /* compteur */ }
+      for (const x of rows) rpc('pli_ack', { p_id: x.msg_id, p_mailbox: to, p_secret: b.me.secret }).catch(() => {});
+    } catch (e) { /* hors ligne : on réessaie au prochain tour */ }
+    finally { S.releveBusy = false; }
+  }
+  // Traite les messages gardés pour l’identité affichée, un par un, dans son contexte. Renvoie true si l’affichage doit suivre.
+  async function traiteBrut(id) {
+    let changed = false;
+    for (;;) {
+      if (idActif !== id) break;
+      const liste = lireBrut(id);
+      if (!liste.length) break;
+      const e = liste[0];
+      try { if (await handle(e.m, e.id)) changed = true; } catch (err) { console.warn('Pli : message ignoré', err); }
+      if (!ecrireBrut(id, lireBrut(id).filter((x) => x.id !== e.id))) break;   // stockage indisponible : le reste attend
+    }
+    return changed;
+  }
   async function poll() {
     if (!S.db || !S.me || !S.priv || S.pollBusy || S.changement) return;
     S.pollBusy = true;
     const identPoll = idActif;   // l’identité synchronisée : si elle change pendant la lecture, rien n’est écrit
     try {
+      let changed = await traiteBrut(identPoll);   // messages gardés pendant que cette identité n’était pas affichée
       const to = await mailboxOf(S.me.raw);
       const snap = await S.db.collection('box').where('to', '==', to).get();
       if (!S.me || idActif !== identPoll) return;   // identité supprimée ou changée pendant la lecture : on n’écrit plus rien
       if (snap.docs.length) LS.set('recus', LS.get('recus', 0) + snap.docs.length);
-      let changed = false;
       const suppressions = [];
       for (const d of snap.docs) {
         const m = d.data() || {};
@@ -1019,9 +1058,13 @@ button.chip{cursor:pointer;font:inherit}
     if (S.needRender && !isTyping() && !voicePlaying()) render();
   }
   function isTyping() { const a = document.activeElement; return !!a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA'); }
-  let pollTimer = null;
-  function startPolling() { if (!pollTimer) pollTimer = setInterval(poll, 2000); poll(); }
-  function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+  let pollTimer = null, releveTimer = null;
+  // Synchro : l’identité affichée (poll) et, à part, le relevé de l’autre identité ouverte (releveFond), sur leur propre minuteur.
+  function startPolling() { if (!pollTimer) pollTimer = setInterval(poll, 2000); if (!releveTimer) releveTimer = setInterval(releveFond, 2000); poll(); }
+  function stopPolling() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    if (releveTimer) { clearInterval(releveTimer); releveTimer = null; }
+  }
 
   // ---------- composants ----------
   function topbar(o) {

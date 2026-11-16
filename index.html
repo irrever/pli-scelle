@@ -292,7 +292,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v118';
+  const APP_VERSION = 'v119';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -1330,7 +1330,7 @@ button.chip{cursor:pointer;font:inherit}
     scanner: viewScanner,
     inviter: viewInviter, attente: viewAttente, demande: viewDemande, 'verifier-ff': viewVerifierFF,
     'lien-ouvert': viewLienOuvert, nommer: viewNommer, contact: viewContact, conv: viewConv,
-    nouveau: viewNouveau, reglages: viewReglages, couper: viewCouper, 'lien-coupe': viewLienCoupe, identite: viewIdentite, sonnerie: viewSonnerie, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, seconde: viewSeconde, 'couper-liens': viewCouperLiens, 'effacer-seconde': viewEffacerSeconde, ajouteridentite: viewAjouterIdentite, 'seconde-prete': viewSecondePrete, 'identite-prete': viewIdentitePrete, verif: viewVerif, finir: viewFinir, reprise: viewRepriseLien,
+    nouveau: viewNouveau, reglages: viewReglages, couper: viewCouper, 'lien-coupe': viewLienCoupe, identite: viewIdentite, sonnerie: viewSonnerie, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, seconde: viewSeconde, 'couper-liens': viewCouperLiens, 'effacer-seconde': viewEffacerSeconde, 'essai-trait': viewEssaiTrait, ajouteridentite: viewAjouterIdentite, 'seconde-prete': viewSecondePrete, 'identite-prete': viewIdentitePrete, verif: viewVerif, finir: viewFinir, reprise: viewRepriseLien,
     codeoublie: viewCodeOublie, 'codeoublie-decompte': viewCodeOublieDecompte, urgence: viewUrgence,
     invalide: viewInvalide
   };
@@ -2346,7 +2346,17 @@ button.chip{cursor:pointer;font:inherit}
       '<section class="card"><h2>Pour fermer la seconde</h2><p class="hint">Le cadenas, ou trois appuis rapides n’importe où : l’appli revient à votre première identité, sans se verrouiller.</p></section>' +
       '<section class="card"><h2>Ce qu’elle permet</h2><p class="hint">Couper tous ses liens, ou se supprimer, sans toucher à la première. Ses contacts et ses messages sont séparés de la première. Elle n’a pas de sauvegarde : elle ne se retrouve pas sur un autre téléphone.</p></section>' +
       '<section class="card"><h2>Verrouillage</h2><p class="hint">Le cadenas sur la première, ou trois minutes sans toucher l’écran, verrouille tout. Effacer la première efface aussi la seconde.</p></section>' +
-      '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="go" data-arg="accueil">J’ai compris</button></div>' +
+      '<div class="dock stack" style="position:static"><button class="btn btn-secondary" data-act="essayer">Essayer le geste</button><button class="btn btn-primary" data-act="go" data-arg="accueil">J’ai compris</button></div>' +
+    '</div>';
+  }
+  // Essai du geste, après la création : pour apprendre le trait. Ici rien ne bascule : le geste est seulement reconnu.
+  function viewEssaiTrait() {
+    const resultat = S.essaiReussi ? notice('ok', 'Le geste est reconnu. Sur la carte, il fait basculer d’identité.') : (S.essaiEchec ? notice('info', 'Pas encore : il faut relier trois des quatre coins, d’un trait continu, en moins de 2 secondes.') : '');
+    return '<div class="screen">' + topbar({ back: 'seconde-prete', title: 'Essayer le geste' }) +
+      '<div><h1>Essayez le geste</h1><p class="lead" style="margin-top:6px">Relie trois des quatre coins du QR code ci-dessous, d’un trait continu, en moins de 2 secondes, dans n’importe quel sens. Rien ne bascule ici.</p></div>' +
+      '<div class="card" style="display:flex;justify-content:center;padding:20px"><div class="id-qr essai-qr" aria-hidden="true" style="width:min(240px,70vw)"><div class="qr-build">' + qrDecorCells() + '</div></div></div>' +
+      resultat +
+      '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="go" data-arg="seconde-prete">Revoir l’explication</button></div>' +
     '</div>';
   }
   function viewAjouterIdentite() {
@@ -3064,6 +3074,7 @@ button.chip{cursor:pointer;font:inherit}
     togglenotif: actToggleNotif,
     ajouterverifier: actVerifierAjout,
     ouvrirseconde: actOuvrirSeconde,
+    essayer: () => { S.essaiReussi = false; S.essaiEchec = false; go('essai-trait'); },
     basculer: actBasculer,
     confirmercouperliens: actCouperTousLesLiens,
     confirmereffacerseconde: actEffacerCetteIdentite,
@@ -3529,15 +3540,21 @@ button.chip{cursor:pointer;font:inherit}
     cleanupNotifications();
     if (getPrefs().notif) registerWorker().then(retryPush).catch(() => {});
     // Seconde identité : appui long de 2 secondes sur la carte « Mon identité », quand la première est ouverte.
-    let minuteurGeste = null;
-    const annulerGeste = () => { if (minuteurGeste) { clearTimeout(minuteurGeste); minuteurGeste = null; } };
+    let minuteurGeste = null, departGeste = null;
+    const annulerGeste = () => { if (minuteurGeste) { clearTimeout(minuteurGeste); minuteurGeste = null; } departGeste = null; };
     document.addEventListener('pointerdown', (e) => {
       const carte = e.target && e.target.closest ? e.target.closest('.id-card') : null;
       if (!carte || S.screen !== 'identite' || idActif !== 'a' || S.autre || !presente('b')) return;
       annulerGeste();
+      departGeste = { x: e.clientX, y: e.clientY, pid: e.pointerId };
       minuteurGeste = setTimeout(() => { minuteurGeste = null; if (S.screen === 'identite' && idActif === 'a') go('seconde'); }, 2000);
     }, true);
-    ['pointerup', 'pointermove', 'pointercancel', 'pointerleave'].forEach((ev) => document.addEventListener(ev, annulerGeste, true));
+    // Un tremblement du doigt, jusqu’à 10 px, ne compte pas : seul un vrai déplacement annule l’appui de 2 secondes.
+    document.addEventListener('pointermove', (e) => {
+      if (!departGeste || e.pointerId !== departGeste.pid) return;
+      if (Math.hypot(e.clientX - departGeste.x, e.clientY - departGeste.y) > 10) annulerGeste();
+    }, true);
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => document.addEventListener(ev, annulerGeste, true));
     // Geste du trait : un trait continu qui relie trois des quatre coins du QR de la carte, en moins de 2 secondes, fait basculer d’identité.
     // Rien ne s’affiche. Il ne sert que lorsque la seconde est ouverte (la carte ne défile pas sous le doigt : voir .id-qr).
     let trait = null;
@@ -3552,9 +3569,18 @@ button.chip{cursor:pointer;font:inherit}
       return -1;
     };
     document.addEventListener('pointerdown', (e) => {
-      const qr = e.target && e.target.closest ? e.target.closest('.id-qr') : null;
+      const cible = e.target && e.target.closest ? e.target : null;
+      const essai = cible ? cible.closest('.essai-qr') : null;
+      if (essai && S.screen === 'essai-trait') {   // essai du geste, après la création : rien ne bascule
+        S.essaiEchec = false;
+        trait = { t0: Date.now(), r: essai.getBoundingClientRect(), coins: new Set(), pid: e.pointerId, essai: true };
+        const c = coinDuQR(trait.r, e.clientX, e.clientY);
+        if (c >= 0) trait.coins.add(c);
+        return;
+      }
+      const qr = cible ? cible.closest('.id-qr') : null;
       if (!qr || S.screen !== 'identite' || !S.autre) { trait = null; return; }
-      trait = { t0: Date.now(), r: qr.getBoundingClientRect(), coins: new Set(), pid: e.pointerId };
+      trait = { t0: Date.now(), r: qr.getBoundingClientRect(), coins: new Set(), pid: e.pointerId, essai: false };
       const c = coinDuQR(trait.r, e.clientX, e.clientY);
       if (c >= 0) trait.coins.add(c);
     }, true);
@@ -3563,9 +3589,18 @@ button.chip{cursor:pointer;font:inherit}
       if (Date.now() - trait.t0 > 2000) { trait = null; return; }
       const c = coinDuQR(trait.r, e.clientX, e.clientY);
       if (c >= 0) trait.coins.add(c);
-      if (trait.coins.size >= 3) { trait = null; actBasculer(); }
+      if (trait.coins.size >= 3) {
+        const essai = trait.essai;
+        trait = null;
+        if (essai) { S.essaiReussi = true; render(); } else { actBasculer(); }
+      }
     }, true);
-    ['pointerup', 'pointercancel'].forEach((ev) => document.addEventListener(ev, (e) => { if (trait && e.pointerId === trait.pid) trait = null; }, true));
+    ['pointerup', 'pointercancel'].forEach((ev) => document.addEventListener(ev, (e) => {
+      if (!trait || e.pointerId !== trait.pid) return;
+      const essai = trait.essai;
+      trait = null;
+      if (essai && !S.essaiReussi) { S.essaiEchec = true; render(); }
+    }, true));
     // Trois appuis rapides, n’importe où, pendant que la seconde identité est ouverte : elle se ferme, et l’appli revient à la première.
     // Un appui est court et immobile (un glissement ne compte pas). Le clic du troisième appui ne va pas plus loin.
     let appuis = 0, dernierAppui = 0, debutAppui = null, avalerClic = 0;

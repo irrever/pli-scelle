@@ -292,7 +292,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v122';
+  const APP_VERSION = 'v124';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -1456,8 +1456,8 @@ button.chip{cursor:pointer;font:inherit}
       : '';
     const ajout = S.arg === 'ajout';
     return '<div class="screen">' +
-      (ajout ? topbar({ back: 'identite', title: 'Ajouter une identité' }) : '<div class="brand">' + LOGO + '<span>Pli Scellé</span></div>') +
-      '<div><h1>' + (ajout ? 'Nouvelle identité' : 'Créer votre identité') + '</h1><p class="lead" style="margin-top:6px">' + (ajout ? 'Un pseudo et un code secret.' : 'Un pseudo et un code secret. Pas de numéro, pas d’e-mail.') + '</p></div>' +
+      (ajout ? topbar({ back: 'identite', title: 'Créer un agent double' }) : '<div class="brand">' + LOGO + '<span>Pli Scellé</span></div>') +
+      '<div><h1>' + (ajout ? 'Nouvel agent double' : 'Créer votre identité') + '</h1><p class="lead" style="margin-top:6px">' + (ajout ? 'Un pseudo et un code secret.' : 'Un pseudo et un code secret. Pas de numéro, pas d’e-mail.') + '</p></div>' +
       note +
       '<div class="card form">' +
         '<label class="label" for="pseudo">Votre pseudo : tiré au sort, changez-le si vous voulez</label>' +
@@ -1611,7 +1611,7 @@ button.chip{cursor:pointer;font:inherit}
         '<p class="hint" id="recherche-vide" hidden>Aucun contact ne correspond à cette recherche.</p>'
       : emptyState();
     return '<div class="screen">' +
-      topbar({ titleHTML: 'Messages', right: '<button class="iconbtn" data-act="go" data-arg="identite" aria-label="Mon identité">' + I.user + '</button><button class="iconbtn" data-act="lock" aria-label="' + (idActif === 'b' ? 'Fermer cette identité' : 'Verrouiller') + '">' + I.lock + '</button>' }) +
+      topbar({ titleHTML: 'Messages', right: '<button class="iconbtn" data-act="go" data-arg="identite" aria-label="Mon identité">' + I.user + '</button><button class="iconbtn" data-act="lock" aria-label="' + (idActif === 'b' ? 'Fermer cet agent double' : 'Verrouiller') + '">' + I.lock + '</button>' }) +
       (notices ? '<div class="pending-stack">' + notices + '</div>' : '') +
       invitationsEnAttenteHTML() +
       (versionNouvelle ? '<div class="pending-stack"><button class="notice warn" data-act="recharger">' + I.refresh + '<span class="grow">Nouvelle version (' + esc(versionNouvelle) + ') disponible<br><span class="more">Touchez pour la charger. Vos données restent sur cet appareil.</span></span>' + I.chev + '</button></div>' : '') +
@@ -2032,13 +2032,13 @@ button.chip{cursor:pointer;font:inherit}
       corps = '<div class="compte-rebours">' +
         '<div class="cr-ring"><svg width="128" height="128" viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52" fill="none" stroke="var(--danger-soft)" stroke-width="8"/><circle cx="60" cy="60" r="52" fill="none" stroke="var(--danger)" stroke-width="8" stroke-linecap="round" stroke-dasharray="326.73" stroke-dashoffset="' + decalage + '" transform="rotate(-90 60 60)"/></svg><span class="cr-chiffre">' + e.restant + '</span></div>' +
         '<p class="cr-titre" aria-live="polite">Effacement dans ' + e.restant + ' ' + (e.restant > 1 ? 'secondes' : 'seconde') + '</p>' +
-        '<p class="hint center">' + (idActif === 'b' ? 'Cette identité, ses contacts et ses messages seront effacés de cet appareil, et chaque lien sera coupé.' : 'Votre identité, vos contacts et vos messages seront effacés de cet appareil, et chaque lien sera coupé.') + ' Touchez « Arrêter » pour annuler.</p>' +
+        '<p class="hint center">' + 'Votre identité, vos contacts et vos messages seront effacés de cet appareil, et chaque lien sera coupé.' + ' Touchez « Arrêter » pour annuler.</p>' +
         '<button class="btn btn-primary" type="button" data-act="effacerstop">Arrêter l’effacement</button>' +
       '</div>';
     } else {
       corps = (e && e.etat === 'arrete' ? notice('info', e.raison) : '') +
-        '<div class="card"><div><b>' + (idActif === 'b' ? 'Effacer radicalement cette identité' : 'Effacer radicalement mon identité') + '</b><p class="hint">' + (idActif === 'b' ? 'Efface cette identité, ses contacts et ses messages de cet appareil. Chaque contact voit son lien coupé tout de suite. Rien ne se récupère. La première reste ouverte.' : 'Efface votre identité, vos contacts et vos messages de cet appareil. Chaque contact voit son lien coupé tout de suite. Rien ne se récupère.') + '</p></div>' +
-        '<button class="btn btn-danger-solid" type="button" data-act="effacerdemarre">' + (idActif === 'b' ? 'Effacer cette identité' : 'Effacer mon identité') + '</button></div>';
+        '<div class="card"><div><b>' + 'Effacer radicalement mon identité' + '</b><p class="hint">' + 'Efface votre identité, vos contacts et vos messages de cet appareil. Chaque contact voit son lien coupé tout de suite. Rien ne se récupère.' + '</p></div>' +
+        '<button class="btn btn-danger-solid" type="button" data-act="effacerdemarre">' + 'Effacer mon identité' + '</button></div>';
     }
     return '<section id="zoneEffacer" class="stack"><div class="section-title">Zone sensible</div>' + corps + '</section>';
   }
@@ -2088,14 +2088,14 @@ button.chip{cursor:pointer;font:inherit}
     const boutonBasculer = S.autre ? '<button type="button" data-act="basculer" class="visuellement-cache">Passer à l’autre identité</button>' : '';
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Mon identité' }) +
       '<div class="id-card"><div class="id-top"><span>PLI SCELLÉ</span><span>IDENTITÉ</span></div><div class="id-body"><div class="id-main"><div class="id-label">Mon pseudo</div><div class="id-name">' + esc(S.me.pseudo) + '</div></div><div class="id-qr" aria-hidden="true"><div class="qr-build">' + qrDecorCells() + '</div></div></div><div class="id-foot">Ni numéro, ni e-mail. Ce pseudo permet seulement de vous écrire.</div>' + boutonBasculer + '</div>' +
-      (idActif === 'a' ? zoneEffacementHTML() +
+      zoneEffacementHTML() +
       '<section><div class="section-title">Accès à l’appli</div><div class="list">' +
-        (S.bioAvail && idActif === 'a' ? '<button class="rowlink" data-act="go" data-arg="biometrie"><span class="rico">' + I.finger + '</span><span>Empreinte ou Face ID</span><span class="state">' + (LS.get('bio', null) ? 'Activé' : 'Désactivé') + '</span>' + I.chev + '</button>' : '') +
+        (S.bioAvail ? '<button class="rowlink" data-act="go" data-arg="biometrie"><span class="rico">' + I.finger + '</span><span>Empreinte ou Face ID</span><span class="state">' + (LS.get('bio', null) ? 'Activé' : 'Désactivé') + '</span>' + I.chev + '</button>' : '') +
         '<button class="rowlink" data-act="go" data-arg="urgence"><span class="rico">' + I.shield + '</span><span>Code d’urgence</span><span class="state">' + (LS.get('urgence', null) ? 'Activé' : 'Désactivé') + '</span>' + I.chev + '</button></div></section>' +
-      '<section><div class="section-title">Identités</div><div class="list"><button class="rowlink" data-act="go" data-arg="ajouteridentite"><span class="rico">' + I.user + '</span><span>Ajouter une identité</span>' + I.chev + '</button></div></section>' +
-      (idActif === 'a' ? '<section><div class="section-title">Alertes</div><div class="list"><button class="rowlink" data-act="togglesound"><span class="rico warn">' + I.volume + '</span><span>Sonnerie à la réception</span><span class="state">' + (getPrefs().sound ? 'Activée' : 'Désactivée') + '</span>' + I.chev + '</button><button class="rowlink" data-act="go" data-arg="sonnerie"><span class="rico warn">' + I.music + '</span><span>Choisir la sonnerie</span><span class="state">' + TONES[getPrefs().tone].label + '</span>' + I.chev + '</button></div><div class="list" style="margin-top:12px"><button class="rowlink" data-act="togglenotif"><span class="rico warn">' + I.bell + '</span><span>Notifications quand l’appli est fermée</span><span class="state">' + (getPrefs().notif ? (getPrefs().push ? 'Activées' : 'En attente') : 'Désactivées') + '</span>' + I.chev + '</button></div>' + notifHintHTML() + '<p class="hint">La sonnerie joue à chaque message ou demande reçus, tant que l’appli est ouverte (et vibre sur Android).</p></section>' : '') +
+      '<section><div class="section-title">Identités</div><div class="list"><button class="rowlink" data-act="go" data-arg="ajouteridentite"><span class="rico">' + I.user + '</span><span>Créer un agent double</span>' + I.chev + '</button></div></section>' +
+      '<section><div class="section-title">Alertes</div><div class="list"><button class="rowlink" data-act="togglesound"><span class="rico warn">' + I.volume + '</span><span>Sonnerie à la réception</span><span class="state">' + (getPrefs().sound ? 'Activée' : 'Désactivée') + '</span>' + I.chev + '</button><button class="rowlink" data-act="go" data-arg="sonnerie"><span class="rico warn">' + I.music + '</span><span>Choisir la sonnerie</span><span class="state">' + TONES[getPrefs().tone].label + '</span>' + I.chev + '</button></div><div class="list" style="margin-top:12px"><button class="rowlink" data-act="togglenotif"><span class="rico warn">' + I.bell + '</span><span>Notifications quand l’appli est fermée</span><span class="state">' + (getPrefs().notif ? (getPrefs().push ? 'Activées' : 'En attente') : 'Désactivées') + '</span>' + I.chev + '</button></div>' + notifHintHTML() + '<p class="hint">La sonnerie joue à chaque message ou demande reçus, tant que l’appli est ouverte (et vibre sur Android).</p></section>' +
       '<section><div class="section-title">Sauvegarde</div><div class="list"><button class="rowlink" data-act="go" data-arg="sauvegarde"><span class="rico">' + I.download + '</span><span>Sauvegarder mes contacts</span>' + I.chev + '</button><button class="rowlink" data-act="go" data-arg="installer"><span class="rico">' + I.upload + '</span><span>Installer une sauvegarde</span>' + I.chev + '</button></div><p class="hint">' + (LS.get('lastBackup', 0) ? 'Dernière sauvegarde : ' + esc(new Date(LS.get('lastBackup', 0)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })) : 'Pas encore de sauvegarde. Sans elle, vos contacts ne sont que dans ce navigateur.') + '</p></section>' +
-      '<section><div class="section-title">Sécurité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="supprimer"><span class="rico danger">' + I.trash + '</span><span>Supprimer mon identité</span>' + I.chev + '</button></div></section>' + '' : zoneEffacementHTML() + '<section><div class="section-title">Liens et identité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="couper-liens"><span class="rico danger">' + I.unlink + '</span><span>Couper tous les liens</span>' + I.chev + '</button></div></section>') +
+      '<section><div class="section-title">Sécurité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="supprimer"><span class="rico danger">' + I.trash + '</span><span>Supprimer mon identité</span>' + I.chev + '</button></div></section>' + (idActif === 'b' ? '<section><div class="section-title">Liens et identité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="couper-liens"><span class="rico danger">' + I.unlink + '</span><span>Couper tous les liens</span>' + I.chev + '</button></div></section>' : '') +
       '<p class="hint center" style="padding-top:8px">Version ' + APP_VERSION + ' · dernière synchronisation : ' + esc(LS.get('lastSync', 0) ? new Date(LS.get('lastSync', 0)).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'jamais') + ' · messages reçus : ' + LS.get('recus', 0) + '</p>' +
     '</div>';
   }
@@ -2387,16 +2387,30 @@ button.chip{cursor:pointer;font:inherit}
   }
   // Affiché une seule fois, à la création de la seconde identité : comment l’ouvrir, et comment la fermer.
   function viewSecondePrete() {
+    const ligne = (libelle, effet, agit) => '<li style="display:flex;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--line-2);border-radius:12px"><span>' + libelle + '</span><b style="color:' + (agit ? 'var(--accent)' : 'var(--muted)') + '">' + effet + '</b></li>';
     return '<div class="screen">' +
-      '<div><h1>Votre seconde identité est prête</h1><p class="lead" style="margin-top:6px">Pour l’ouvrir : appui de 2 secondes sur la carte « Mon identité », puis son code secret.</p></div>' +
-      '<section class="card"><h2>Pour passer de l’une à l’autre</h2><p class="hint">Sur la carte, relie trois des quatre coins du QR code d’un trait continu, en moins de 2 secondes, dans n’importe quel sens. Les deux restent ouvertes jusqu’au verrouillage de l’appli.</p></section>' +
-      '<section class="card"><h2>Pour fermer la seconde</h2><p class="hint">Le cadenas, ou trois appuis rapides n’importe où : l’appli revient à votre première identité, sans se verrouiller.</p></section>' +
-      '<section class="card"><h2>Ce qu’elle permet</h2><p class="hint">Couper tous ses liens, ou se supprimer, sans toucher à la première. Ses contacts et ses messages sont séparés de la première. Elle n’a pas de sauvegarde : elle ne se retrouve pas sur un autre téléphone.</p></section>' +
-      '<section class="card"><h2>Verrouillage</h2><p class="hint">Le cadenas sur la première, ou trois minutes sans toucher l’écran, verrouille tout. Effacer la première efface aussi la seconde.</p></section>' +
+      '<div><h1>Votre agent double est prêt</h1><p class="lead" style="margin-top:6px">Pour l’ouvrir : appui de 2 secondes sur la carte « Mon identité », puis son code secret. Le même appui ouvre le même écran pour tout le monde : sans agent double, un code quelconque ne fait rien. Rien ne permet donc de deviner qu’il existe.</p></div>' +
+      '<section class="card"><h2>Pour passer de l’un à l’autre</h2><p class="hint">Sur la carte, relie trois des quatre coins du QR code d’un trait continu, en moins de 2 secondes, dans n’importe quel sens. Rien ne s’affiche. Les deux restent ouverts jusqu’au verrouillage de l’appli.</p></section>' +
+      '<section class="card"><h2>Pour le fermer</h2><p class="hint">Le cadenas, ou trois appuis rapides n’importe où : l’appli revient à votre première identité, sans se verrouiller. Un deuxième appui sur le cadenas verrouille tout et renvoie au code de la première.</p></section>' +
+      '<section class="card"><h2>Silence</h2><p class="hint">L’agent double ne sonne, ne vibre et ne notifie jamais. Pendant qu’il est affiché, l’appli ne fait aucun son pour la première : ses messages attendent votre retour.</p></section>' +
+      '<section class="card"><h2>Ce qu’il permet</h2><p class="hint">Couper tous ses liens, ou l’effacer : un compte à rebours de 5 secondes précède l’effacement, et vous pouvez l’arrêter. Ses contacts et ses messages sont séparés de la première. Il n’a pas de sauvegarde : il ne se retrouve pas sur un autre téléphone.</p></section>' +
+      '<section class="card"><h2>Sa page</h2><p class="hint">Elle ressemble à celle de votre première identité. Seules les lignes marquées « agit » font quelque chose ; les autres s’affichent et ne font rien.</p><ul style="margin:10px 0 0;padding:0;display:grid;gap:6px">' +
+      ligne('Effacer mon identité', 'agit : efface l’agent double, et lui seul', true) +
+      ligne('Supprimer mon identité', 'agit : efface l’agent double, et lui seul', true) +
+      ligne('Couper tous les liens', 'agit', true) +
+      ligne('Sonnerie à la réception', 'sans effet', false) +
+      ligne('Choisir la sonnerie', 'sans effet', false) +
+      ligne('Notifications quand l’appli est fermée', 'sans effet', false) +
+      ligne('Empreinte ou Face ID', 'sans effet', false) +
+      ligne('Code d’urgence', 'sans effet', false) +
+      ligne('Sauvegarder mes contacts', 'sans effet', false) +
+      ligne('Créer un agent double', 'sans effet', false) +
+      '</ul></section>' +
+      '<section class="card"><h2>Ses réglages</h2><p class="hint">Sur sa page, « mon identité » désigne l’agent double : « Effacer mon identité » et « Supprimer mon identité » n’effacent que lui. Ses autres réglages s’affichent comme sur la première, mais n’ont aucun effet : il ne sonne pas, n’a ni sauvegarde, ni code d’urgence, ni empreinte.</p></section>' +
+      '<section class="card"><h2>Verrouillage</h2><p class="hint">Le cadenas sur la première, ou trois minutes sans toucher l’écran, verrouille tout. Effacer la première efface aussi l’agent double.</p></section>' +
       '<div class="dock stack" style="position:static"><button class="btn btn-secondary" data-act="essayer">Essayer le geste</button><button class="btn btn-primary" data-act="go" data-arg="accueil">J’ai compris</button></div>' +
     '</div>';
-  }
-  // Essai du geste, après la création : pour apprendre le trait. Ici rien ne bascule : le geste est seulement reconnu.
+  }  // Essai du geste, après la création : pour apprendre le trait. Ici rien ne bascule : le geste est seulement reconnu.
   function viewEssaiTrait() {
     const resultat = S.essaiReussi ? notice('ok', 'Le geste est reconnu. Sur la carte, il fait basculer d’identité.') : (S.essaiEchec ? notice('info', 'Pas encore : il faut relier trois des quatre coins, d’un trait continu, en moins de 2 secondes.') : '');
     return '<div class="screen">' + topbar({ back: 'seconde-prete', title: 'Essayer le geste' }) +
@@ -2407,8 +2421,8 @@ button.chip{cursor:pointer;font:inherit}
     '</div>';
   }
   function viewAjouterIdentite() {
-    return '<div class="screen">' + topbar({ back: 'identite', title: 'Ajouter une identité' }) +
-      '<div><h1>Ajouter une identité</h1><p class="lead" style="margin-top:6px">Cet appareil garde au plus deux identités. Si une deuxième identité existe déjà, elle sera effacée et remplacée, et ses contacts seront prévenus si possible.</p></div>' +
+    return '<div class="screen">' + topbar({ back: 'identite', title: 'Créer un agent double' }) +
+      '<div><h1>Créer un agent double</h1><p class="lead" style="margin-top:6px">Un seul agent double à la fois sur cet appareil. S’il en existe déjà un, il sera effacé et remplacé, et ses contacts seront prévenus si possible.</p></div>' +
       '<div class="card form"><label class="label" for="acode">Votre code secret actuel</label><input id="acode" class="field" type="password" autocomplete="off">' + formStatus() + '</div>' +
       '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="ajouterverifier">Continuer</button></div>' +
     '</div>';
@@ -2495,7 +2509,7 @@ button.chip{cursor:pointer;font:inherit}
     if (await effacerIdentite(false) === false) return go('identite');   // un contact injoignable : rien n’est effacé
     S.autre = null;
     idActif = premiere.id; S.priv = premiere.priv; S.me = premiere.me;
-    S.flash = { t: 'Cette identité est supprimée. La première reste ouverte.', ok: true };
+    S.flash = { t: 'Cet agent double est supprimé. La première reste ouverte.', ok: true };
     startPolling();
     go('accueil');
   }
@@ -3007,6 +3021,7 @@ button.chip{cursor:pointer;font:inherit}
     return true;
   }
   async function actDeleteMe(keep) {
+    if (idActif === 'b') return actEffacerCetteIdentite();   // « mon identité » désigne l’agent double : lui seul est effacé
     if (idActif !== 'a') return;   // la suppression vise toujours la première identité
     if (await effacerIdentite(keep) === false) return go('identite');
     // La seconde est reliée à la première : elle est effacée avec elle.
@@ -3216,10 +3231,13 @@ button.chip{cursor:pointer;font:inherit}
     enregistrerfichier: actEnregistrerFichier,
   };
 
+  // Sur l’agent double, ces actions s’affichent mais n’ont aucun effet : rien n’est activé, rien n’est sauvegardé, rien ne sort du téléphone.
+  const ACTS_SANS_EFFET_SUR_LE_DOUBLE = new Set(['togglesound', 'settone', 'togglenotif', 'enablebio', 'disablebio', 'biounlock', 'create', 'ajouterverifier', 'install', 'reactiver', 'deletekeep', 'urgenceenregistrer', 'urgencesupprimer', 'backup', 'copybackup', 'enregistrerfichier']);
   document.addEventListener('click', (ev) => {
     const el = ev.target.closest && ev.target.closest('[data-act]');
     if (!el || el.disabled) return;
     ev.preventDefault();
+    if (idActif === 'b' && ACTS_SANS_EFFET_SUR_LE_DOUBLE.has(el.dataset.act)) return;
     const fn = ACTS[el.dataset.act];
     if (!fn) return;
     el.disabled = true;

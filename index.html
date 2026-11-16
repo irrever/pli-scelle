@@ -292,7 +292,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v125';
+  const APP_VERSION = 'v126';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -3136,7 +3136,7 @@ button.chip{cursor:pointer;font:inherit}
     biounlock: actBioUnlock,
     unlock: actUnlock,
     create: actCreate,
-    regen: () => { S.draftPseudo = genPseudo(); go('creer', S.arg); },
+    regen: () => { S.draftPseudo = genPseudo(); const champ = $('#pseudo'); if (champ) champ.value = S.draftPseudo; go('creer', S.arg); },
     copyinv: () => copyText(($('#invtextout') || {}).value || '', 'Texte copié. Collez-le dans la messagerie de votre choix.'),
     sendscan: actSendScan,
     acceptff: actAcceptFF,

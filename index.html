@@ -292,7 +292,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v120';
+  const APP_VERSION = 'v121';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -724,7 +724,8 @@ button.chip{cursor:pointer;font:inherit}
     S.pollBusy = true;
     const identPoll = idActif;   // l’identité synchronisée : si elle change pendant la lecture, rien n’est écrit
     try {
-      let changed = await traiteBrut(identPoll);   // messages gardés pendant que cette identité n’était pas affichée
+      const gardes = await traiteBrut(identPoll);   // messages gardés pendant que cette identité n’était pas affichée : ils s’affichent, sans son
+      let changed = false;
       const to = await mailboxOf(S.me.raw);
       const snap = await S.db.collection('box').where('to', '==', to).get();
       if (!S.me || idActif !== identPoll) return;   // identité supprimée ou changée pendant la lecture : on n’écrit plus rien
@@ -736,7 +737,8 @@ button.chip{cursor:pointer;font:inherit}
         suppressions.push(S.db.collection('box').doc(d.id).delete().catch(() => {}));
       }
       await Promise.all(suppressions);
-      if (changed) { S.needRender = true; alertIncoming(); }
+      if (gardes || changed) S.needRender = true;
+      if (changed) alertIncoming();   // le son ne vient que des messages qui arrivent pendant que cette identité est affichée
       LS.set('lastSync', Date.now());
       await afterPoll();
     } catch (e) { /* hors ligne : on réessaie au prochain tour */ }

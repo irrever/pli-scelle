@@ -153,6 +153,8 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 .eyebrow{font:500 12px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 /* carte d’identité */
 .id-card{background:var(--id-bg);color:var(--id-ink);border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:10px;box-shadow:0 12px 28px rgba(16,35,58,.25);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.id-qr{touch-action:none}
+.visuellement-cache{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;padding:0;margin:-1px}
 .id-top{display:flex;justify-content:space-between;font:500 11px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;color:var(--id-accent)}
 .id-label{font:500 11px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--id-muted)}
 .id-name{font:700 32px/1.1 "Bricolage Grotesque",system-ui,sans-serif;letter-spacing:-.01em}
@@ -290,7 +292,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v117';
+  const APP_VERSION = 'v118';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -2035,8 +2037,8 @@ button.chip{cursor:pointer;font:inherit}
     rafraichirZoneEffacer();
   }
   function viewIdentite() {
-    // Le bouton, dans la carte, bascule entre les deux identités tant qu’elles sont ouvertes toutes les deux (jusqu’au verrouillage de l’appli).
-    const boutonBasculer = S.autre ? '<button type="button" data-act="basculer" style="margin-top:6px;width:100%;height:46px;border-radius:12px;border:1px solid var(--id-accent);background:transparent;color:var(--id-ink);font-weight:600;font-size:15px">Passer à l’autre identité</button>' : '';
+    // Le passage se fait par le geste du trait sur le QR de la carte. Ce bouton, invisible à l’écran, reste pour les lecteurs d’écran.
+    const boutonBasculer = S.autre ? '<button type="button" data-act="basculer" class="visuellement-cache">Passer à l’autre identité</button>' : '';
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Mon identité' }) +
       '<div class="id-card"><div class="id-top"><span>PLI SCELLÉ</span><span>IDENTITÉ</span></div><div class="id-body"><div class="id-main"><div class="id-label">Mon pseudo</div><div class="id-name">' + esc(S.me.pseudo) + '</div></div><div class="id-qr" aria-hidden="true"><div class="qr-build">' + qrDecorCells() + '</div></div></div><div class="id-foot">Ni numéro, ni e-mail. Ce pseudo permet seulement de vous écrire.</div>' + boutonBasculer + '</div>' +
       (idActif === 'a' ? zoneEffacementHTML() +
@@ -2340,7 +2342,7 @@ button.chip{cursor:pointer;font:inherit}
   function viewSecondePrete() {
     return '<div class="screen">' +
       '<div><h1>Votre seconde identité est prête</h1><p class="lead" style="margin-top:6px">Pour l’ouvrir : appui de 2 secondes sur la carte « Mon identité », puis son code secret.</p></div>' +
-      '<section class="card"><h2>Pour passer de l’une à l’autre</h2><p class="hint">Le bouton « Passer à l’autre identité », sur la carte. Les deux restent ouvertes jusqu’au verrouillage de l’appli.</p></section>' +
+      '<section class="card"><h2>Pour passer de l’une à l’autre</h2><p class="hint">Sur la carte, relie trois des quatre coins du QR code d’un trait continu, en moins de 2 secondes, dans n’importe quel sens. Les deux restent ouvertes jusqu’au verrouillage de l’appli.</p></section>' +
       '<section class="card"><h2>Pour fermer la seconde</h2><p class="hint">Le cadenas, ou trois appuis rapides n’importe où : l’appli revient à votre première identité, sans se verrouiller.</p></section>' +
       '<section class="card"><h2>Ce qu’elle permet</h2><p class="hint">Couper tous ses liens, ou se supprimer, sans toucher à la première. Ses contacts et ses messages sont séparés de la première. Elle n’a pas de sauvegarde : elle ne se retrouve pas sur un autre téléphone.</p></section>' +
       '<section class="card"><h2>Verrouillage</h2><p class="hint">Le cadenas sur la première, ou trois minutes sans toucher l’écran, verrouille tout. Effacer la première efface aussi la seconde.</p></section>' +
@@ -3536,6 +3538,34 @@ button.chip{cursor:pointer;font:inherit}
       minuteurGeste = setTimeout(() => { minuteurGeste = null; if (S.screen === 'identite' && idActif === 'a') go('seconde'); }, 2000);
     }, true);
     ['pointerup', 'pointermove', 'pointercancel', 'pointerleave'].forEach((ev) => document.addEventListener(ev, annulerGeste, true));
+    // Geste du trait : un trait continu qui relie trois des quatre coins du QR de la carte, en moins de 2 secondes, fait basculer d’identité.
+    // Rien ne s’affiche. Il ne sert que lorsque la seconde est ouverte (la carte ne défile pas sous le doigt : voir .id-qr).
+    let trait = null;
+    const coinDuQR = (r, x, y) => {
+      if (x < r.left || x > r.right || y < r.top || y > r.bottom) return -1;
+      const f = r.width * 0.3;
+      const gauche = x - r.left < f, droite = r.right - x < f, haut = y - r.top < f, bas = r.bottom - y < f;
+      if (gauche && haut) return 0;
+      if (droite && haut) return 1;
+      if (gauche && bas) return 2;
+      if (droite && bas) return 3;
+      return -1;
+    };
+    document.addEventListener('pointerdown', (e) => {
+      const qr = e.target && e.target.closest ? e.target.closest('.id-qr') : null;
+      if (!qr || S.screen !== 'identite' || !S.autre) { trait = null; return; }
+      trait = { t0: Date.now(), r: qr.getBoundingClientRect(), coins: new Set(), pid: e.pointerId };
+      const c = coinDuQR(trait.r, e.clientX, e.clientY);
+      if (c >= 0) trait.coins.add(c);
+    }, true);
+    document.addEventListener('pointermove', (e) => {
+      if (!trait || e.pointerId !== trait.pid) return;
+      if (Date.now() - trait.t0 > 2000) { trait = null; return; }
+      const c = coinDuQR(trait.r, e.clientX, e.clientY);
+      if (c >= 0) trait.coins.add(c);
+      if (trait.coins.size >= 3) { trait = null; actBasculer(); }
+    }, true);
+    ['pointerup', 'pointercancel'].forEach((ev) => document.addEventListener(ev, (e) => { if (trait && e.pointerId === trait.pid) trait = null; }, true));
     // Trois appuis rapides, n’importe où, pendant que la seconde identité est ouverte : elle se ferme, et l’appli revient à la première.
     // Un appui est court et immobile (un glissement ne compte pas). Le clic du troisième appui ne va pas plus loin.
     let appuis = 0, dernierAppui = 0, debutAppui = null, avalerClic = 0;

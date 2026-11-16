@@ -152,7 +152,7 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 .word.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset}
 .eyebrow{font:500 12px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 /* carte d’identité */
-.id-card{background:var(--id-bg);color:var(--id-ink);border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:10px;box-shadow:0 12px 28px rgba(16,35,58,.25)}
+.id-card{background:var(--id-bg);color:var(--id-ink);border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:10px;box-shadow:0 12px 28px rgba(16,35,58,.25);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .id-top{display:flex;justify-content:space-between;font:500 11px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;color:var(--id-accent)}
 .id-label{font:500 11px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--id-muted)}
 .id-name{font:700 32px/1.1 "Bricolage Grotesque",system-ui,sans-serif;letter-spacing:-.01em}
@@ -290,7 +290,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v114';
+  const APP_VERSION = 'v115';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -400,9 +400,6 @@ button.chip{cursor:pointer;font:inherit}
   migrerStockage();
   const IDENTITES = ['a', 'b'];   // la première identité, et la seconde (cachée)
   const presente = (id) => localStorage.getItem('pli.' + id + '.me') !== null;
-  // Raccourci vers la seconde identité : sa révision est gardée par identité. Une révision plus récente signale le changement, une fois.
-  const RACCOURCI_REVISION = 1;
-  const RACCOURCI_TEXTE = 'appui long de 2 secondes sur le titre « Messages ».';
   const contacts = () => LS.get('contacts', []);
   const msgsAll = () => LS.get('msgs', []);
   const pendingAll = () => LS.get('pending', []);
@@ -458,7 +455,7 @@ button.chip{cursor:pointer;font:inherit}
   }
 
   // ---------- état ----------
-  const S = { db: null, downloads: null, me: null, priv: null, screen: 'boot', arg: null, flash: null, cut: null, invite: null, inviteId: null, words: null, qr: null, invQR: null, qrText: '', draftPseudo: null, needRender: false, pollBusy: false, routed: new Set() };
+  const S = { db: null, downloads: null, me: null, priv: null, screen: 'boot', arg: null, flash: null, cut: null, invite: null, inviteId: null, words: null, qr: null, invQR: null, qrText: '', draftPseudo: null, needRender: false, pollBusy: false, routed: new Set(), autre: null, changement: false, pollFins: [] };
 
   // ---------- clés et chiffrement ----------
   async function wrapPriv(priv, code) {
@@ -682,12 +679,13 @@ button.chip{cursor:pointer;font:inherit}
   async function closeInviteDoc(id) { try { await S.db.doc('inv/' + id).delete(); } catch (e) {} }
 
   async function poll() {
-    if (!S.db || !S.me || !S.priv || S.pollBusy) return;
+    if (!S.db || !S.me || !S.priv || S.pollBusy || S.changement) return;
     S.pollBusy = true;
+    const identPoll = idActif;   // l’identité synchronisée : si elle change pendant la lecture, rien n’est écrit
     try {
       const to = await mailboxOf(S.me.raw);
       const snap = await S.db.collection('box').where('to', '==', to).get();
-      if (!S.me) return;   // identité supprimée pendant la lecture : on n’écrit plus rien sur ce téléphone
+      if (!S.me || idActif !== identPoll) return;   // identité supprimée ou changée pendant la lecture : on n’écrit plus rien
       if (snap.docs.length) LS.set('recus', LS.get('recus', 0) + snap.docs.length);
       let changed = false;
       const suppressions = [];
@@ -701,7 +699,7 @@ button.chip{cursor:pointer;font:inherit}
       LS.set('lastSync', Date.now());
       await afterPoll();
     } catch (e) { /* hors ligne : on réessaie au prochain tour */ }
-    finally { S.pollBusy = false; }
+    finally { S.pollBusy = false; S.pollFins.splice(0).forEach((f) => f()); }
   }
   async function handle(m, docId) {
     switch (m.kind) {
@@ -1330,7 +1328,7 @@ button.chip{cursor:pointer;font:inherit}
     scanner: viewScanner,
     inviter: viewInviter, attente: viewAttente, demande: viewDemande, 'verifier-ff': viewVerifierFF,
     'lien-ouvert': viewLienOuvert, nommer: viewNommer, contact: viewContact, conv: viewConv,
-    nouveau: viewNouveau, reglages: viewReglages, couper: viewCouper, 'lien-coupe': viewLienCoupe, identite: viewIdentite, sonnerie: viewSonnerie, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, retrouver: viewRetrouver, ajouteridentite: viewAjouterIdentite, 'seconde-prete': viewSecondePrete, 'identite-prete': viewIdentitePrete, verif: viewVerif, finir: viewFinir, reprise: viewRepriseLien,
+    nouveau: viewNouveau, reglages: viewReglages, couper: viewCouper, 'lien-coupe': viewLienCoupe, identite: viewIdentite, sonnerie: viewSonnerie, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, seconde: viewSeconde, ajouteridentite: viewAjouterIdentite, 'seconde-prete': viewSecondePrete, 'identite-prete': viewIdentitePrete, verif: viewVerif, finir: viewFinir, reprise: viewRepriseLien,
     codeoublie: viewCodeOublie, 'codeoublie-decompte': viewCodeOublieDecompte, urgence: viewUrgence,
     invalide: viewInvalide
   };
@@ -1541,8 +1539,6 @@ button.chip{cursor:pointer;font:inherit}
   }
   function viewAccueil() {
     const notices = pendingAll().filter((p) => ['ff-request', 'remote-claim', 'ff-accepted', 'remote-accepted', 'remote-sent', 'verif', 'code', 'code-envoye', 'reprise-verif'].indexOf(p.type) >= 0).map(noticeHTML).join('');
-    // Seconde identité : si le raccourci a changé depuis qu’elle a été présentée, un avis le signale, une fois.
-    const avisRaccourci = (idActif === 'b' && LS.get('raccourci', RACCOURCI_REVISION) < RACCOURCI_REVISION) ? '<div class="pending-stack"><button class="notice alert" data-act="raccourcivu">' + I.inbox + '<span class="grow">Le raccourci vers votre seconde identité a changé : ' + RACCOURCI_TEXTE + '<br><span class="more">Touchez pour fermer.</span></span>' + I.chev + '</button></div>' : '';
     const ms = msgsAll();
     const cs = contacts();
     // Lien en pause ou à réactiver : la ligne est grisée, on ne peut plus l’ouvrir ; elle reste dans une section à part.
@@ -1568,15 +1564,14 @@ button.chip{cursor:pointer;font:inherit}
         '<p class="hint" id="recherche-vide" hidden>Aucun contact ne correspond à cette recherche.</p>'
       : emptyState();
     return '<div class="screen">' +
-      topbar({ titleHTML: 'Messages', right: '<button class="iconbtn" data-act="go" data-arg="identite" aria-label="Mon identité"' + (idActif === 'b' ? ' style="color:var(--danger)"' : '') + '>' + I.user + '</button><button class="iconbtn" data-act="lock" aria-label="Verrouiller">' + I.lock + '</button>' }) +
+      topbar({ titleHTML: 'Messages', right: '<button class="iconbtn" data-act="go" data-arg="identite" aria-label="Mon identité">' + I.user + '</button><button class="iconbtn" data-act="lock" aria-label="' + (idActif === 'b' ? 'Fermer cette identité' : 'Verrouiller') + '">' + I.lock + '</button>' }) +
       (notices ? '<div class="pending-stack">' + notices + '</div>' : '') +
-      avisRaccourci +
       invitationsEnAttenteHTML() +
       (versionNouvelle ? '<div class="pending-stack"><button class="notice warn" data-act="recharger">' + I.refresh + '<span class="grow">Nouvelle version (' + esc(versionNouvelle) + ') disponible<br><span class="more">Touchez pour la charger. Vos données restent sur cet appareil.</span></span>' + I.chev + '</button></div>' : '') +
-      (getPrefs().sound && !sonPret() ? notice('info', 'La sonnerie est en pause. Touchez l’écran une fois pour la réactiver.') : '') +
+      (idActif === 'a' && getPrefs().sound && !sonPret() ? notice('info', 'La sonnerie est en pause. Touchez l’écran une fois pour la réactiver.') : '') +
       (idActif === 'a' && cs.length && !(getPrefs().notif && getPrefs().push) ? '<div class="pending-stack"><button class="notice warn" data-act="togglenotif">' + I.msg + '<span class="grow">Notifications quand l’appli est fermée : ' + (getPrefs().notif ? 'pas encore prêtes' : 'désactivées') + '<br><span class="more">Touchez pour ' + (getPrefs().notif ? 'réessayer' : 'les activer sur cet appareil') + '.</span></span>' + I.chev + '</button></div>' : '') +
       (cs.some((c) => c.pend) ? '<div class="pending-stack"><button class="notice warn" data-act="reactiver">' + I.link + '<span class="grow">Réactiver les liens<br><span class="more">Vos contacts sont installés. Touchez pour leur envoyer la demande : chacun confirme dans son appli.</span></span>' + I.chev + '</button></div>' : '') +
-      (cs.length && !LS.get('lastBackup', 0) ? '<div class="pending-stack"><button class="notice warn" data-act="go" data-arg="sauvegarde">' + I.shield + '<span class="grow">Sauvegardez vos contacts<br><span class="more">Sans sauvegarde, ils restent dans ce navigateur seulement.</span></span>' + I.chev + '</button></div>' : '') +
+      (idActif === 'a' && cs.length && !LS.get('lastBackup', 0) ? '<div class="pending-stack"><button class="notice warn" data-act="go" data-arg="sauvegarde">' + I.shield + '<span class="grow">Sauvegardez vos contacts<br><span class="more">Sans sauvegarde, ils restent dans ce navigateur seulement.</span></span>' + I.chev + '</button></div>' : '') +
       '<section>' + list + '</section>' +
       '<div class="dock stack"><button class="btn btn-primary" data-act="go" data-arg="nouveau">' + I.edit + '<span>Nouveau message</span></button><button class="btn btn-secondary" data-act="go" data-arg="ajouter">' + I.plus + '<span>Ajouter une personne</span></button></div>' +
     '</div>';
@@ -2042,14 +2037,14 @@ button.chip{cursor:pointer;font:inherit}
   function viewIdentite() {
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Mon identité' }) +
       '<div class="id-card"><div class="id-top"><span>PLI SCELLÉ</span><span>IDENTITÉ</span></div><div class="id-body"><div class="id-main"><div class="id-label">Mon pseudo</div><div class="id-name">' + esc(S.me.pseudo) + '</div></div><div class="id-qr" aria-hidden="true"><div class="qr-build">' + qrDecorCells() + '</div></div></div><div class="id-foot">Ni numéro, ni e-mail. Ce pseudo permet seulement de vous écrire.</div></div>' +
-      zoneEffacementHTML() +
+      (idActif === 'a' ? zoneEffacementHTML() +
       '<section><div class="section-title">Accès à l’appli</div><div class="list">' +
         (S.bioAvail && idActif === 'a' ? '<button class="rowlink" data-act="go" data-arg="biometrie"><span class="rico">' + I.finger + '</span><span>Empreinte ou Face ID</span><span class="state">' + (LS.get('bio', null) ? 'Activé' : 'Désactivé') + '</span>' + I.chev + '</button>' : '') +
         '<button class="rowlink" data-act="go" data-arg="urgence"><span class="rico">' + I.shield + '</span><span>Code d’urgence</span><span class="state">' + (LS.get('urgence', null) ? 'Activé' : 'Désactivé') + '</span>' + I.chev + '</button></div></section>' +
       '<section><div class="section-title">Identités</div><div class="list"><button class="rowlink" data-act="go" data-arg="ajouteridentite"><span class="rico">' + I.user + '</span><span>Ajouter une identité</span>' + I.chev + '</button></div></section>' +
       (idActif === 'a' ? '<section><div class="section-title">Alertes</div><div class="list"><button class="rowlink" data-act="togglesound"><span class="rico warn">' + I.volume + '</span><span>Sonnerie à la réception</span><span class="state">' + (getPrefs().sound ? 'Activée' : 'Désactivée') + '</span>' + I.chev + '</button><button class="rowlink" data-act="go" data-arg="sonnerie"><span class="rico warn">' + I.music + '</span><span>Choisir la sonnerie</span><span class="state">' + TONES[getPrefs().tone].label + '</span>' + I.chev + '</button></div><div class="list" style="margin-top:12px"><button class="rowlink" data-act="togglenotif"><span class="rico warn">' + I.bell + '</span><span>Notifications quand l’appli est fermée</span><span class="state">' + (getPrefs().notif ? (getPrefs().push ? 'Activées' : 'En attente') : 'Désactivées') + '</span>' + I.chev + '</button></div>' + notifHintHTML() + '<p class="hint">La sonnerie joue à chaque message ou demande reçus, tant que l’appli est ouverte (et vibre sur Android).</p></section>' : '') +
       '<section><div class="section-title">Sauvegarde</div><div class="list"><button class="rowlink" data-act="go" data-arg="sauvegarde"><span class="rico">' + I.download + '</span><span>Sauvegarder mes contacts</span>' + I.chev + '</button><button class="rowlink" data-act="go" data-arg="installer"><span class="rico">' + I.upload + '</span><span>Installer une sauvegarde</span>' + I.chev + '</button></div><p class="hint">' + (LS.get('lastBackup', 0) ? 'Dernière sauvegarde : ' + esc(new Date(LS.get('lastBackup', 0)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })) : 'Pas encore de sauvegarde. Sans elle, vos contacts ne sont que dans ce navigateur.') + '</p></section>' +
-      '<section><div class="section-title">Sécurité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="supprimer"><span class="rico danger">' + I.trash + '</span><span>Supprimer mon identité</span>' + I.chev + '</button></div></section>' +
+      '<section><div class="section-title">Sécurité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="supprimer"><span class="rico danger">' + I.trash + '</span><span>Supprimer mon identité</span>' + I.chev + '</button></div></section>' + '' : '') +
       '<p class="hint center" style="padding-top:8px">Version ' + APP_VERSION + ' · dernière synchronisation : ' + esc(LS.get('lastSync', 0) ? new Date(LS.get('lastSync', 0)).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'jamais') + ' · messages reçus : ' + LS.get('recus', 0) + '</p>' +
     '</div>';
   }
@@ -2149,7 +2144,7 @@ button.chip{cursor:pointer;font:inherit}
   function viewReprendre() {
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Vos contacts' }) +
       '<div><h1>Reprendre vos contacts ?</h1><p class="lead" style="margin-top:6px">Si vous avez une sauvegarde de vos contacts, installez-la maintenant. Les personnes qui ont gardé le lien le retrouvent avec votre nouvelle identité.</p></div>' +
-      '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="go" data-arg="installer">Installer ma sauvegarde</button><button class="btn btn-secondary" data-act="go" data-arg="retrouver">Retrouver une identité</button><button class="btn btn-ghost" data-act="go" data-arg="accueil">Pas maintenant</button></div>' +
+      '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="go" data-arg="installer">Installer ma sauvegarde</button><button class="btn btn-ghost" data-act="go" data-arg="accueil">Pas maintenant</button></div>' +
     '</div>';
   }
   function viewInstaller() {
@@ -2316,15 +2311,20 @@ button.chip{cursor:pointer;font:inherit}
     let prete;
     try { prete = await preparerIdentite(pseudo, code); }
     catch (e) { return setStatus('formstatus', 'err', 'Création impossible : le relais ne répond pas. Réessayez.'); }
+    if (idActif !== 'a' || !S.priv) return go('identite');
     if (presente('b')) await effacerSeconde();
+    // La première reste ouverte en mémoire : fermer la seconde la ramène sans code.
+    const premiere = { id: idActif, priv: S.priv, me: S.me };
     rangerIdentite('b', prete);
-    LS.set('raccourci', RACCOURCI_REVISION);   // la seconde identité a été présentée avec ce raccourci
+    S.autre = premiere;
+    startPolling();   // la synchro repart pour la seconde, ouverte à présent
     S.draftPseudo = null; S.arg = null; S.afterCreate = false;
     go('seconde-prete');
   }
   // Efface la seconde identité : ses contacts sont prévenus si c’est possible, puis ses données. La session ouverte n’est pas touchée.
   async function effacerSeconde() {
     const ouverte = idActif, avant = S.me, avantPriv = S.priv;
+    stopPolling(); await attendreFinSynchro();   // la synchro de la session ouverte finit avant de toucher à la seconde
     idActif = 'b'; S.me = LS.get('me', null);
     if (S.me) {
       for (const c of contacts()) { try { await envoyerSigne(c.raw, { kind: 'cut' }); } catch (e) { /* hors ligne : la coupure n’arrivera pas */ } }
@@ -2334,11 +2334,11 @@ button.chip{cursor:pointer;font:inherit}
     effacerDonneesIdentite('b');
     idActif = ouverte; S.me = avant; S.priv = avantPriv;
   }
-  // Affiché une seule fois, à la création de la seconde identité : c’est la seule information sur le raccourci.
+  // Affiché une seule fois, à la création de la seconde identité : comment l’ouvrir, et comment la fermer.
   function viewSecondePrete() {
     return '<div class="screen">' +
-      '<div><h1>Votre seconde identité est prête</h1><p class="lead" style="margin-top:6px">Pour passer de l’une à l’autre : appuyez sur le cadenas, puis tapez le code de l’identité voulue.</p></div>' +
-      '<section class="card"><h2>Raccourci</h2><p class="hint">Un appui long de 2 secondes sur le titre « Messages » ramène à l’écran de déverrouillage. Ce raccourci peut changer lors d’une mise à jour : l’appli vous le signalera alors.</p></section>' +
+      '<div><h1>Votre seconde identité est prête</h1><p class="lead" style="margin-top:6px">Pour l’ouvrir : appui de 2 secondes sur la carte « Mon identité », puis son code secret.</p></div>' +
+      '<section class="card"><h2>Pour la fermer</h2><p class="hint">Touchez le cadenas, ou tapotez trois fois l’écran, n’importe où. L’appli revient à votre première identité, sans se verrouiller.</p></section>' +
       '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="go" data-arg="accueil">J’ai compris</button></div>' +
     '</div>';
   }
@@ -2355,24 +2355,70 @@ button.chip{cursor:pointer;font:inherit}
     if (!await codeCorrect(S.me.wrap, code)) return setStatus('formstatus', 'err', 'Code secret incorrect.');
     go('creer', 'ajout');
   }
-  // Récupérer l’identité cachée, après avoir créé une nouvelle identité : son code l’ouvre. Un mauvais code compte comme au verrou.
-  function viewRetrouver() {
-    return '<div class="screen">' + topbar({ back: 'reprendre', title: 'Retrouver une identité' }) +
-      '<div><h1>Retrouver une identité</h1><p class="lead" style="margin-top:6px">Entrez le code secret de l’identité à ouvrir.</p></div>' +
-      '<div class="card form"><label class="label" for="rcode2">Code secret</label><input id="rcode2" class="field" type="password" autocomplete="off">' + formStatus() + '</div>' +
-      '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="retrouveractuel">Ouvrir</button></div>' +
+  // Seconde identité, cachée : appui long de 2 secondes sur la carte « Mon identité », quand la première est ouverte.
+  // L’écran ne montre qu’un champ de code : pas de nom, pas d’explication.
+  function viewSeconde() {
+    return '<div class="screen">' + topbar({ back: 'identite', title: 'Code secret' }) +
+      '<div><h1>Code secret</h1><p class="lead" style="margin-top:6px">Entrez le code secret pour continuer.</p></div>' +
+      '<div class="card form"><label class="label" for="scode">Code secret</label><input id="scode" class="field" type="password" autocomplete="off">' + formStatus() + '</div>' +
+      '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="ouvrirseconde">Continuer</button></div>' +
     '</div>';
   }
-  async function actRetrouver() {
-    const code = ($('#rcode2') || {}).value || '';
-    if (!code) return setStatus('formstatus', 'err', 'Entrez le code secret.');
-    if (presente('b') && await ouvrirAvecCode(code, ['b'])) {
-      if (!await ensureSecret()) { S.priv = null; S.verrouMessage = 'Cette identité ne peut plus être ouverte ici : sa boîte est déjà prise.'; return go('verrouille'); }
-      LSG.set('verrou', VERROU_DEFAUT);
-      S.afterCreate = false;
-      return go('accueil');
+  // Déchiffre la seconde identité avec son code, sans toucher à la session en cours. Renvoie ses données, ou null.
+  async function ouvrirSeconde(code) {
+    let me = null;
+    try { const v = localStorage.getItem('pli.b.me'); me = v === null ? null : JSON.parse(v); } catch (e) { return null; }
+    if (!me) return null;
+    try { return { id: 'b', me: me, priv: await unwrapPriv(me.wrap, code) }; } catch (e) { return null; }
+  }
+  // Moment du dernier « fermer » : un cadenas touché juste après ne verrouille pas l’appli.
+  let secondeFermeeLe = 0;
+  function viderEtatIdentite() { S.flash = null; S.cut = null; S.invite = null; S.inviteId = null; S.words = null; S.qr = null; S.invQR = null; S.qrText = ''; S.draftPseudo = null; }
+  // Attend la fin de la lecture de synchro en cours, sans en lancer une autre : rien ne s’écrit pendant un changement d’identité.
+  // La lecture prévient elle-même à sa fin ; au plus trois secondes, pour qu’un verrouillage ne reste jamais bloqué.
+  function attendreFinSynchro() {
+    if (!S.pollBusy) return Promise.resolve();
+    return new Promise((resolve) => {
+      const limite = setTimeout(resolve, 3000);
+      S.pollFins.push(() => { clearTimeout(limite); resolve(); });
+    });
+  }
+  // Change d’identité ouverte. La synchro s’arrête, finit sa lecture en cours, puis repart sur la nouvelle : rien ne se mélange.
+  // Renvoie false si cette lecture ne finit pas : la session reste alors telle quelle.
+  async function changerSession(s) {
+    S.changement = true;
+    stopPolling();
+    try {
+      await attendreFinSynchro();
+      if (S.pollBusy) return false;
+      idActif = s.id; S.priv = s.priv; S.me = s.me;
+      viderEtatIdentite();
+      return true;
+    } finally {
+      S.changement = false;
+      startPolling();
     }
-    return echecCode();
+  }
+  // Ferme la seconde identité : ses clés sortent de la mémoire, et l’appli revient à la première, toujours ouverte, sans code.
+  async function fermerSeconde() {
+    if (idActif !== 'b' || !S.autre || S.changement) return;
+    const premiere = S.autre;
+    S.autre = null;
+    secondeFermeeLe = Date.now();
+    if (!await changerSession(premiere)) { S.autre = premiere; return flashNow({ t: 'Synchronisation en cours : réessayez dans un instant.', ok: false }); }
+    go('accueil');
+  }
+  // Code de la seconde identité : elle s’ouvre, et la première reste en mémoire pour y revenir sans code.
+  async function actOuvrirSeconde() {
+    const code = ($('#scode') || {}).value || '';
+    if (!code) return setStatus('formstatus', 'err', 'Entrez le code secret.');
+    if (idActif !== 'a' || !S.priv || !presente('b')) return go('identite');
+    const seconde = await ouvrirSeconde(code);
+    if (!seconde) return setStatus('formstatus', 'err', 'Ce code ne correspond pas.');
+    S.autre = { id: idActif, priv: S.priv, me: S.me };
+    if (!await changerSession(seconde)) { S.autre = null; return setStatus('formstatus', 'err', 'Synchronisation en cours : réessayez dans un instant.'); }
+    if (!await ensureSecret()) { await fermerSeconde(); return flashNow({ t: 'Cette identité ne peut pas être ouverte ici : sa boîte est déjà prise.', ok: false }); }
+    go('accueil');
   }
   // ---------- verrouillage : erreurs, délais, messages reçus effacés, code oublié, code d’urgence, activité ----------
   function etatVerrou() { return Object.assign({}, VERROU_DEFAUT, LSG.get('verrou', {}) || {}); }
@@ -2439,12 +2485,11 @@ button.chip{cursor:pointer;font:inherit}
       if (retires === 0 || rows.length < 200) return;
     }
   }
-  // Code d’urgence : tout l’appareil est effacé, comme « Effacer mon identité », sans rien afficher.
-  // Code d’urgence : seule l’identité dont c’est le code est effacée (toutes, si les deux codes sont identiques). Sans rien afficher.
-  async function effacementUrgence(ids) {
-    for (const id of ids) { idActif = id; S.me = LS.get('me', null); await effacerIdentite(false, true); }
+  // Code d’urgence de la première identité : tout l’appareil est effacé, la seconde comprise, sans rien afficher.
+  async function effacementUrgence() {
+    for (const id of IDENTITES.filter(presente)) { idActif = id; S.me = LS.get('me', null); await effacerIdentite(false, true); }
     idActif = 'a';
-    S.verrouMessage = null; S.flash = null;
+    S.priv = null; S.autre = null; S.verrouMessage = null; S.flash = null;
     go(presente('a') ? 'verrouille' : 'creer');
   }
   // Code oublié : compte à rebours de 5 secondes, puis l’identité est effacée (contacts prévenus).
@@ -2487,7 +2532,19 @@ button.chip{cursor:pointer;font:inherit}
   function verifierInactivite() {
     if (!S.priv || !S.me) return;
     if (Date.now() - derniereAction < 180000) return;
-    S.priv = null; S.verrouMessage = null; idActif = 'a'; stopPolling();
+    S.verrouMessage = null;
+    verrouiller();
+  }
+  // Verrouille l’appli. Seule la première identité se rouvre, avec son code. Une seconde ouverte se referme avec la session.
+  async function verrouiller() {
+    if (S.changement) return;
+    S.changement = true;
+    stopPolling();
+    try {
+      await attendreFinSynchro();   // la lecture en cours finit dans l’identité qui la faisait
+      S.priv = null; S.autre = null;
+      idActif = 'a'; S.me = LS.get('me', null);
+    } finally { S.changement = false; }
     go('verrouille');
   }
   // Ouvre l’identité dont le code est donné, parmi celles-ci. Une identité ne se lit que si son code correspond.
@@ -2519,20 +2576,16 @@ button.chip{cursor:pointer;font:inherit}
     const code = $('#unlock').value;
     if (!code) return;
     S.verrouMessage = null;
-    if (await ouvrirAvecCode(code, IDENTITES.filter(presente))) {
+    // Seule la première identité s’ouvre ici. La seconde ne se trouve que depuis « Mon identité ».
+    if (presente('a') && await ouvrirAvecCode(code, ['a'])) {
       if (!await ensureSecret()) { S.priv = null; S.verrouMessage = 'Cette identité ne peut plus être ouverte ici : sa boîte est déjà prise. Créez une nouvelle identité.'; return go('verrouille'); }
       LSG.set('verrou', VERROU_DEFAUT);   // bon code : les compteurs repartent de zéro
       return afterAuth();
     }
-    // Code d’urgence : chaque identité a le sien. Une seule touchée : elle seule est effacée ; si les deux codes sont identiques : tout.
-    const touchees = [];
-    for (const id of IDENTITES.filter(presente)) {
-      idActif = id;
-      const urgence = LS.get('urgence', null);
-      if (urgence && await codeCorrect(urgence, code)) touchees.push(id);
-    }
+    // Code d’urgence de la première identité : tout l’appareil est effacé, la seconde comprise.
     idActif = 'a';
-    if (touchees.length) return effacementUrgence(touchees);
+    const urgence = LS.get('urgence', null);
+    if (urgence && await codeCorrect(urgence, code)) return effacementUrgence();
     return echecCode();
   }
   function afterAuth() {
@@ -2812,6 +2865,7 @@ button.chip{cursor:pointer;font:inherit}
     }
     try { await purgerRelais(false); } catch (e) { /* hors ligne */ }
     for (const i of invitesAll()) { if (i.status === 'open') await closeInviteDoc(i.id); }
+    stopPolling(); await attendreFinSynchro();   // la lecture en cours finit avant que les données ne soient effacées
     effacerDonneesIdentite(idActif);
     S.me = null; S.priv = null; S.qr = null; S.invQR = null; S.draftPseudo = null; S.words = null;
     stopPolling();
@@ -2848,14 +2902,16 @@ button.chip{cursor:pointer;font:inherit}
       for (const i of invitesAll()) { if (i.status === 'open') await closeInviteDoc(i.id); }
       effacerDonneesIdentite(id);
     }
-    idActif = 'a'; S.me = null; S.priv = null; S.qr = null; S.invQR = null; S.draftPseudo = null; S.words = null;
+    idActif = 'a'; S.me = null; S.priv = null; S.autre = null; S.qr = null; S.invQR = null; S.draftPseudo = null; S.words = null;
     stopPolling();
     return true;
   }
   async function actDeleteMe(keep) {
+    if (idActif !== 'a') return;   // la suppression vise toujours la première identité
     if (await effacerIdentite(keep) === false) return go('identite');
+    // La seconde est reliée à la première : elle est effacée avec elle.
+    if (presente('b')) await effacerSeconde();
     idActif = 'a';
-    // Sans la première identité, l’appli se présente comme un téléphone vide : la seconde reste cachée.
     go(presente('a') ? 'verrouille' : 'creer');
   }
 
@@ -2949,13 +3005,12 @@ button.chip{cursor:pointer;font:inherit}
       try { if (c && c.raw && S.me && S.me.raw) S.motsCle = { cid: cid, mots: await wordsFor(unb64u(S.me.raw), unb64u(c.raw)) }; } catch (e) { S.motsCle = null; }
       go('reglages', cid);
     },
-    lock: () => { S.priv = null; idActif = 'a'; stopPolling(); go('verrouille'); },
+    lock: () => { if (idActif === 'b' && S.autre) return fermerSeconde(); if (Date.now() - secondeFermeeLe < 1500) return; verrouiller(); },
     togglesound: actToggleSound,
     settone: (t) => { setPref('tone', t); playChime(t, true); go('sonnerie'); },
     togglenotif: actToggleNotif,
     ajouterverifier: actVerifierAjout,
-    raccourcivu: () => { LS.set('raccourci', RACCOURCI_REVISION); go('accueil'); },
-    retrouveractuel: actRetrouver,
+    ouvrirseconde: actOuvrirSeconde,
     enablebio: actEnableBio,
     disablebio: () => { LS.set('bio', null); S.flash = { t: 'Déverrouillage biométrique désactivé.', ok: true }; go('identite'); },
     biounlock: actBioUnlock,
@@ -3203,7 +3258,7 @@ button.chip{cursor:pointer;font:inherit}
   // Une seule sonnerie pour une série de messages arrivés ensemble : au plus une toutes les 4 secondes.
   let dernierSon = 0;
   function alertIncoming() {
-    if (!getPrefs().sound) return;
+    if (idActif !== 'a' || !getPrefs().sound) return;
     if (Date.now() - dernierSon < 4000) return;
     dernierSon = Date.now();
     playChime();
@@ -3417,15 +3472,37 @@ button.chip{cursor:pointer;font:inherit}
     // Au démarrage : l’abonnement est vérifié et réenregistré (il peut avoir changé).
     cleanupNotifications();
     if (getPrefs().notif) registerWorker().then(retryPush).catch(() => {});
-    // Geste discret : un appui long sur le titre de l’accueil verrouille l’appli, pour ouvrir l’autre identité.
-    // Il ne fait rien s’il n’existe pas de seconde identité.
+    // Seconde identité : appui long de 2 secondes sur la carte « Mon identité », quand la première est ouverte.
     let minuteurGeste = null;
+    const annulerGeste = () => { if (minuteurGeste) { clearTimeout(minuteurGeste); minuteurGeste = null; } };
     document.addEventListener('pointerdown', (e) => {
-      const titre = e.target && e.target.closest ? e.target.closest('.topbar-title') : null;
-      if (!titre || S.screen !== 'accueil' || !presente('b')) return;
-      minuteurGeste = setTimeout(() => { minuteurGeste = null; S.priv = null; idActif = 'a'; stopPolling(); go('verrouille'); }, 2000);
+      const carte = e.target && e.target.closest ? e.target.closest('.id-card') : null;
+      if (!carte || S.screen !== 'identite' || idActif !== 'a' || !presente('b')) return;
+      annulerGeste();
+      minuteurGeste = setTimeout(() => { minuteurGeste = null; if (S.screen === 'identite' && idActif === 'a') go('seconde'); }, 2000);
     }, true);
-    ['pointerup', 'pointermove', 'pointercancel', 'pointerleave'].forEach((ev) => document.addEventListener(ev, () => { if (minuteurGeste) { clearTimeout(minuteurGeste); minuteurGeste = null; } }, true));
+    ['pointerup', 'pointermove', 'pointercancel', 'pointerleave'].forEach((ev) => document.addEventListener(ev, annulerGeste, true));
+    // Trois appuis rapides, n’importe où, pendant que la seconde identité est ouverte : elle se ferme, et l’appli revient à la première.
+    // Un appui est court et immobile (un glissement ne compte pas). Le clic du troisième appui ne va pas plus loin.
+    let appuis = 0, dernierAppui = 0, debutAppui = null, avalerClic = 0;
+    // Une nouvelle pression annule la suppression du clic en attente : un clic qui n’a pas eu lieu ne doit pas en avaler un autre.
+    document.addEventListener('pointerdown', (e) => { debutAppui = { t: Date.now(), x: e.clientX, y: e.clientY }; avalerClic = 0; }, true);
+    document.addEventListener('pointerup', (e) => {
+      const d = debutAppui; debutAppui = null;
+      const maintenant = Date.now();
+      const appui = !!d && maintenant - d.t < 350 && Math.abs(e.clientX - d.x) < 12 && Math.abs(e.clientY - d.y) < 12;
+      if (!appui || idActif !== 'b' || !S.autre) { appuis = 0; return; }
+      appuis = maintenant - dernierAppui < 900 ? appuis + 1 : 1;
+      dernierAppui = maintenant;
+      if (appuis < 3) return;
+      appuis = 0;
+      avalerClic = maintenant + 700;
+      fermerSeconde();
+    }, true);
+    document.addEventListener('click', (e) => {
+      if (Date.now() > avalerClic) return;
+      avalerClic = 0; e.stopPropagation(); e.preventDefault();
+    }, true);
     if (!S.me) return go('creer', S.inviteId ? 'invite' : null);
     return go('verrouille', S.inviteId ? 'invite' : null);
   }

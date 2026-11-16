@@ -2371,8 +2371,8 @@ button.chip{cursor:pointer;font:inherit}
     if (!me) return null;
     try { return { id: 'b', me: me, priv: await unwrapPriv(me.wrap, code) }; } catch (e) { return null; }
   }
-  // Moment du dernier « fermer » : un cadenas touché juste après ne verrouille pas l’appli.
-  let secondeFermeeLe = 0;
+  // Moment où le cadenas vient de fermer la seconde : les appuis qui suivent sur le cadenas ne verrouillent pas l’appli.
+  let secondeFermeeParCadenas = 0;
   function viderEtatIdentite() { S.flash = null; S.cut = null; S.invite = null; S.inviteId = null; S.words = null; S.qr = null; S.invQR = null; S.qrText = ''; S.draftPseudo = null; }
   // Attend la fin de la lecture de synchro en cours, sans en lancer une autre : rien ne s’écrit pendant un changement d’identité.
   // La lecture prévient elle-même à sa fin ; au plus trois secondes, pour qu’un verrouillage ne reste jamais bloqué.
@@ -2404,7 +2404,6 @@ button.chip{cursor:pointer;font:inherit}
     if (idActif !== 'b' || !S.autre || S.changement) return;
     const premiere = S.autre;
     S.autre = null;
-    secondeFermeeLe = Date.now();
     if (!await changerSession(premiere)) { S.autre = premiere; return flashNow({ t: 'Synchronisation en cours : réessayez dans un instant.', ok: false }); }
     go('accueil');
   }
@@ -3005,7 +3004,7 @@ button.chip{cursor:pointer;font:inherit}
       try { if (c && c.raw && S.me && S.me.raw) S.motsCle = { cid: cid, mots: await wordsFor(unb64u(S.me.raw), unb64u(c.raw)) }; } catch (e) { S.motsCle = null; }
       go('reglages', cid);
     },
-    lock: () => { if (idActif === 'b' && S.autre) return fermerSeconde(); if (Date.now() - secondeFermeeLe < 1500) return; verrouiller(); },
+    lock: () => { if (idActif === 'b' && S.autre) { secondeFermeeParCadenas = Date.now(); return fermerSeconde(); } if (Date.now() - secondeFermeeParCadenas < 900) return; verrouiller(); },
     togglesound: actToggleSound,
     settone: (t) => { setPref('tone', t); playChime(t, true); go('sonnerie'); },
     togglenotif: actToggleNotif,

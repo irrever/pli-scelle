@@ -292,7 +292,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v124';
+  const APP_VERSION = 'v125';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -3124,7 +3124,7 @@ button.chip{cursor:pointer;font:inherit}
     // Sur la seconde, le cadenas la ferme. Un second appui, à la suite, verrouille tout et renvoie au code de la première.
     lock: () => { if (idActif === 'b' && S.autre) return fermerSeconde(); verrouiller(); },
     togglesound: actToggleSound,
-    settone: (t) => { setPref('tone', t); playChime(t, true); go('sonnerie'); },
+    settone: (t) => { setPref('tone', t); if (idActif !== 'b') playChime(t, true); go('sonnerie'); },
     togglenotif: actToggleNotif,
     ajouterverifier: actVerifierAjout,
     ouvrirseconde: actOuvrirSeconde,
@@ -3232,7 +3232,7 @@ button.chip{cursor:pointer;font:inherit}
   };
 
   // Sur l’agent double, ces actions s’affichent mais n’ont aucun effet : rien n’est activé, rien n’est sauvegardé, rien ne sort du téléphone.
-  const ACTS_SANS_EFFET_SUR_LE_DOUBLE = new Set(['togglesound', 'settone', 'togglenotif', 'enablebio', 'disablebio', 'biounlock', 'create', 'ajouterverifier', 'install', 'reactiver', 'deletekeep', 'urgenceenregistrer', 'urgencesupprimer', 'backup', 'copybackup', 'enregistrerfichier']);
+  const ACTS_SANS_EFFET_SUR_LE_DOUBLE = new Set(['enablebio', 'disablebio', 'biounlock', 'create', 'ajouterverifier', 'install', 'reactiver', 'deletekeep', 'urgenceenregistrer', 'urgencesupprimer', 'backup', 'copybackup', 'enregistrerfichier']);
   document.addEventListener('click', (ev) => {
     const el = ev.target.closest && ev.target.closest('[data-act]');
     if (!el || el.disabled) return;
@@ -3434,6 +3434,8 @@ button.chip{cursor:pointer;font:inherit}
     if (S.me && S.me.secret) await rpc('pli_push_delete', { p_mailbox: await mailboxOf(S.me.raw), p_secret: S.me.secret }).catch(() => {});
   }
   async function actToggleNotif() {
+    // Sur l’agent double : le réglage s’affiche, sans abonnement ni effet.
+    if (idActif === 'b') { const v = !getPrefs().notif; setPref('notif', v); setPref('push', v); return go('identite'); }
     // Activées : on coupe. Désactivées ou en attente : on (ré)essaie de les activer.
     if (getPrefs().notif && getPrefs().push) { await unsubscribePush().catch(() => {}); setPref('notif', false); setPref('push', false); return go('identite'); }
     return actEnableNotif();
@@ -3480,6 +3482,8 @@ button.chip{cursor:pointer;font:inherit}
     return '<p class="hint">La notification affiche seulement « Une nouvelle activité vous attend. ». Son : celui des notifications de votre téléphone, qui ne change pas avec la sonnerie de l’appli.</p>';
   }
   async function actToggleSound() {
+    // Sur l’agent double : le réglage s’affiche, sans son et sans effet.
+    if (idActif === 'b') { setPref('sound', !getPrefs().sound); return go('identite'); }
     if (getPrefs().sound) { setPref('sound', false); return go('identite'); }
     setPref('sound', true);
     playChime(undefined, true);
@@ -3659,15 +3663,18 @@ button.chip{cursor:pointer;font:inherit}
     }, true));
     // Trois appuis rapides, n’importe où, pendant que la seconde identité est ouverte : elle se ferme, et l’appli revient à la première.
     // Un appui est court et immobile (un glissement ne compte pas). Le clic du troisième appui ne va pas plus loin.
-    let appuis = 0, dernierAppui = 0, debutAppui = null, avalerClic = 0;
+    let appuis = 0, dernierAppui = 0, debutAppui = null, avalerClic = 0, ancre = null;
     // Une nouvelle pression annule la suppression du clic en attente : un clic qui n’a pas eu lieu ne doit pas en avaler un autre.
     document.addEventListener('pointerdown', (e) => { debutAppui = { t: Date.now(), x: e.clientX, y: e.clientY }; avalerClic = 0; }, true);
     document.addEventListener('pointerup', (e) => {
       const d = debutAppui; debutAppui = null;
       const maintenant = Date.now();
       const appui = !!d && maintenant - d.t < 350 && Math.abs(e.clientX - d.x) < 12 && Math.abs(e.clientY - d.y) < 12;
-      if (!appui || idActif !== 'b' || !S.autre) { appuis = 0; return; }
-      appuis = maintenant - dernierAppui < 900 ? appuis + 1 : 1;
+      if (!appui || idActif !== 'b' || !S.autre) { appuis = 0; ancre = null; return; }
+      // Les trois appuis doivent tomber au même endroit (à 40 px près) : tapoter partout ne ferme pas la seconde.
+      const meme = ancre && Math.hypot(e.clientX - ancre.x, e.clientY - ancre.y) < 40 && maintenant - dernierAppui < 900;
+      appuis = meme ? appuis + 1 : 1;
+      if (appuis === 1) ancre = { x: e.clientX, y: e.clientY };
       dernierAppui = maintenant;
       if (appuis < 3) return;
       appuis = 0;

@@ -290,7 +290,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v113';
+  const APP_VERSION = 'v114';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -3133,10 +3133,11 @@ button.chip{cursor:pointer;font:inherit}
   // ---------- alertes : sonnerie à la réception (facultative, réglée dans « Mon identité ») ----------
   function getPrefs() { const p = LS.get('prefs', null) || {}; return { sound: !!p.sound, tone: (p.tone && TONES[p.tone]) ? p.tone : 'pli', notif: !!p.notif, push: !!p.push }; }
   function setPref(k, v) { LS.set('prefs', Object.assign(getPrefs(), { [k]: v })); }
-  // Son : un seul contexte audio pour toute la session, jamais recréé (iOS en limite le nombre et cesse de jouer).
+  // Son : un seul contexte audio à la fois (iOS en limite le nombre). Un contexte fermé ne reprend jamais : alors on en crée un autre.
   // iOS le suspend hors d’un toucher : on le reprend à chaque toucher, ce qui est le seul moment où il accepte le son.
   let ctxSon = null;
   function sonContexte() {
+    if (ctxSon && ctxSon.state === 'closed') ctxSon = null;
     if (!ctxSon) { try { ctxSon = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ctxSon = null; } }
     return ctxSon;
   }

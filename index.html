@@ -292,7 +292,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v126';
+  const APP_VERSION = 'v127';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };
@@ -1670,10 +1670,6 @@ button.chip{cursor:pointer;font:inherit}
         '<label class="btn btn-secondary file-btn">' + I.file + '<span>Choisir une photo</span><input id="photogal" class="sr-only" type="file" accept="image/*"></label>' +
         '<div id="scanstatus" class="status status-ok" hidden></div>' +
       '</section>' +
-      (inv ? '' : '<section class="card step-card"><div class="step-head"><span class="step-n">2</span><b>Entrer le code</b></div>' +
-        '<input id="fcode" class="field code-input" placeholder="K7P 2Q9" maxlength="8" autocomplete="off" autocapitalize="characters">' +
-        '<p class="hint">Affiché à côté du QR code sur l’écran de la personne.</p>' +
-      '</section>') +
       '<details class="fallback"><summary>Je n’arrive pas à scanner : coller le lien ou le texte</summary><div class="stack" style="margin-top:10px"><textarea id="qrtext" class="field" rows="3" placeholder="Collez ici le lien ou le texte du QR code">' + esc(S.scanText || '') + '</textarea></div></details>' +
       formStatus() +
       '<div class="dock"><button class="btn btn-primary" data-act="sendscan">Envoyer ma demande</button></div>' +
@@ -2157,10 +2153,9 @@ button.chip{cursor:pointer;font:inherit}
   // Lien ouvert depuis l’appareil photo : on passe directement à la saisie du code.
   function afterFF() {
     startPolling();
-    const t = S.ffText;
-    S.ffText = null; S.scanKind = 'ff'; S.scanText = t;
+    S.ffText = null;
     go('scanner');
-    try { const p = parseQR(t).p; setStatus('scanstatus', 'ok', (p ? 'Identité reçue de ' + p : 'Identité reçue') + '. Tapez le code affiché sur son écran.'); } catch (e) { /* QR illisible : le champ reste disponible */ }
+    scanMsg('err', 'Ce QR code vient d’une ancienne version de l’appli. Demandez à la personne de la mettre à jour, puis de vous montrer son QR d’invitation.');
   }
   function viewSauvegarde() {
     const last = LS.get('lastBackup', 0);
@@ -2717,22 +2712,6 @@ button.chip{cursor:pointer;font:inherit}
     if (S.afterCreate) { const suite = S.afterCreate === 'installer' ? 'installer' : 'identite-prete'; S.afterCreate = false; return go(suite); }
     return go('accueil');
   }
-  async function actSendFF() {
-    const text = ($('#qrtext').value || '').trim();
-    const code = normCode($('#fcode').value);
-    if (!text) return setStatus('formstatus', 'err', 'Scannez ou collez le texte.');
-    let o;
-    try { o = parseQR(text); } catch (e) { return setStatus('formstatus', 'err', e.message); }
-    if (o.k === S.me.raw) return setStatus('formstatus', 'err', 'C’est votre propre identité.');
-    if (code.length !== 6) return setStatus('formstatus', 'err', 'Tapez le code affiché sur son écran (6 caractères).');
-    const K = await pbkdf2(code, unb64u(o.s), ITER_CODE);
-    const proof = await proofFor(K, S.me.raw);
-    await sendTo(o.k, { kind: 'ff-request', pseudo: S.me.pseudo, proof: proof });
-    pushPending({ type: 'ff-sent', peer: o.k, peerPseudo: o.p });
-    S.qrText = '';
-    S.words = await wordsFor(unb64u(S.me.raw), unb64u(o.k));
-    go('attente');
-  }
   async function actAcceptFF(pid) {
     const name = nameValue();
     if (!name) return setStatus('formstatus', 'err', 'Donnez un nom à ce contact.');
@@ -2840,7 +2819,7 @@ button.chip{cursor:pointer;font:inherit}
   async function actSendScan() {
     const box = $('#qrtext');
     const text = String((box && box.value) || S.scanText || '').trim();
-    if (!isInvText(text)) return actSendFF();
+    if (!isInvText(text)) return setStatus('formstatus', 'err', 'Ce QR code vient d’une ancienne version de l’appli. Demandez à la personne de la mettre à jour, puis de vous montrer son QR d’invitation.');
     if (!text) return setStatus('formstatus', 'err', 'Scannez le QR code ou collez le lien.');
     let o;
     try { o = parseInvText(text); } catch (e) { return setStatus('formstatus', 'err', e.message); }
@@ -3255,14 +3234,13 @@ button.chip{cursor:pointer;font:inherit}
   // Un QR code lu (photo ou appareil photo) : l’appli reconnaît seule l’invitation ou l’identité.
   async function handleScan(txt) {
     const t = String(txt || '').trim();
-    let kind = null;
-    if (isInvText(t)) kind = 'inv';
-    else if (t.indexOf('PLI1:') === 0 || /#ff-/.test(t)) kind = 'ff';
-    if (!kind) return scanMsg('err', 'Ce QR code n’est pas celui de Pli Scellé.');
-    if (kind === 'ff') { try { parseQR(t); } catch (e) { return scanMsg('err', e.message); } }
-    S.scanKind = kind; S.scanText = t; S.scanLink = false;
+    if (!isInvText(t)) {
+      const ancien = t.indexOf('PLI1:') === 0 || /#ff-/.test(t);
+      return scanMsg('err', ancien ? 'Ce QR code vient d’une ancienne version de l’appli. Demandez à la personne de la mettre à jour, puis de vous montrer son QR d’invitation.' : 'Ce QR code n’est pas celui de Pli Scellé.');
+    }
+    S.scanKind = 'inv'; S.scanText = t; S.scanLink = false;
     const box = $('#qrtext'); if (box) box.value = t;
-    scanMsg('ok', kind === 'inv' ? 'Invitation lue. Envoyez votre demande.' : 'Identité lue. Entrez maintenant le code affiché sur son écran.');
+    scanMsg('ok', 'Invitation lue. Envoyez votre demande.');
   }
   document.addEventListener('change', async (ev) => {
     const t = ev.target;

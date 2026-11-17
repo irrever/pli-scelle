@@ -1,5 +1,5 @@
 -- Pli Scellé : notifications quand l’appli est fermée (iPhone : appli ajoutée à l’écran d’accueil, iOS 16.4 ou plus récent).
--- À lancer une fois, dans l’éditeur SQL du projet, APRÈS relais.sql puis securite-relais.sql.
+-- À lancer une fois, dans l’éditeur SQL du projet, APRÈS relais.sql, securite-relais.sql puis securite-envois.sql.
 -- Après chaque message déposé, le relais demande à la fonction « push » d’envoyer une notification vide
 -- (voir supabase/functions/push/index.ts). Le texte affiché ne dit que : « Une nouvelle activité vous attend. »
 

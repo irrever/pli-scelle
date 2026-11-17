@@ -76,7 +76,8 @@ textarea.field{resize:vertical;min-height:72px;font-size:16px;line-height:1.4}
 .row-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .row-text .row-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rowlink{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:54px;padding:0 16px;border:0;border-top:1px solid var(--line-2);background:transparent;color:var(--ink);font-weight:500;text-align:left;cursor:pointer}
-.tarif{color:var(--muted);font-size:13px;white-space:nowrap;margin-left:auto;padding-left:8px}
+.tarif{display:inline-flex;align-items:center;margin-left:auto;padding:3px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:13px;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
+.tarif.attente{background:transparent;color:var(--muted);border:1px dashed var(--line-2);font-weight:500}
 .rowlink:first-child{border-top:0}
 .rowlink.danger{color:var(--danger)}
 .rowlink .state{margin-left:auto;font-size:16px;font-weight:400;color:var(--muted)}
@@ -293,10 +294,10 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v128';
+  const APP_VERSION = 'v129';
   // Tarifs, en euros : mettre un montant (par exemple 4.9) quand il est décidé. null = « Tarif à venir ».
-  const TARIFS = { agentDouble: null, codeUrgence: null, sauvegarde: null };
-  const tarifHTML = (cle) => '<span class="tarif">' + (TARIFS[cle] == null ? 'Tarif à venir' : Number(TARIFS[cle]).toFixed(2).replace('.', ',') + ' €') + '</span>';
+  const TARIFS = { agentDouble: 4.99, codeUrgence: 2.99, sauvegarde: 1.99 };
+  const tarifHTML = (cle) => '<span class="tarif' + (TARIFS[cle] == null ? ' attente' : '') + '" aria-label="' + (TARIFS[cle] == null ? 'Tarif à venir' : 'Prix : ' + Number(TARIFS[cle]).toFixed(2).replace('.', ',') + ' euros') + '">' + (TARIFS[cle] == null ? 'Tarif à venir' : Number(TARIFS[cle]).toFixed(2).replace('.', ',') + ' €') + '</span>';
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
   // Verrouillage : délai après trois erreurs, dernière activité, décompte « Code oublié »
   const VERROU_DEFAUT = { n: 0, blocs: 0, attente: 0, efface: false };

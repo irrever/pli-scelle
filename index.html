@@ -339,6 +339,11 @@ button.chip{cursor:pointer;font:inherit}
 .verrou-carte .cr-chiffre{color:var(--accent)}
 .verrou-arc{transition:stroke-dashoffset 1s linear}
 .verrou-titre{margin:0;font-weight:600;font-size:17px;color:var(--ink)}
+.bubble-pieces{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.bubble-lien{color:inherit;font-weight:600;text-decoration:underline;word-break:break-all}
+.bubble-evt{display:inline-block;font-weight:600}
+.fichier-ico{width:52px;height:52px;flex:none;border-radius:8px;display:grid;place-items:center;background:var(--surface);color:var(--accent)}
+.fichier-ico svg{width:26px;height:26px}
 </style>
 <div id="app"><div class="screen"><p class="lead" style="padding-top:24px">Chargement…</p></div></div>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
@@ -360,12 +365,14 @@ button.chip{cursor:pointer;font:inherit}
   function dureeChoisie(cid) { const c = contacts().find((x) => x.cid === cid); return c && typeof c.lecture === 'number' ? c.lecture : 60; }
   function dureeLecture(cid) { const v = dureeChoisie(cid); return v < 0 ? LIBRE_MS : v * 1000; }
   function libelleDuree(cid) { const v = dureeChoisie(cid); return v < 0 ? 'jusqu’à fermeture' : (v < 60 ? v + ' s' : (v / 60) + ' min'); }
+  // Photos et documents : 15 Mo et 25 Mo au plus. Envoyés par morceaux chiffrés de 96 Ko ; effacés au téléchargement, ou 7 jours après l’envoi.
+  const FICHIER_PHOTO_MAX = 15 * 1024 * 1024, FICHIER_DOC_MAX = 25 * 1024 * 1024, FICHIER_MORCEAU = 96 * 1024, FICHIER_DUREE_MS = 7 * 24 * 60 * 60 * 1000;
   const EFFACE_MS = 2 * 60 * 1000;   // une trace (« Message lu », « Message envoyé ») reste 2 minutes, puis disparaît
   const MAX_FAILS = 5;
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v134';
+  const APP_VERSION = 'v135';
   // Monnaie de l’appli : une unité vaut 0,01 €, donc 10 € font 1 000 unités. Elle reste sur l’appareil : aucun compte, rien n’est envoyé.
   // Le nom n’est pas encore choisi : il ne s’écrit qu’ici (et dans les libellés générés).
   const MONNAIE = { un: 'sceau', pluriel: 'sceaux' };
@@ -573,6 +580,8 @@ button.chip{cursor:pointer;font:inherit}
   function expireOpened() {
     const all = msgsAll(); let ch = false;
     for (const m of all) if (m.state === 'open' && Date.now() > (m.until || 0)) { if (m.once === false) m.state = 'new'; else { m.state = 'gone'; m.goneAt = Date.now(); m.text = ''; if (m.kind === 'voice') vdel('audio', m.mid).catch(() => {}); } ch = true; }
+    // Photo ou document reçu et jamais téléchargé : il disparaît de la liste au bout de 7 jours (le relais l’efface aussi).
+    for (const m of all) if (m.kind === 'fichier' && m.dir === 'in' && m.state === 'new' && Date.now() - (m.ts || 0) > FICHIER_DUREE_MS) { m.state = 'gone'; m.goneAt = Date.now(); m.expire = true; ch = true; }
     const now = Date.now();
     const reste = all.filter((m) => { if (!traceEffacee(m, now)) return true; if (m.kind === 'voice') vdel('audio', m.mid).catch(() => {}); ch = true; return false; });
     if (ch) LS.set('msgs', reste);
@@ -880,6 +889,7 @@ button.chip{cursor:pointer;font:inherit}
       case 'refuse': return onRefuse(m);
       case 'msg': return onMsg(m, docId);
       case 'voicepart': return onVoicePart(m);
+      case 'fichier': return onFichier(m, docId);
       case 'cut': return onCut(m);
       case 'pause': return onPause(m);
       case 'reprise': return onReprise(m);
@@ -1031,13 +1041,28 @@ button.chip{cursor:pointer;font:inherit}
     S.needRender = true;
     return true;
   }
+  // Liens reçus : seulement des adresses http ou https. Événements : titre et date, en texte.
+  function nettoyerLiens(liste) {
+    const bons = [];
+    (Array.isArray(liste) ? liste : []).forEach((u) => { try { const x = new URL(String(u)); if (x.protocol === 'https:' || x.protocol === 'http:') bons.push(x.href); } catch (e) { /* adresse invalide : ignorée */ } });
+    return bons.slice(0, 10);
+  }
+  function nettoyerEvenements(liste) {
+    return (Array.isArray(liste) ? liste : []).filter((e) => e && typeof e.titre === 'string').slice(0, 10).map((e) => ({ titre: String(e.titre).slice(0, 120), quand: typeof e.quand === 'string' ? e.quand : '' }));
+  }
+  // Ce qui accompagne le texte d’un message ouvert : liens cliquables, événements avec leur date.
+  function piecesMsgHTML(m) {
+    const liens = (m.liens || []).map((u) => '<a class="bubble-lien" href="' + esc(u) + '" target="_blank" rel="noopener noreferrer">' + esc(u.length > 60 ? u.slice(0, 57) + '…' : u) + '</a>').join('');
+    const evts = (m.evenements || []).map((e) => { let quand = ''; const d = e.quand ? new Date(e.quand) : null; if (d && !isNaN(d)) quand = ' · ' + d.toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); return '<span class="bubble-evt">Événement : ' + esc(e.titre) + esc(quand) + '</span>'; }).join('');
+    return liens || evts ? '<span class="bubble-pieces">' + liens + evts + '</span>' : '';
+  }
   async function onMsg(m, docId) {
     const c = contacts().find((x) => x.raw === m.from);
     if (!c) return false;
     const key = await sharedKey(c.raw);
     const body = await decryptFrom(key, m.iv, m.ct);
     const all = msgsAll();
-    all.push({ mid: docId, cid: c.cid, dir: 'in', text: String(body.t || ''), state: 'new', ts: body.ts || Date.now(), once: body.once !== false });
+    all.push({ mid: docId, cid: c.cid, dir: 'in', text: String(body.t || ''), liens: nettoyerLiens(body.liens), evenements: nettoyerEvenements(body.evenements), state: 'new', ts: body.ts || Date.now(), once: body.once !== false });
     LS.set('msgs', all);
     marqueConversation(c.cid, body.ts || Date.now());
     return true;
@@ -1161,6 +1186,7 @@ button.chip{cursor:pointer;font:inherit}
   }
   async function afterPoll() {
     if (!S.me || !S.priv) return;
+    reessaieEffacements().catch(() => {});
     if (expirePauses()) S.needRender = true;
     const pend = pendingAll();
     if (S.cut && S.screen !== 'lien-coupe') return go('lien-coupe');
@@ -1479,11 +1505,12 @@ button.chip{cursor:pointer;font:inherit}
   }
   function msgHTML(m) {
     if (m.kind === 'voice') return msgVoiceHTML(m);
+    if (m.kind === 'fichier') return msgFichierHTML(m);
     if (m.dir === 'out') return '<div class="tile mine">' + qrVignette(m.cid + ':' + m.ts) + '<span class="tt"><b>Message envoyé</b><span class="hint">' + (m.once === false ? 'Relisible' : 'Lecture unique') + '</span></span></div>';
     if (m.state === 'new') return '<button class="tile ' + (m.seen ? 'read' : 'unread') + '" data-act="reveal" data-arg="' + esc(m.mid) + '">' + qrVignette(m.cid + ':' + m.ts) + '<span class="tt">' + (m.seen ? '<b>Message relisible</b><span class="hint">Toucher pour revoir</span>' : '<b>QR code reçu</b><span class="hint">Toucher pour lire' + (m.once === false ? '' : ' · visible ' + libelleDuree(m.cid) + ', puis effacé') + '</span><span class="nouveau">Nouveau</span>') + '</span></button>';
     if (m.state === 'open') {
       const libre = m.until - Date.now() > 1e12;
-      return '<div class="bubble bubble-ouvert" role="button" tabindex="0" data-act="fermermsg" data-arg="' + esc(m.mid) + '">' + esc(m.text) + (libre ? '' : '<span class="bubble-timer" data-until="' + esc(m.until) + '">Se referme dans ' + Math.max(0, Math.ceil((m.until - Date.now()) / 1000)) + ' s</span>') + '<span class="bubble-fin">' + (m.once === false ? 'Touchez pour refermer' : 'Touchez pour fermer et effacer') + '</span></div>';
+      return '<div class="bubble bubble-ouvert" role="button" tabindex="0" data-act="fermermsg" data-arg="' + esc(m.mid) + '">' + esc(m.text) + piecesMsgHTML(m) + (libre ? '' : '<span class="bubble-timer" data-until="' + esc(m.until) + '">Se referme dans ' + Math.max(0, Math.ceil((m.until - Date.now()) / 1000)) + ' s</span>') + '<span class="bubble-fin">' + (m.once === false ? 'Touchez pour refermer' : 'Touchez pour fermer et effacer') + '</span></div>';
     }
     return '<div class="tile read">' + qrVignette(m.cid + ':' + m.ts, 'faded') + '<span class="tt"><b>Message lu</b><span class="hint">Le contenu a été effacé</span></span></div>';
   }
@@ -1961,7 +1988,6 @@ button.chip{cursor:pointer;font:inherit}
       fichier('pickPhoto', I.image, 'Photo', 'image/*', '') +
       fichier('pickCamera', I.camera, 'Caméra', 'image/*', 'environment') +
       fichier('pickDoc', I.file, 'Document', '', '') +
-      bouton('', 'plusloc', cid, I.pin, 'Localisation', '') +
       bouton('', 'showevent', '', I.calendar, 'Événement', '') +
       bouton('', 'showlink', '', I.link, 'Lien', '') +
       bouton(panneau === 'duree' ? 'on' : '', 'plusduree', '', I.clock, 'Durée', libelleDuree(cid)) +
@@ -2003,7 +2029,7 @@ button.chip{cursor:pointer;font:inherit}
     b.textContent = on ? 'Lecture unique' : 'Relisible';
   }
   function attachChipsHTML() {
-    return (S.attach || []).map((a, i) => '<span class="attach-chip"><span>' + esc(a.label) + '</span><button type="button" data-act="rmattach" data-arg="' + i + '" aria-label="Retirer">×</button></span>').join('');
+    return (S.attach || []).map((a, i) => '<span class="attach-chip"><span>' + esc(a.label) + '</span><button type="button" data-act="rmattach" data-arg="' + i + '" aria-label="Retirer">×</button></span>').join('') + (S.envoiProg ? '<span id="fenvoi" class="hint">' + esc(S.envoiProg) + '</span>' : '');
   }
   function renderAttach() {
     const row = $('#attachRow');
@@ -2012,10 +2038,14 @@ button.chip{cursor:pointer;font:inherit}
   }
   function addLinkAttach() {
     const inp = $('#linkIn');
-    const v = (inp ? inp.value : '').trim();
+    let v = (inp ? inp.value : '').trim();
     if (!v) return;
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(v)) v = 'https://' + v;
+    let url = null;
+    try { url = new URL(v); } catch (e) { url = null; }
+    if (!url || (url.protocol !== 'https:' && url.protocol !== 'http:')) { flashNow({ t: 'Adresse invalide : elle doit commencer par https:// ou http://.', ok: false }); return; }
     S.attach = S.attach || [];
-    S.attach.push({ kind: 'link', label: v.slice(0, 60) });
+    S.attach.push({ kind: 'link', url: url.href, label: url.href.slice(0, 60) });
     inp.value = '';
     $('#linkRow').hidden = true; S.linkOpen = false;
     renderAttach();
@@ -3169,23 +3199,196 @@ button.chip{cursor:pointer;font:inherit}
   async function actSend(cid) {
     const lien = contacts().find((x) => x.cid === cid);
     if (lien && (lien.pause || lien.pend)) return flashNow({ t: 'Le lien n’est pas actif : écrire est impossible pour l’instant.' });
+    if (S.envoiEnCours) return;
     const inp = $('#draft');
     const text = (inp.value || '').trim();
-    if (!text) { if ((S.attach || []).length) flashNow({ t: 'Photos, documents et liens : envoi pas encore disponible. Ajoutez un message.' }); return; }
+    const pieces = S.attach || [];
+    const liens = pieces.filter((a) => a.kind === 'link').map((a) => a.url);
+    const evenements = pieces.filter((a) => a.kind === 'event').map((a) => ({ titre: a.titre || '', quand: a.quand || '' }));
+    const fichiers = pieces.filter((a) => (a.kind === 'photo' || a.kind === 'document') && a.file);
+    if (!text && !liens.length && !evenements.length && !fichiers.length) return;
     const c = contacts().find((x) => x.cid === cid);
     if (!c) return go('accueil');
-    const key = await sharedKey(c.raw);
-    const body = await encryptFor(key, { t: text, ts: Date.now(), once: S.once !== false });
-    const to = await mailboxOf(c.raw);
-    await S.db.collection('box').add({ to: to, from: S.me.raw, kind: 'msg', ts: Date.now(), iv: body.iv, ct: body.ct });
-    const all = msgsAll();
-    all.push({ mid: rid(10), cid: cid, dir: 'out', state: 'sent', ts: Date.now(), once: S.once !== false });
+    S.envoiEnCours = true;
+    try {
+      const key = await sharedKey(c.raw);
+      if (fichiers.length) { S.envoiProg = 'Préparation de l’envoi…'; renderAttach(); }
+      // Les fichiers partent d’abord, un par un. Chaque fichier parti sort de la zone de saisie : une coupure ne le renvoie pas en double.
+      for (const p of fichiers) {
+        const envoi = await envoyerFichier(c, p, key);
+        const nom = p.file.name.slice(0, 120);
+        const type = (p.file.type || '').slice(0, 100);
+        const meta = await encryptFor(key, { id: envoi.id, nom: nom, type: type, taille: p.file.size, total: envoi.total, genre: p.kind, ts: envoi.debut });
+        await S.db.collection('box').add({ to: await mailboxOf(c.raw), from: S.me.raw, kind: 'fichier', ts: Date.now(), iv: meta.iv, ct: meta.ct });
+        const all = msgsAll();
+        all.push({ mid: rid(10), cid: cid, dir: 'out', kind: 'fichier', fichier: { nom: nom, type: type, taille: p.file.size, genre: p.kind }, state: 'sent', ts: Date.now(), once: false });
+        LS.set('msgs', all);
+        S.attach = (S.attach || []).filter((a) => a !== p);
+        S.envoiProg = '';
+        renderAttach();
+      }
+      if (text || liens.length || evenements.length) {
+        const body = await encryptFor(key, { t: text, ts: Date.now(), once: S.once !== false, liens: liens, evenements: evenements });
+        await S.db.collection('box').add({ to: await mailboxOf(c.raw), from: S.me.raw, kind: 'msg', ts: Date.now(), iv: body.iv, ct: body.ct });
+        const all = msgsAll();
+        all.push({ mid: rid(10), cid: cid, dir: 'out', state: 'sent', ts: Date.now(), once: S.once !== false });
+        LS.set('msgs', all);
+      }
+    } catch (e) {
+      S.envoiEnCours = false;
+      S.envoiProg = '';
+      renderAttach();
+      return flashNow({ t: 'Envoi impossible. Vérifiez la connexion, puis réessayez.', ok: false });
+    }
+    S.envoiEnCours = false;
+    S.envoiProg = '';
+    S.attach = [];
     S.forceBas = true;
-    LS.set('msgs', all);
     marqueConversation(cid, Date.now());
-    if ((S.attach || []).length) { S.attach = []; S.flash = { t: 'Seul le texte est envoyé pour l’instant.', ok: true }; }
     inp.value = '';
     go('conv', cid);
+  }
+  // ---------- photos et documents : chiffrés, envoyés par morceaux, effacés après téléchargement ----------
+  // Chaque morceau est chiffré avec la clé du lien (AES-GCM, IV de 12 octets en tête) : le relais ne voit que du chiffré.
+  async function chiffrerOctets(key, octets) {
+    const iv = rand(12);
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, octets));
+    const tout = new Uint8Array(iv.length + ct.length);
+    tout.set(iv, 0);
+    tout.set(ct, iv.length);
+    return b64u(tout);
+  }
+  async function dechiffrerOctets(key, data) {
+    const tout = unb64u(data);
+    return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: tout.slice(0, 12) }, key, tout.slice(12)));
+  }
+  // Quatre morceaux à la fois, comme pour le vocal. Un échec arrête les autres.
+  async function parQuatre(n, tache) {
+    const suivant = { i: 0 };
+    let echec = false;
+    const travail = async () => {
+      while (!echec && suivant.i < n) {
+        const i = suivant.i++;
+        try { await tache(i); } catch (e) { echec = true; throw e; }
+      }
+    };
+    await Promise.all([travail(), travail(), travail(), travail()]);
+  }
+  function tailleFichier(o) {
+    const n = Number(o) || 0;
+    return n < 1024 * 1024 ? Math.max(1, Math.round(n / 1024)) + ' Ko' : (n / (1024 * 1024)).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' Mo';
+  }
+  // Envoi d’un fichier : chaque morceau part chiffré. Le message qui l’annonce ne part qu’une fois tous les morceaux arrivés.
+  async function envoyerFichier(c, piece, key) {
+    const f = piece.file;
+    const id = rid(24);
+    const total = Math.max(1, Math.ceil(f.size / FICHIER_MORCEAU));
+    const destinataire = await mailboxOf(c.raw);
+    const debut = Date.now();
+    let envoyes = 0;
+    await parQuatre(total, async (i) => {
+      const octets = new Uint8Array(await f.slice(i * FICHIER_MORCEAU, (i + 1) * FICHIER_MORCEAU).arrayBuffer());
+      const data = await chiffrerOctets(key, octets);
+      await rpc('pli_piece_put', { p_from: S.me.raw, p_secret: S.me.secret, p_destinataire: destinataire, p_id: id, p_idx: i, p_total: total, p_data: data });
+      envoyes++;
+      S.envoiProg = 'Envoi de « ' + f.name + ' » : ' + envoyes + ' / ' + total;
+      const el = document.getElementById('fenvoi');
+      if (el) el.textContent = S.envoiProg;
+    });
+    return { id: id, total: total, debut: debut };
+  }
+  // Photo ou document reçu : seule l’annonce est gardée ; le contenu reste sur le relais jusqu’au téléchargement.
+  async function onFichier(m, docId) {
+    const c = contacts().find((x) => x.raw === m.from);
+    if (!c) return false;
+    const key = await sharedKey(c.raw);
+    const body = await decryptFrom(key, m.iv, m.ct);
+    const genre = body.genre === 'document' ? 'document' : 'photo';
+    const max = genre === 'photo' ? FICHIER_PHOTO_MAX : FICHIER_DOC_MAX;
+    const id = String(body.id || '');
+    const total = Number(body.total);
+    const taille = Number(body.taille);
+    if (id.length < 16 || id.length > 64 || !(total >= 1 && total <= 400) || !(taille >= 0 && taille <= max)) return false;
+    const all = msgsAll();
+    all.push({ mid: docId, cid: c.cid, dir: 'in', kind: 'fichier', fichier: { id: id, nom: String(body.nom || 'fichier').slice(0, 120), type: String(body.type || '').slice(0, 100), taille: taille, total: total, genre: genre }, state: 'new', ts: body.ts || Date.now(), once: false });
+    LS.set('msgs', all);
+    marqueConversation(c.cid, body.ts || Date.now());
+    return true;
+  }
+  // Tuile d’un fichier : la consigne reste jusqu’au téléchargement ; ensuite la tuile dit qu’il a été effacé.
+  function msgFichierHTML(m) {
+    const f = m.fichier || {};
+    const doc = f.genre === 'document';
+    const ico = '<span class="fichier-ico" aria-hidden="true">' + I.file + '</span>';
+    const detail = esc(f.nom || '') + ' · ' + tailleFichier(f.taille);
+    if (m.dir === 'out') return '<div class="tile mine">' + ico + '<span class="tt"><b>' + (doc ? 'Document envoyé' : 'Photo envoyée') + '</b><span class="hint">' + detail + ' · téléchargé une fois, puis effacé</span></span></div>';
+    if (m.state === 'new') return '<button class="tile unread" data-act="telechargerfichier" data-arg="' + esc(m.mid) + '">' + ico + '<span class="tt"><b>' + (doc ? 'Document reçu' : 'Photo reçue') + '</b><span class="hint">' + detail + '</span><span class="hint" id="fp-' + esc(m.mid) + '">Téléchargez le fichier : il sera supprimé juste après.</span><span class="nouveau">Nouveau</span></span></button>';
+    if (m.expire) return '<div class="tile read">' + ico + '<span class="tt"><b>' + (doc ? 'Document expiré' : 'Photo expirée') + '</b><span class="hint">Non téléchargé dans les 7 jours : il a été effacé</span></span></div>';
+    return '<div class="tile read">' + ico + '<span class="tt"><b>' + (doc ? 'Document téléchargé' : 'Photo téléchargée') + '</b><span class="hint">Effacé du relais après le téléchargement</span></span></div>';
+  }
+  // Téléchargement : les morceaux sont déchiffrés sur ce téléphone, le fichier est enregistré, puis effacé du relais.
+  async function actTelechargerFichier(mid) {
+    if (S.telechargement) return;
+    const m = msgsAll().find((x) => x.mid === mid);
+    if (!m || m.kind !== 'fichier' || m.dir !== 'in' || m.state !== 'new' || !m.fichier) return;
+    const c = contacts().find((x) => x.cid === m.cid);
+    if (!c) return;
+    const marquer = (fn) => { const frais = msgsAll(); const x = frais.find((y) => y.mid === mid); if (x) { fn(x); LS.set('msgs', frais); } };
+    if (Date.now() - (m.ts || 0) > FICHIER_DUREE_MS) { marquer((x) => { x.state = 'gone'; x.goneAt = Date.now(); x.expire = true; }); return render(); }
+    const f = m.fichier;
+    S.telechargement = mid;
+    const afficher = (n) => { const el = document.getElementById('fp-' + mid); if (el) el.textContent = 'Téléchargement : ' + n + ' / ' + f.total; };
+    try {
+      const key = await sharedKey(c.raw);
+      const moi = await mailboxOf(S.me.raw);
+      const morceaux = new Array(f.total);
+      let lus = 0;
+      await parQuatre(f.total, async (i) => {
+        const rows = await rpc('pli_piece_get', { p_mailbox: moi, p_secret: S.me.secret, p_id: f.id, p_idx: i });
+        const ligne = Array.isArray(rows) ? rows[0] : null;
+        if (!ligne) throw new Error('introuvable');
+        morceaux[i] = await dechiffrerOctets(key, ligne.out_data);
+        lus++;
+        afficher(lus);
+      });
+      enregistrerFichier(new Blob(morceaux, { type: f.type || 'application/octet-stream' }), f.nom);
+      let efface = true;
+      try { await rpc('pli_piece_delete', { p_mailbox: moi, p_secret: S.me.secret, p_id: f.id }); } catch (e) { efface = false; }
+      if (!efface) LS.set('fichiersAEffacer', LS.get('fichiersAEffacer', []).concat([f.id]));
+      marquer((x) => { x.state = 'gone'; x.goneAt = Date.now(); });
+    } catch (e) {
+      if (e && e.message === 'introuvable') {
+        marquer((x) => { x.state = 'gone'; x.goneAt = Date.now(); x.expire = true; });
+        flashNow({ t: 'Ce fichier n’est plus sur le relais : il a expiré.', ok: false });
+      } else {
+        flashNow({ t: 'Téléchargement impossible. Vérifiez la connexion, puis réessayez.', ok: false });
+      }
+    } finally {
+      S.telechargement = null;
+      render();
+    }
+  }
+  // Enregistre le fichier sur le téléphone : le navigateur le range dans ses téléchargements.
+  function enregistrerFichier(blob, nom) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = String(nom || 'fichier').replace(/[\\\/:*?"<>|]/g, '') || 'fichier';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+  // Effacement du relais après un téléchargement : repris au tour suivant si le réseau a coupé.
+  async function reessaieEffacements() {
+    const liste = LS.get('fichiersAEffacer', []);
+    if (!liste.length || !S.me || !S.priv) return;
+    const moi = await mailboxOf(S.me.raw);
+    const faits = [];
+    for (const id of liste) {
+      try { await rpc('pli_piece_delete', { p_mailbox: moi, p_secret: S.me.secret, p_id: id }); faits.push(id); } catch (e) { /* on réessaie au prochain tour */ }
+    }
+    if (faits.length) LS.set('fichiersAEffacer', LS.get('fichiersAEffacer', []).filter((x) => faits.indexOf(x) < 0));
   }
   // Toucher un message ouvert le referme tout de suite : en lecture unique il est effacé, en relisible il redevient une tuile.
   function actFermerMessage(mid) {
@@ -3417,6 +3620,7 @@ button.chip{cursor:pointer;font:inherit}
     confirmremote: actConfirmRemote,
     send: actSend,
     reveal: actReveal,
+    telechargerfichier: (mid) => actTelechargerFichier(mid),
     fermermsg: (mid) => actFermerMessage(mid),
     setlecture: (arg) => { const [cid, v] = String(arg).split('|'); const cs = contacts(); const c = cs.find((x) => x.cid === cid); if (c) { c.lecture = Number(v); LS.set('contacts', cs); } render(); },
     cut: (cid) => { S.plusOpen = false; S.plusPanneau = null; S.plusMsg = ''; go('couper', cid); },
@@ -3443,22 +3647,6 @@ button.chip{cursor:pointer;font:inherit}
     voicecancel: () => { cancelVoice(); render(); },
     voicesend: (cid) => actSendVoice(cid),
     showlink: () => { S.linkOpen = !S.linkOpen; S.eventOpen = false; S.plusOpen = false; render(); const r = $('#linkRow'); if (r) { r.hidden = !S.linkOpen; if (S.linkOpen) $('#linkIn').focus(); } },
-    plusloc: (cid) => {
-      if (!navigator.geolocation) { S.plusMsg = 'Localisation indisponible sur ce téléphone.'; render(); return; }
-      S.plusMsg = 'Recherche de votre position…';
-      render();
-      navigator.geolocation.getCurrentPosition((p) => {
-        if (S.screen !== 'conv' || S.arg !== cid) return;
-        const fr = (n) => n.toFixed(4).replace('.', ',');
-        S.attach = S.attach || [];
-        S.attach.push({ kind: 'position', label: 'Position : ' + fr(p.coords.latitude) + ' ; ' + fr(p.coords.longitude) });
-        S.plusOpen = false; S.plusMsg = ''; S.plusPanneau = null;
-        render();
-      }, () => {
-        S.plusMsg = 'Localisation refusée ou indisponible. Autorisez-la pour ce site dans les réglages de votre téléphone.';
-        render();
-      }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 });
-    },
     showevent: () => { S.eventOpen = !S.eventOpen; S.linkOpen = false; S.plusOpen = false; S.plusMsg = ''; render(); const t = $('#evTitre'); if (S.eventOpen && t) t.focus(); },
     addevent: () => {
       const titre = ($('#evTitre') ? $('#evTitre').value : '').trim();
@@ -3467,7 +3655,7 @@ button.chip{cursor:pointer;font:inherit}
       const d = quand ? new Date(quand) : null;
       const quandTxt = d && !isNaN(d) ? d.toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
       S.attach = S.attach || [];
-      S.attach.push({ kind: 'event', label: 'Événement : ' + titre + (quandTxt ? ' · ' + quandTxt : '') });
+      S.attach.push({ kind: 'event', titre: titre.slice(0, 120), quand: d && !isNaN(d) ? d.toISOString() : '', label: 'Événement : ' + titre + (quandTxt ? ' · ' + quandTxt : '') });
       S.eventOpen = false;
       render();
     },
@@ -3488,6 +3676,7 @@ button.chip{cursor:pointer;font:inherit}
   // Sur l’agent double, ces actions s’affichent mais n’ont aucun effet : rien n’est activé, rien n’est sauvegardé, rien ne sort du téléphone.
   const ACTS_SANS_EFFET_SUR_LE_DOUBLE = new Set(['enablebio', 'disablebio', 'biounlock', 'create', 'ajouterverifier', 'install', 'reactiver', 'deletekeep', 'urgenceenregistrer', 'urgencesupprimer', 'backup', 'copybackup', 'enregistrerfichier', 'acheter']);
   document.addEventListener('click', (ev) => {
+    if (ev.target.closest && ev.target.closest('a[href]')) return;
     const el = ev.target.closest && ev.target.closest('[data-act]');
     if (!el || el.disabled) return;
     ev.preventDefault();
@@ -3536,8 +3725,11 @@ button.chip{cursor:pointer;font:inherit}
   document.addEventListener('change', (ev) => {
     const t = ev.target;
     if (!t || ['pickPhoto', 'pickCamera', 'pickDoc'].indexOf(t.id) < 0 || !t.files || !t.files[0]) return;
+    const choisi = t.files[0];
+    const estDoc = t.id === 'pickDoc';
+    if (choisi.size > (estDoc ? FICHIER_DOC_MAX : FICHIER_PHOTO_MAX)) { t.value = ''; S.plusOpen = false; S.flash = { t: estDoc ? 'Document trop lourd : 25 Mo au plus.' : 'Photo trop lourde : 15 Mo au plus.', ok: false }; return render(); }
     S.attach = S.attach || [];
-    S.attach.push({ kind: t.id === 'pickDoc' ? 'document' : 'photo', label: t.files[0].name });
+    S.attach.push({ kind: estDoc ? 'document' : 'photo', label: choisi.name, file: choisi });
     t.value = '';
     S.plusOpen = false;   // le menu « + » se referme après le choix
     render();
@@ -3867,7 +4059,11 @@ button.chip{cursor:pointer;font:inherit}
       if (!departGeste || e.pointerId !== departGeste.pid) return;
       if (Math.hypot(e.clientX - departGeste.x, e.clientY - departGeste.y) > 10) annulerGeste();
     }, true);
-    ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => document.addEventListener(ev, annulerGeste, true));
+    ['pointerup', 'pointercancel'].forEach((ev) => document.addEventListener(ev, annulerGeste, true));
+    // Quitter la carte annule l’appui. Un départ d’un autre élément, signalé après l’appui (la barre du haut, par exemple), ne compte pas.
+    document.addEventListener('pointerleave', (e) => {
+      if (departGeste && e.pointerId === departGeste.pid && e.target && e.target.closest && e.target.closest('.id-card')) annulerGeste();
+    }, true);
     // Geste du trait : un trait continu qui relie trois des quatre coins du QR de la carte, en moins de 2 secondes, fait basculer d’identité.
     // Rien ne s’affiche. Il ne sert que lorsque la seconde est ouverte (la carte ne défile pas sous le doigt : voir .id-qr).
     let trait = null;

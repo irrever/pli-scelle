@@ -23,14 +23,23 @@ Les invitations et les messages passent par un relais Supabase. Les scripts se l
 1. `relais.sql` : les tables et les fonctions du relais.
 2. `securite-relais.sql` : réserve la lecture et la suppression des messages à l'identité qui possède le secret de sa boîte.
 3. `securite-envois.sql` : coupures et reprises de lien vérifiées par le serveur. L'appli l'appelle : ne publiez pas cette version avant ce script.
-4. `notifications.sql` : seulement si vous voulez les notifications quand l'appli est fermée (voir ci-dessous).
-5. `sauvegardes-usage-unique.sql` : une sauvegarde ne s'installe qu'une fois. À lancer avant de publier une version qui installe des sauvegardes.
+4. `fichiers-prives.sql` : photos et documents (voir « Photos et documents » ci-dessous). L'appli les envoie par ce script : ne publiez pas cette version avant lui.
+5. `notifications.sql` : seulement si vous voulez les notifications quand l'appli est fermée (voir ci-dessous).
+6. `sauvegardes-usage-unique.sql` : une sauvegarde ne s'installe qu'une fois. À lancer avant de publier une version qui installe des sauvegardes.
 
 Ne relancez jamais `relais.sql` après `securite-relais.sql` : il remettrait l'ancienne lecture sans secret.
 
 Les messages sont chiffrés de bout en bout. Le relais voit les identifiants de boîte, les pseudos et les dates, mais jamais les noms donnés aux contacts ni le contenu des messages.
 
 La clé publiable dans `index.html` est publique par conception : la protection vient des règles du relais.
+
+## Photos et documents
+
+- Une photo part jusqu'à 15 Mo, un document jusqu'à 25 Mo. Rien n'est recompressé : le fichier reçu est identique à l'original.
+- Le fichier est chiffré avec la clé du lien, puis envoyé par morceaux de 96 Ko dans la table `pli_pieces`. Le relais ne voit ni le nom du fichier ni son contenu : seulement des morceaux chiffrés, donc une taille approximative.
+- Le destinataire touche la tuile « Photo reçue » ou « Document reçu » : le fichier est reconstitué sur son téléphone, enregistré, puis effacé du relais. Il ne peut pas être téléchargé une seconde fois.
+- Sans téléchargement, il est effacé au bout de 7 jours : côté relais (à chaque envoi et chaque lecture, et par `pli_pieces_purge()` si vous l'appelez à la main ou par `pg_cron`), côté appli (la tuile devient « Photo expirée »).
+- La table grossit avec les fichiers en attente, jusqu'à 7 jours. Surveillez la taille de la base du projet Supabase.
 
 ## Notifications quand l'appli est fermée
 
@@ -80,6 +89,7 @@ Installer une sauvegarde ne coûte rien. Les achats ne sont pas encore branchés
 - `relais.sql` : les tables et les fonctions du relais.
 - `securite-relais.sql` : la protection des boîtes, à lancer après `relais.sql`.
 - `securite-envois.sql` : coupures et reprises vérifiées par le serveur, à lancer après `securite-relais.sql`.
+- `fichiers-prives.sql` : la table et les fonctions des photos et documents, à lancer après `securite-envois.sql`.
 - `notifications.sql` : les abonnements et l'appel au serveur d'envoi, à lancer après `securite-envois.sql`.
 - `sauvegardes-usage-unique.sql` : la table et la fonction qui refusent une seconde installation de la même sauvegarde, à lancer une fois dans Supabase.
 - `sw.js` : le service worker, qui affiche la notification.

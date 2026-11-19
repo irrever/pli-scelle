@@ -1,7 +1,8 @@
 -- Pli Scellé : photos et documents, chiffrés, envoyés par morceaux et supprimés après téléchargement.
 -- À lancer une fois, dans l’éditeur SQL du projet, après securite-envois.sql.
+-- Mise à jour v136 : relancer ce script entier passe la purge à 48 heures, sans toucher aux données déjà là.
 -- Le serveur ne lit jamais le contenu : il garde des morceaux déjà chiffrés par l’appli.
--- Un fichier disparaît au téléchargement, ou au plus tard 7 jours après l’envoi.
+-- Un fichier disparaît au téléchargement, ou au plus tard 48 heures après l’envoi.
 
 create table if not exists public.pli_pieces (
   id text not null check (length(id) between 16 and 64),
@@ -17,14 +18,14 @@ create index if not exists pli_pieces_cree_le_idx on public.pli_pieces (cree_le)
 alter table public.pli_pieces enable row level security;
 revoke all on public.pli_pieces from public, anon, authenticated;
 
--- Supprime les morceaux de plus de 7 jours. Appelée à chaque envoi et chaque lecture.
+-- Supprime les morceaux de plus de 48 heures. Appelée à chaque envoi et chaque lecture.
 create or replace function public.pli_pieces_purge()
 returns void
 language sql
 security definer
 set search_path = public, pg_temp
 as $$
-  delete from public.pli_pieces where cree_le < now() - interval '7 days';
+  delete from public.pli_pieces where cree_le < now() - interval '48 hours';
 $$;
 
 -- Envoi d’un morceau : l’expéditeur doit posséder le secret de son identité (même vérification que pli_send_auth).

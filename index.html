@@ -365,14 +365,14 @@ button.chip{cursor:pointer;font:inherit}
   function dureeChoisie(cid) { const c = contacts().find((x) => x.cid === cid); return c && typeof c.lecture === 'number' ? c.lecture : 60; }
   function dureeLecture(cid) { const v = dureeChoisie(cid); return v < 0 ? LIBRE_MS : v * 1000; }
   function libelleDuree(cid) { const v = dureeChoisie(cid); return v < 0 ? 'jusqu’à fermeture' : (v < 60 ? v + ' s' : (v / 60) + ' min'); }
-  // Photos et documents : 15 Mo et 25 Mo au plus. Envoyés par morceaux chiffrés de 96 Ko ; effacés au téléchargement, ou 7 jours après l’envoi.
-  const FICHIER_PHOTO_MAX = 15 * 1024 * 1024, FICHIER_DOC_MAX = 25 * 1024 * 1024, FICHIER_MORCEAU = 96 * 1024, FICHIER_DUREE_MS = 7 * 24 * 60 * 60 * 1000;
+  // Photos et documents : 15 Mo et 25 Mo au plus. Envoyés par morceaux chiffrés de 96 Ko ; effacés au téléchargement, ou 48 heures après l’envoi.
+  const FICHIER_PHOTO_MAX = 15 * 1024 * 1024, FICHIER_DOC_MAX = 25 * 1024 * 1024, FICHIER_MORCEAU = 96 * 1024, FICHIER_DUREE_MS = 48 * 60 * 60 * 1000;
   const EFFACE_MS = 2 * 60 * 1000;   // une trace (« Message lu », « Message envoyé ») reste 2 minutes, puis disparaît
   const MAX_FAILS = 5;
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v135';
+  const APP_VERSION = 'v136';
   // Monnaie de l’appli : une unité vaut 0,01 €, donc 10 € font 1 000 unités. Elle reste sur l’appareil : aucun compte, rien n’est envoyé.
   // Le nom n’est pas encore choisi : il ne s’écrit qu’ici (et dans les libellés générés).
   const MONNAIE = { un: 'sceau', pluriel: 'sceaux' };
@@ -580,7 +580,7 @@ button.chip{cursor:pointer;font:inherit}
   function expireOpened() {
     const all = msgsAll(); let ch = false;
     for (const m of all) if (m.state === 'open' && Date.now() > (m.until || 0)) { if (m.once === false) m.state = 'new'; else { m.state = 'gone'; m.goneAt = Date.now(); m.text = ''; if (m.kind === 'voice') vdel('audio', m.mid).catch(() => {}); } ch = true; }
-    // Photo ou document reçu et jamais téléchargé : il disparaît de la liste au bout de 7 jours (le relais l’efface aussi).
+    // Photo ou document reçu et jamais téléchargé : il disparaît de la liste au bout de 48 heures (le relais l’efface aussi).
     for (const m of all) if (m.kind === 'fichier' && m.dir === 'in' && m.state === 'new' && Date.now() - (m.ts || 0) > FICHIER_DUREE_MS) { m.state = 'gone'; m.goneAt = Date.now(); m.expire = true; ch = true; }
     const now = Date.now();
     const reste = all.filter((m) => { if (!traceEffacee(m, now)) return true; if (m.kind === 'voice') vdel('audio', m.mid).catch(() => {}); ch = true; return false; });
@@ -3323,7 +3323,7 @@ button.chip{cursor:pointer;font:inherit}
     const detail = esc(f.nom || '') + ' · ' + tailleFichier(f.taille);
     if (m.dir === 'out') return '<div class="tile mine">' + ico + '<span class="tt"><b>' + (doc ? 'Document envoyé' : 'Photo envoyée') + '</b><span class="hint">' + detail + ' · téléchargé une fois, puis effacé</span></span></div>';
     if (m.state === 'new') return '<button class="tile unread" data-act="telechargerfichier" data-arg="' + esc(m.mid) + '">' + ico + '<span class="tt"><b>' + (doc ? 'Document reçu' : 'Photo reçue') + '</b><span class="hint">' + detail + '</span><span class="hint" id="fp-' + esc(m.mid) + '">Téléchargez le fichier : il sera supprimé juste après.</span><span class="nouveau">Nouveau</span></span></button>';
-    if (m.expire) return '<div class="tile read">' + ico + '<span class="tt"><b>' + (doc ? 'Document expiré' : 'Photo expirée') + '</b><span class="hint">Non téléchargé dans les 7 jours : il a été effacé</span></span></div>';
+    if (m.expire) return '<div class="tile read">' + ico + '<span class="tt"><b>' + (doc ? 'Document expiré' : 'Photo expirée') + '</b><span class="hint">Non téléchargé dans les 48 heures : il a été effacé</span></span></div>';
     return '<div class="tile read">' + ico + '<span class="tt"><b>' + (doc ? 'Document téléchargé' : 'Photo téléchargée') + '</b><span class="hint">Effacé du relais après le téléchargement</span></span></div>';
   }
   // Téléchargement : les morceaux sont déchiffrés sur ce téléphone, le fichier est enregistré, puis effacé du relais.

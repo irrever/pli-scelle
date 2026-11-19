@@ -23,7 +23,7 @@ Les invitations et les messages passent par un relais Supabase. Les scripts se l
 1. `relais.sql` : les tables et les fonctions du relais.
 2. `securite-relais.sql` : réserve la lecture et la suppression des messages à l'identité qui possède le secret de sa boîte.
 3. `securite-envois.sql` : coupures et reprises de lien vérifiées par le serveur. L'appli l'appelle : ne publiez pas cette version avant ce script.
-4. `fichiers-prives.sql` : photos et documents (voir « Photos et documents » ci-dessous). L'appli les envoie par ce script : ne publiez pas cette version avant lui.
+4. `fichiers-prives.sql` : photos et documents (voir « Photos et documents » ci-dessous). L'appli les envoie par ce script : ne publiez pas cette version avant lui. Déjà installé avant la v136 ? Relancez-le : il passe la purge à 48 heures, sans toucher aux données.
 5. `notifications.sql` : seulement si vous voulez les notifications quand l'appli est fermée (voir ci-dessous).
 6. `sauvegardes-usage-unique.sql` : une sauvegarde ne s'installe qu'une fois. À lancer avant de publier une version qui installe des sauvegardes.
 
@@ -38,8 +38,8 @@ La clé publiable dans `index.html` est publique par conception : la protection 
 - Une photo part jusqu'à 15 Mo, un document jusqu'à 25 Mo. Rien n'est recompressé : le fichier reçu est identique à l'original.
 - Le fichier est chiffré avec la clé du lien, puis envoyé par morceaux de 96 Ko dans la table `pli_pieces`. Le relais ne voit ni le nom du fichier ni son contenu : seulement des morceaux chiffrés, donc une taille approximative.
 - Le destinataire touche la tuile « Photo reçue » ou « Document reçu » : le fichier est reconstitué sur son téléphone, enregistré, puis effacé du relais. Il ne peut pas être téléchargé une seconde fois.
-- Sans téléchargement, il est effacé au bout de 7 jours : côté relais (à chaque envoi et chaque lecture, et par `pli_pieces_purge()` si vous l'appelez à la main ou par `pg_cron`), côté appli (la tuile devient « Photo expirée »).
-- La table grossit avec les fichiers en attente, jusqu'à 7 jours. Surveillez la taille de la base du projet Supabase.
+- Sans téléchargement, il est effacé au bout de 48 heures : côté relais (à chaque envoi et chaque lecture, et par `pli_pieces_purge()` si vous l'appelez à la main ou par `pg_cron`), côté appli (la tuile devient « Photo expirée »).
+- La table grossit avec les fichiers en attente, jusqu'à 48 heures. Surveillez la taille de la base du projet Supabase.
 
 ## Notifications quand l'appli est fermée
 

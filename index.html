@@ -270,6 +270,66 @@ button.chip{cursor:pointer;font:inherit}
 .link-row{display:flex;gap:8px}
 .link-row[hidden]{display:none}
 .link-row .field{flex:1;min-width:0}
+/* Boutique (maquette validée) : solde, options et packs en sceaux ; écran Recharger en six tuiles */
+.bq-solde{background:var(--surface);border:1px solid var(--line-2);border-radius:22px;padding:20px 20px 18px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.bq-solde-haut{display:flex;align-items:center;justify-content:space-between}
+.bq-etiq{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.bq-sceau{width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#d6ebf2 0%,#7fb3c6 52%,#0b6b5c 100%);box-shadow:inset 0 0 0 3px var(--surface),inset 0 0 0 4px rgba(11,107,92,.45)}
+.bq-solde-n{display:flex;align-items:baseline;gap:10px;margin:14px 0 2px}
+.bq-solde-n b{font-size:60px;font-weight:300;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums;color:var(--ink)}
+.bq-solde-n span{font-size:18px;color:var(--muted)}
+.bq-barre{height:3px;background:var(--line-2);border-radius:2px;margin:16px 0 8px;overflow:hidden}
+.bq-barre i{display:block;height:100%;background:var(--accent)}
+.bq-sous{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.bq-phrase{margin:12px 0 14px;font-size:14px;color:var(--ink)}
+.bq-recharger{display:block;width:100%;min-height:50px;font:inherit;font-size:15px;font-weight:600;color:var(--accent);background:transparent;border:1px solid rgba(11,107,92,.45);border-radius:14px;padding:12px;cursor:pointer}
+.bq-liste{background:var(--surface);border:1px solid var(--line-2);border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+.bq-ligne{display:flex;align-items:center;gap:12px;padding:14px 16px;border-top:1px solid var(--line-2)}
+.bq-ligne:first-child{border-top:0}
+.bq-texte{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.bq-titre{font-size:16px;font-weight:600;color:var(--ink)}
+.bq-sub{font-size:13px;color:var(--muted);line-height:1.4}
+.bq-acc{font-size:13px;color:var(--accent);font-weight:600;line-height:1.4}
+.bq-prix{display:flex;flex-direction:column;align-items:flex-end;flex:none;text-align:right}
+.bq-prix-n{font-size:26px;font-weight:700;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+.bq-prix-u{font-size:12px;color:var(--muted);margin-top:3px}
+.bq-btn{margin-top:8px;font:inherit;font-size:13px;font-weight:600;border-radius:10px;padding:7px 11px;border:1px solid var(--accent);background:transparent;color:var(--accent);cursor:pointer;max-width:160px}
+.bq-btn.plein{background:var(--accent);color:var(--on-accent)}
+.bq-bientot,.bq-acquis{margin-top:8px;font-size:13px;color:var(--muted);font-weight:500}
+.bq-recharger:focus-visible,.bq-btn:focus-visible,.bq-prix-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.bq-solde-ligne{margin:0;font-size:14px;color:var(--muted)}
+.bq-solde-ligne b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.bq-titre-page{font-size:24px;line-height:1.2;font-weight:700;margin:4px 0 0;color:var(--ink);text-wrap:balance}
+.bq-recharge{container-type:inline-size}
+.bq-grille{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.bq-tuile{background:var(--surface);border:1px solid var(--line-2);border-radius:14px;padding:10px;display:grid;align-content:start;column-gap:6px;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto auto auto;grid-template-areas:"picto prix" "chiffre chiffre" "accroche accroche" "detail detail";box-shadow:var(--shadow);min-width:0}
+.bq-haut{display:contents}
+.bq-picto{grid-area:picto;align-self:center;justify-self:start;width:26px;height:26px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center}
+.bq-picto svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.bq-chiffre{grid-area:chiffre;display:flex;flex-direction:column;min-width:0;margin-top:8px}
+.bq-nombre{font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap}
+.bq-unite{font-size:11px;color:var(--muted);margin-top:3px}
+.bq-accroche{grid-area:accroche;font-size:12.5px;font-weight:600;color:var(--ink);line-height:1.25;margin-top:8px;min-height:2.5em;overflow-wrap:anywhere}
+.bq-detail{grid-area:detail;font-size:11.5px;color:var(--muted);line-height:1.3;margin-top:3px;min-height:2.6em;overflow-wrap:anywhere}
+.bq-prix-btn{grid-area:prix;justify-self:end;align-self:center;font:inherit;font-size:14px;font-weight:700;line-height:1;color:var(--on-accent);background:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:6px 9px;cursor:pointer;white-space:nowrap}
+.bq-prix-btn:disabled{cursor:default}
+.bq-bur{display:none}
+.bq-tel{display:inline}
+@container (min-width:520px){
+  .bq-grille{gap:12px}
+  .bq-tuile{border-radius:18px;padding:14px;column-gap:8px;grid-template-rows:auto auto auto 1fr auto;grid-template-areas:"chiffre picto" "accroche accroche" "detail detail" "vide vide" "prix prix"}
+  .bq-picto{align-self:start;justify-self:end;width:36px;height:36px}
+  .bq-picto svg{width:20px;height:20px;stroke-width:1.8}
+  .bq-chiffre{margin-top:0}
+  .bq-nombre{font-size:32px}
+  .bq-unite{font-size:12.5px}
+  .bq-accroche{font-size:15px;line-height:1.3;margin-top:12px;min-height:2.6em}
+  .bq-detail{font-size:13px;line-height:1.35;margin:6px 0 12px;min-height:0}
+  .bq-prix-btn{justify-self:stretch;align-self:stretch;font-size:16px;line-height:1.45;padding:10px 12px;border-radius:12px}
+  .bq-bur{display:inline}
+  .bq-tel{display:none}
+}
+.bq-liste+.hint{margin:8px 4px 0}
 </style>
 <div id="app"><div class="screen"><p class="lead" style="padding-top:24px">Chargement…</p></div></div>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
@@ -296,14 +356,14 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v131';
+  const APP_VERSION = 'v132';
   // Monnaie de l’appli : une unité vaut 0,01 €, donc 10 € font 1 000 unités. Elle reste sur l’appareil : aucun compte, rien n’est envoyé.
   // Le nom n’est pas encore choisi : il ne s’écrit qu’ici (et dans les libellés générés).
   const MONNAIE = { un: 'sceau', pluriel: 'sceaux' };
   // Tant que les achats ne sont pas branchés (appli iPhone), PAIEMENT_ACTIF reste faux : rien n’est débité, tout reste gratuit pendant les tests.
   const PAIEMENT_ACTIF = false;
   // Recharges en euros (achat à venir) : chacune crédite des unités.
-  const RECHARGES = [{ euros: 2, unites: 200 }, { euros: 5, unites: 500 }, { euros: 10, unites: 1000 }, { euros: 20, unites: 2000 }, { euros: 50, unites: 5000 }];
+  const RECHARGES = [{ euros: 2, unites: 200 }, { euros: 3, unites: 300 }, { euros: 5, unites: 500 }, { euros: 10, unites: 1000 }, { euros: 20, unites: 2000 }, { euros: 50, unites: 5000 }];
   // Prix des options, en unités (500 = 5 €). Agent double : à chaque création. Code d’urgence et sauvegarde : une fois par appareil.
   const COUTS = { agentDouble: 500, codeUrgence: 300, sauvegarde: 200 };
   // Packs : un prix en unités, et les options qu’ils contiennent. Refusés si l’une de leurs options est déjà acquise.
@@ -1428,7 +1488,7 @@ button.chip{cursor:pointer;font:inherit}
     scanner: viewScanner,
     inviter: viewInviter, attente: viewAttente, demande: viewDemande, 'verifier-ff': viewVerifierFF,
     'lien-ouvert': viewLienOuvert, nommer: viewNommer, contact: viewContact, conv: viewConv,
-    nouveau: viewNouveau, reglages: viewReglages, couper: viewCouper, 'lien-coupe': viewLienCoupe, identite: viewIdentite, sonnerie: viewSonnerie, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, seconde: viewSeconde, 'couper-liens': viewCouperLiens, 'essai-trait': viewEssaiTrait, ajouteridentite: viewAjouterIdentite, boutique: viewBoutique, 'seconde-prete': viewSecondePrete, 'identite-prete': viewIdentitePrete, verif: viewVerif, finir: viewFinir, reprise: viewRepriseLien,
+    nouveau: viewNouveau, reglages: viewReglages, couper: viewCouper, 'lien-coupe': viewLienCoupe, identite: viewIdentite, sonnerie: viewSonnerie, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, seconde: viewSeconde, 'couper-liens': viewCouperLiens, 'essai-trait': viewEssaiTrait, ajouteridentite: viewAjouterIdentite, boutique: viewBoutique, recharger: viewRecharger, 'seconde-prete': viewSecondePrete, 'identite-prete': viewIdentitePrete, verif: viewVerif, finir: viewFinir, reprise: viewRepriseLien,
     codeoublie: viewCodeOublie, 'codeoublie-decompte': viewCodeOublieDecompte, urgence: viewUrgence,
     invalide: viewInvalide
   };
@@ -2490,42 +2550,97 @@ button.chip{cursor:pointer;font:inherit}
     if (!await codeCorrect(S.me.wrap, code)) return setStatus('formstatus', 'err', 'Code secret incorrect.');
     go('creer', 'ajout');
   }
-  // Boutique : tout ce qu’on peut acheter, avec le prix en unités et en euros. Les achats se débitent du solde.
-  function boutonAchat(cle, texte) {
-    return PAIEMENT_ACTIF ? '<button class="btn btn-secondary" data-act="acheter" data-arg="' + cle + '">' + texte + '</button>' : '<span class="state">Bientôt</span>';
+  // Boutique : solde, options et packs, en sceaux. Les euros n’apparaissent que sur l’écran Recharger.
+  function boutonBoutique(cle, texte, plein) {
+    if (!PAIEMENT_ACTIF) return '<span class="bq-bientot">Bientôt</span>';
+    return '<button class="bq-btn' + (plein ? ' plein' : '') + '" type="button" data-act="acheter" data-arg="' + cle + '">' + texte + '</button>';
   }
-  function ligneBoutique(titre, detail, action, sous) {
-    return '<div class="rowlink"><span class="row-text"><span class="row-title">' + titre + '</span><span class="hint">' + detail + '</span>' + (sous ? '<span class="hint">' + sous + '</span>' : '') + '</span>' + action + '</div>';
+  // Nombre avec espace insécable pour les milliers : « 1 000 ».
+  const bqChiffre = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  const bqLibelle = (n) => bqChiffre(n) + ' ' + (n > 1 ? MONNAIE.pluriel : MONNAIE.un);
+  function bqLigne(titre, sous, prix, unite, action) {
+    return '<div class="bq-ligne"><div class="bq-texte"><div class="bq-titre">' + titre + '</div>' + sous + '</div>' +
+      '<div class="bq-prix"><div class="bq-prix-n">' + prix + '</div><div class="bq-prix-u">' + unite + '</div>' + action + '</div></div>';
   }
   function viewBoutique() {
+    const solde = soldeMonnaie();
+    const complet = PACKS.complet.prix;
+    const manque = complet - solde;
+    const pct = Math.min(100, Math.round(solde / complet * 1000) / 10);
+    const credits = creditsAgent();
     const nomsOptions = { agentDouble: 'agent double', codeUrgence: 'code d’urgence', sauvegarde: 'sauvegarde' };
-    const recharges = RECHARGES.map((r) => ligneBoutique(libMonnaie(r.unites), r.euros.toFixed(2).replace('.', ',') + ' €, rechargés en euros', '<span class="state">Bientôt</span>')).join('');
+    const payeAcc = credits ? '<div class="bq-acc">Payé ×' + credits + ' : touchez pour le créer.</div>' : '';
     const options = [
-      ligneBoutique('Agent double', libMonnaie(COUTS.agentDouble) + ' (' + euros(COUTS.agentDouble) + ') par création. Lié à l’identité. Effacé : à racheter.', (creditsAgent() ? '<span class="tarif paye">Payé ×' + creditsAgent() + '</span> ' : '') + boutonAchat('agentDouble', 'Acheter un crédit')),
-      ligneBoutique('Code d’urgence', libMonnaie(COUTS.codeUrgence) + ' (' + euros(COUTS.codeUrgence) + '). Valable tant que l’identité existe.', optionAcquise('codeUrgence') ? '<span class="state">Acquis</span>' : boutonAchat('codeUrgence', 'Débloquer')),
-      ligneBoutique('Sauvegarde des contacts', libMonnaie(COUTS.sauvegarde) + ' (' + euros(COUTS.sauvegarde) + '). Valable tant que l’identité existe.', optionAcquise('sauvegarde') ? '<span class="state">Acquise</span>' : boutonAchat('sauvegarde', 'Débloquer'))
+      bqLigne('Agent double', payeAcc + '<div class="bq-sub">Lié à l’identité. Effacé : à racheter.</div>', bqChiffre(COUTS.agentDouble), 'sceaux par création', boutonBoutique('agentDouble', 'Acheter un crédit', false)),
+      bqLigne('Code d’urgence', '<div class="bq-sub">Valable tant que l’identité existe.</div>', bqChiffre(COUTS.codeUrgence), 'sceaux', optionAcquise('codeUrgence') ? '<span class="bq-acquis">Acquis</span>' : boutonBoutique('codeUrgence', 'Débloquer', false)),
+      bqLigne('Sauvegarde des contacts', '<div class="bq-sub">Valable tant que l’identité existe.</div>', bqChiffre(COUTS.sauvegarde), 'sceaux', optionAcquise('sauvegarde') ? '<span class="bq-acquis">Acquise</span>' : boutonBoutique('sauvegarde', 'Débloquer', false))
     ].join('');
-    const packs = Object.keys(PACKS).map((k) => {
+    const packs = ['complet', 'securite'].map((k) => {
       const p = PACKS[k];
       const deja = p.contient.some((c) => c !== 'agentDouble' && optionAcquise(c));
       const economie = p.contient.reduce((t, c) => t + COUTS[c], 0) - p.prix;
       const contenu = p.contient.map((c) => nomsOptions[c]).join(', ');
-      return ligneBoutique(p.nom, contenu, deja ? '<span class="state">En partie acquis</span>' : boutonAchat('pack:' + k, 'Acheter'), libMonnaie(p.prix) + ' (' + euros(p.prix) + ') · économie ' + libMonnaie(economie));
+      return bqLigne(p.nom, '<div class="bq-sub">' + contenu.charAt(0).toUpperCase() + contenu.slice(1) + '</div><div class="bq-acc">Économie : ' + bqLibelle(economie) + '</div>', bqChiffre(p.prix), MONNAIE.pluriel, deja ? '<span class="bq-acquis">En partie acquis</span>' : boutonBoutique('pack:' + k, 'Acheter', true));
     }).join('');
     return '<div class="screen">' + topbar({ back: 'identite', title: 'Boutique' }) +
-      '<div><h1>Boutique</h1><p class="lead" style="margin-top:6px">Les ' + MONNAIE.pluriel + ' restent sur cet appareil.</p></div>' +
       (PAIEMENT_ACTIF ? '' : notice('info', 'Pas encore branché : rien n’est débité.')) +
-      '<section class="card"><h2>Votre solde</h2><p class="hint">' + libMonnaie(soldeMonnaie()) + ' sur cet appareil.' + (creditsAgent() ? ' Crédits d’agent double payés d’avance : ' + creditsAgent() + '.' : '') + '</p></section>' +
-      '<section><div class="section-title">Recharger</div><div class="list">' + recharges + '</div></section>' +
-      '<section><div class="section-title">Options</div><div class="list">' + options + '</div></section>' +
-      '<section><div class="section-title">Packs</div><div class="list">' + packs + '</div><p class="hint">Refusé si une option est déjà acquise.</p></section>' +
+      '<section class="bq-solde" aria-label="Solde">' +
+        '<div class="bq-solde-haut"><span class="bq-etiq">Solde</span><span class="bq-sceau" aria-hidden="true"></span></div>' +
+        '<div class="bq-solde-n"><b>' + bqChiffre(solde) + '</b><span>' + MONNAIE.pluriel + '</span></div>' +
+        '<div class="bq-barre" role="img" aria-label="' + bqLibelle(solde) + ' sur ' + bqChiffre(complet) + ' pour le pack complet"><i style="width:' + pct + '%"></i></div>' +
+        '<div class="bq-sous"><span>' + bqChiffre(solde) + '</span><span>Pack complet : ' + bqChiffre(complet) + '</span></div>' +
+        '<p class="bq-phrase">' + (manque > 0 ? 'Il manque ' + bqChiffre(manque) + ' sceaux pour le pack complet.' : 'De quoi prendre le pack complet.') + '</p>' +
+        '<button class="bq-recharger" type="button" data-act="go" data-arg="recharger">Recharger</button>' +
+      '</section>' +
+      '<div><div class="section-title">Options</div><div class="bq-liste">' + options + '</div><p class="hint">Restaurer une sauvegarde reste gratuit.</p></div>' +
+      '<div><div class="section-title">Packs</div><div class="bq-liste">' + packs + '</div><p class="hint">Refusé si une option est déjà acquise.</p></div>' +
+    '</div>';
+  }
+  // Recharger : six tuiles, trois par ligne. Le prix en euros n’apparaît que sur cet écran.
+  const BQ_PICTOS = {
+    nuage: '<path d="M7 18h10a4 4 0 0 0 .5-7.96A6 6 0 0 0 6.2 9.2 4.5 4.5 0 0 0 7 18z"/><path d="M12 11.5v5M9.8 14l2.2-2.3 2.2 2.3"/>',
+    bouclier: '<path d="M12 3 5.5 5.5v5.2c0 4.3 2.9 7.9 6.5 9.8 3.6-1.9 6.5-5.5 6.5-9.8V5.5L12 3z"/><path d="M9.2 12.2l2 2 3.6-3.8"/>',
+    personnes: '<circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19.5c.8-3 3-4.6 5.5-4.6s4.7 1.6 5.5 4.6"/><circle cx="16.5" cy="9.5" r="2.6"/><path d="M15.5 14.4c2.6-.2 4.6 1.2 5.3 3.9"/>',
+    etoile: '<path d="M12 3.5l2.5 5.2 5.7.8-4.1 4 1 5.7L12 16.5l-5.1 2.7 1-5.7-4.1-4 5.7-.8z"/>',
+    couches: '<path d="M12 4 3.5 8.5 12 13l8.5-4.5L12 4z"/><path d="M3.5 12.5 12 17l8.5-4.5"/><path d="M3.5 16.5 12 21l8.5-4.5"/>'
+  };
+  // Textes : [version bureau, version téléphone]. Une seule des deux s’affiche, selon la largeur de l’écran.
+  const BQ_TEXTES = {
+    200: { picto: 'nuage', accroche: ['Sauvegardez vos contacts'], detail: ['À l’abri, prêts à revenir.'] },
+    300: { picto: 'bouclier', accroche: ['Effacez votre compte'], detail: ['Discret, il n’affiche rien.'] },
+    500: { picto: 'personnes', accroche: ['Créez une double identité', 'Double identité'], detail: ['Une seconde identité, cachée.', 'Une seconde, cachée.'] },
+    1000: { picto: 'etoile', accroche: ['Pack complet'], detail: ['Les trois options, à prix réduit.', 'Trois options, à prix réduit.'] },
+    2000: { picto: 'couches', accroche: ['Deux identités équipées', 'Deux identités'], detail: ['Deux packs complets, à prix réduit.', 'Deux packs complets.'] },
+    5000: { picto: 'couches', accroche: ['Cinq identités équipées', 'Cinq identités'], detail: ['Cinq packs complets, à prix réduit.', 'Cinq packs complets.'] }
+  };
+  const bqTexte = (t) => (t.length > 1 ? '<span class="bq-bur">' + t[0] + '</span><span class="bq-tel">' + t[1] + '</span>' : t[0]);
+  function bqTuile(r) {
+    const t = BQ_TEXTES[r.unites];
+    const prix = r.euros + ' €';
+    const bouton = PAIEMENT_ACTIF
+      ? '<button class="bq-prix-btn" type="button" data-act="acheter" data-arg="recharge:' + r.unites + '">' + prix + '</button>'
+      : '<button class="bq-prix-btn" type="button" disabled>' + prix + '</button>';
+    return '<div class="bq-tuile">' +
+      '<div class="bq-haut"><div class="bq-chiffre"><div class="bq-nombre">' + bqChiffre(r.unites) + '</div><div class="bq-unite">' + MONNAIE.pluriel + '</div></div>' +
+      '<div class="bq-picto"><svg viewBox="0 0 24 24" aria-hidden="true">' + BQ_PICTOS[t.picto] + '</svg></div></div>' +
+      '<div class="bq-accroche">' + bqTexte(t.accroche) + '</div>' +
+      '<div class="bq-detail">' + bqTexte(t.detail) + '</div>' + bouton + '</div>';
+  }
+  function viewRecharger() {
+    return '<div class="screen">' + topbar({ back: 'boutique', title: 'Recharger' }) +
+      (PAIEMENT_ACTIF ? '' : notice('info', 'Pas encore branché : rien n’est débité.')) +
+      '<p class="bq-solde-ligne">Solde : <b>' + bqLibelle(soldeMonnaie()) + '</b></p>' +
+      '<h2 class="bq-titre-page">Rechargez votre compte</h2>' +
+      '<div class="bq-recharge"><div class="bq-grille">' + RECHARGES.map((r) => bqTuile(r)).join('') + '</div></div>' +
+      '<p class="hint">Paiement par l’App Store.</p>' +
     '</div>';
   }
   // Achat depuis la boutique, débité du solde. Sans effet tant que PAIEMENT_ACTIF est faux.
   function actAcheter(cle) {
     if (!PAIEMENT_ACTIF) return;
     let erreur = null;
-    if (cle.indexOf('pack:') === 0) erreur = acheterPack(cle.slice(5));
+    if (cle.indexOf('recharge:') === 0) erreur = 'Les recharges ne sont pas encore branchées.';
+    else if (cle.indexOf('pack:') === 0) erreur = acheterPack(cle.slice(5));
     else if (cle === 'agentDouble') { if (debiter(COUTS.agentDouble)) ajouterCredit(); else erreur = 'Solde insuffisant : il faut ' + libMonnaie(COUTS.agentDouble) + '.'; }
     else if (optionAcquise(cle)) erreur = 'Déjà acquis sur cet appareil.';
     else erreur = acheterOptionAppareil(cle) ? null : 'Solde insuffisant : il faut ' + libMonnaie(COUTS[cle]) + '.';

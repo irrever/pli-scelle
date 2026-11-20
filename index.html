@@ -115,9 +115,60 @@ textarea.field{resize:vertical;min-height:72px;font-size:16px;line-height:1.4}
 .status[hidden]{display:none}
 .flash{position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));z-index:30;margin:0!important;box-shadow:var(--shadow);pointer-events:none}
 .status-ok{background:var(--accent-soft);color:var(--accent)}
-.status-err{background:var(--danger-soft);color:var(--danger)}
 .status.big{font-size:17px;font-weight:600;padding:16px;border-radius:16px}
 .status-info{background:var(--warn-soft);color:var(--warn)}
+/* Conteneur des erreurs : il porte une alerte, sans fond rouge ni retrait */
+.status.status-alerte{display:block;padding:0;border-radius:0;background:none;color:inherit;font-size:inherit;font-weight:inherit;line-height:inherit}
+.alerte-seul{align-items:center}
+.alerte-texte-seul{display:block;font-size:15px;font-weight:500;line-height:1.45;color:var(--ink)}
+/* Alerte : erreur présentée sobrement (titre, explication, progression des essais), sans bandeau rouge plein */
+.alerte{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:start;width:100%;box-sizing:border-box;padding:14px 16px;border-radius:16px;background:var(--surface-2);border:1px solid var(--line-2);color:var(--ink);text-align:left;animation:alerte-entree .24s ease-out both}
+.alerte-corps{min-width:0}
+.alerte-titre{display:block;font-size:16px;font-weight:600;line-height:1.3;color:var(--ink)}
+.alerte-texte{display:block;margin-top:3px;font-size:15px;line-height:1.45;color:var(--ink-2)}
+.alerte-essais{display:flex;align-items:center;gap:6px;margin-top:12px}
+.alerte-essais i{flex:1;height:4px;border-radius:999px;background:var(--line)}
+.alerte-essais i.on{background:var(--danger)}
+.alerte-compte{flex:none;margin-left:8px;font-size:13px;font-weight:600;letter-spacing:.02em;color:var(--muted);white-space:nowrap}
+@keyframes alerte-entree{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.alerte{animation:none}}
+/* Jauge du code secret : elle compte jusqu’au minimum, puis devient verte quand le code est valide */
+.jauge{display:grid;gap:7px;margin:-4px 0 12px}
+.jauge-barre{display:flex;gap:5px}
+.jauge-barre i{flex:1;height:5px;border-radius:999px;background:var(--line);transition:background .2s ease}
+.jauge-barre i.on{background:var(--ink-2)}
+.jauge-barre i.attention{background:var(--warn)}
+.jauge-barre i.ok{background:var(--accent)}
+.jauge-ligne{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:14px;line-height:1.35}
+.jauge-texte{min-width:0;color:var(--muted)}
+.jauge-compte{flex:none;color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums}
+.jauge.attention .jauge-texte{color:var(--warn)}
+.jauge.ok .jauge-texte,.jauge.ok .jauge-compte{color:var(--accent);font-weight:600}
+/* Œil « maintenir pour voir » : à la création d’un code, le texte s’affiche tant que le doigt reste posé, puis redevient des points */
+.champ-oeil{position:relative}
+.champ-oeil .field{padding-right:54px}
+.oeil{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:44px;height:44px;border:0;border-radius:12px;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.oeil .ico{width:22px;height:22px}
+.oeil.actif{background:var(--accent-soft);color:var(--accent)}
+.oeil:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* Bloc de paiement d’une option : montant, solde et ce qui sera débité */
+.paie{display:grid;gap:14px;padding:18px;border:1px solid var(--line-2);border-radius:18px;background:var(--surface);box-shadow:var(--shadow)}
+.paie-tete{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.paie-nom{display:grid;gap:3px;min-width:0}
+.paie-nom b{font-size:16px;font-weight:600;color:var(--ink)}
+.paie-nom span{font-size:14px;color:var(--muted)}
+.paie-montant{display:flex;align-items:baseline;gap:6px;white-space:nowrap}
+.paie-montant b{font-size:34px;font-weight:700;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+.paie-montant .monnaie{font-size:16px;font-weight:600}
+.paie-pastille{display:inline-flex;align-items:center;height:28px;padding:0 12px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:14px;font-weight:600;white-space:nowrap}
+.paie-lignes{display:grid;border-top:1px solid var(--line-2)}
+.paie-lignes>div{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line-2);font-size:15px;color:var(--ink-2)}
+.paie-lignes>div:last-child{border-bottom:0}
+.paie-lignes b{font-size:17px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.paie-lignes b .monnaie{font-size:14px;font-weight:600}
+.paie-lignes .manque span,.paie-lignes .manque b{color:var(--warn)}
+.paie-lignes .zero b{color:var(--accent)}
+.paie-note{margin:0;font-size:14px;line-height:1.45;color:var(--muted)}
 .empty{display:flex;flex-direction:column;align-items:center;gap:10px;padding:32px 20px;text-align:center;color:var(--muted)}
 .empty .ico{width:34px;height:34px;color:var(--accent)}
 .empty b{color:var(--ink);font-weight:600}
@@ -222,6 +273,20 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 .plus-sheet{background:var(--surface);border:1px solid var(--line-2);border-radius:18px;padding:16px 10px 12px;box-shadow:var(--shadow);display:grid;gap:12px;margin:0 0 8px}
 .event-row{display:grid;gap:8px;margin:0 0 8px}
 .event-row[hidden]{display:none}
+.event-when{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:end}
+.event-cel{display:grid;gap:4px;min-width:0}
+.event-lab{font-size:13px;color:var(--muted);padding-left:2px}
+.event-when .field{min-width:0;min-height:46px;padding:8px 10px;font-size:16px}
+.event-when .event-heure{min-height:56px;font-size:24px;font-weight:600}
+.event-actions{display:flex;gap:8px}
+.event-actions .btn{flex:1}
+.fichier-ligne{display:flex;min-width:0}
+.fichier-nom{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fichier-taille{flex:none;white-space:pre}
+.tt>.nouveau{align-self:flex-start;margin-left:0}
+.fichier-action{display:inline-flex;align-self:flex-start;margin-top:6px;padding:6px 14px;border-radius:999px;background:var(--accent);color:var(--on-accent);font-size:14px;font-weight:600;touch-action:manipulation}
+.tile[data-act]{touch-action:manipulation}
+.apercu-fond{touch-action:manipulation}
 .voice-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px;border-radius:14px;background:var(--accent-soft);color:var(--accent)}
 .voice-bar audio{width:100%;height:40px}
 .voice-dot{width:10px;height:10px;border-radius:50%;background:#d93025;animation:voicepulse 1s infinite}
@@ -430,8 +495,60 @@ button.chip{cursor:pointer;font:inherit}
     if (creditsAgent() > 0) return LSG.set('credits.agentDouble', creditsAgent() - 1);
     return debiter(COUTS.agentDouble);
   }
-  // Ligne de coût sous le titre d’un écran, avec le solde.
-  const coutHTML = (cle) => '<p class="hint">Coût : ' + libMonnaie(COUTS[cle]) + (cle === 'agentDouble' ? ' par création' : ' · valable tant que l’identité existe') + '. Solde : ' + libMonnaie(soldeMonnaie()) + '.</p>';
+  // Bloc de paiement d’une option : montant, solde et ce qui sera débité, bien visibles avant de valider. Même présentation pour toutes les options.
+  const SCEAUX_HTML = '<span class="monnaie">sceaux</span>';
+  const LIBELLES_PAIEMENT = {
+    codeUrgence: { credit: 'Activer avec mon crédit', payant: 'Activer pour ' + COUTS.codeUrgence + ' sceaux' },
+    sauvegarde: { credit: 'Préparer la sauvegarde avec mon crédit', payant: 'Préparer la sauvegarde pour ' + COUTS.sauvegarde + ' sceaux' },
+    agentDouble: { credit: 'Continuer', payant: 'Continuer' }
+  };
+  // Le cas de l’option : paiement non branché, crédit déjà acheté, solde suffisant, ou solde insuffisant.
+  function etatPaiement(cle) {
+    if (cle !== 'agentDouble' && optionAcquise(cle)) return 'acquis';   // déjà activée sur cette identité : gratuite
+    if (!PAIEMENT_ACTIF) return 'test';
+    if ((cle === 'agentDouble' ? creditsAgent() : creditsOption(cle)) > 0) return 'credit';
+    return soldeMonnaie() >= COUTS[cle] ? 'suffisant' : 'insuffisant';
+  }
+  function paiementHTML(cle) {
+    const agent = cle === 'agentDouble';
+    const etat = etatPaiement(cle);
+    if (etat === 'acquis') return '';
+    const cout = COUTS[cle], solde = soldeMonnaie();
+    const credits = agent ? creditsAgent() : creditsOption(cle);
+    const titre = agent ? 'Agent double' : cle === 'codeUrgence' ? 'Option « Code d’urgence »' : 'Option « Sauvegarde des contacts »';
+    const sous = agent ? 'Payé à chaque création' : 'Valable tant que l’identité existe';
+    const quand = agent ? 'Débité à la création' : 'Débité à l’activation';
+    const tete = '<div class="paie-tete"><div class="paie-nom"><b>' + titre + '</b><span>' + sous + '</span></div>' +
+      (etat === 'credit' ? '<span class="paie-pastille">' + (agent ? 'Déjà payé' : 'Crédit acheté') + '</span>' : '<div class="paie-montant"><b>' + cout + '</b>' + SCEAUX_HTML + '</div>') + '</div>';
+    let lignes, note;
+    if (etat === 'test') {
+      lignes = '<div><span>Votre solde</span><b>' + solde + ' ' + SCEAUX_HTML + '</b></div><div class="zero"><span>' + quand + '</span><b>0 ' + SCEAUX_HTML + '</b></div>';
+      note = 'Achats pas encore branchés : rien n’est débité pour l’instant.';
+    } else if (etat === 'credit') {
+      lignes = '<div><span>Crédit disponible</span><b>' + credits + '</b></div><div><span>Votre solde</span><b>' + solde + ' ' + SCEAUX_HTML + '</b></div><div class="zero"><span>' + quand + '</span><b>0 ' + SCEAUX_HTML + '</b></div>';
+      note = agent ? 'Vous avez déjà payé un agent double : rien n’est débité à la création.' : 'Vous avez déjà acheté cette option : le crédit est utilisé, rien n’est débité.';
+    } else if (etat === 'suffisant') {
+      lignes = '<div><span>Votre solde</span><b>' + solde + ' ' + SCEAUX_HTML + '</b></div><div><span>' + (agent ? 'Après création' : 'Après activation') + '</span><b>' + (solde - cout) + ' ' + SCEAUX_HTML + '</b></div>';
+      note = agent ? 'Débité à la création. Si vous avez déjà un crédit d’agent double, il est utilisé à la place.' : 'Débité quand vous validez. Si vous avez déjà un crédit pour cette option, il est utilisé à la place.';
+    } else {
+      lignes = '<div><span>Votre solde</span><b>' + solde + ' ' + SCEAUX_HTML + '</b></div><div class="manque"><span>Il manque</span><b>' + (cout - solde) + ' ' + SCEAUX_HTML + '</b></div>';
+      note = agent ? 'Pas assez de sceaux pour créer un agent double. Rechargez votre solde, puis revenez ici.' : 'Pas assez de sceaux pour cette option. Rechargez votre solde, puis revenez ici.';
+    }
+    return '<section class="paie">' + tete + '<div class="paie-lignes">' + lignes + '</div><p class="paie-note">' + note + '</p></section>';
+  }
+  // Bouton de création : pour un agent double, en paiement branché, il dit le montant débité, ou le crédit déjà payé.
+  function libelleCreation() {
+    if (S.arg !== 'ajout' || !PAIEMENT_ACTIF) return 'Créer mon identité';
+    return creditsAgent() > 0 ? 'Créer avec mon crédit' : 'Créer pour ' + COUTS.agentDouble + ' sceaux';
+  }
+  // Boutons du bas : le libellé suit le cas. Solde insuffisant : on propose la recharge, et l’action reste désactivée.
+  function boutonsPaiement(cle, action, libelleSansPaiement) {
+    const etat = etatPaiement(cle);
+    const libelles = LIBELLES_PAIEMENT[cle];
+    if (etat === 'insuffisant') return '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="go" data-arg="boutique">Recharger mon solde</button><button class="btn btn-secondary" type="button" disabled>' + libelles.payant + '</button></div>';
+    const libelle = etat === 'credit' ? libelles.credit : etat === 'suffisant' ? libelles.payant : libelleSansPaiement;
+    return '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="' + action + '">' + libelle + '</button></div>';
+  }
   // Pastille de prix, en unités. « Acquis » pour une option déjà payée ; « Déjà payé » quand un crédit d’agent double attend.
   const tarifHTML = (cle) => {
     if (cle === 'agentDouble' && creditsAgent() > 0) return '<span class="tarif paye">Payé</span>';
@@ -950,7 +1067,7 @@ button.chip{cursor:pointer;font:inherit}
     await closeInviteDoc(inv.id);
     return true;
   }
-  // Côté personne invitée : l’inviteur lui demande trois mots précis ; elle les lit à voix haute.
+  // Côté personne invitée : l’inviteur lui demande trois mots précis ; elle les touche sur son écran.
   async function onVerif(m) {
     const pend = pendingAll();
     const idx = pend.findIndex((p) => p.type === 'remote-sent' && p.invId === m.inv && p.peer === m.from);
@@ -1242,8 +1359,62 @@ button.chip{cursor:pointer;font:inherit}
       : (o.back ? '<button class="iconbtn" data-act="go" data-arg="' + o.back + '" aria-label="Retour">' + I.back + '</button>' : '');
     return '<header class="topbar' + (back ? '' : ' bare') + '">' + back + '<h1 class="topbar-title">' + (o.titleHTML || esc(o.title || '')) + '</h1><div class="topbar-right">' + (o.right || '') + '</div></header>';
   }
-  function notice(kind, text) { return '<div class="status status-' + kind + '">' + text + '</div>'; }
-  function formStatus() { return '<div id="formstatus" class="status status-err" hidden></div>'; }
+  function notice(kind, text) { if (kind === 'err') return alerteHTML(null, text); return '<div class="status status-' + kind + '">' + text + '</div>'; }
+  // Jauge du code secret et du code d’urgence, à la création : elle compte jusqu’au minimum, puis devient verte quand le code est valide.
+  function jaugeCodeHTML(champ) {
+    return '<div class="jauge" data-jauge="' + champ + '"><div class="jauge-barre">' + '<i></i>'.repeat(8) + '</div><div class="jauge-ligne"><span class="jauge-texte">Encore 8 caractères</span><span class="jauge-compte">0 / 8</span></div></div>';
+  }
+  function majJauge(champ) {
+    const j = document.querySelector('[data-jauge="' + champ.id + '"]');
+    if (!j) return;
+    const v = champ.value || '';
+    const n = v.length;
+    const motif = n >= 8 ? erreurCodeSecret(v) : '';
+    const valide = n >= 8 && !motif;
+    const etat = valide ? 'ok' : n >= 8 ? 'attention' : 'on';
+    j.querySelectorAll('.jauge-barre i').forEach((b, i) => { b.className = i < Math.min(n, 8) ? etat : ''; });
+    j.classList.toggle('ok', valide);
+    j.classList.toggle('attention', n >= 8 && !valide);
+    j.querySelector('.jauge-texte').textContent = n === 0 ? 'Encore 8 caractères' : n < 8 ? 'Encore ' + (8 - n) + (8 - n > 1 ? ' caractères' : ' caractère') : valide ? 'Minimum atteint' : motif;
+    j.querySelector('.jauge-compte').textContent = Math.min(n, 8) + ' / 8';
+  }
+  function majJauges() { ['s1', 'u1'].forEach((id) => { const el = document.getElementById(id); if (el) majJauge(el); }); }
+  // Œil « maintenir pour voir » : le texte s’affiche tant que le doigt (ou la touche) reste posé, puis redevient des points.
+  function oeilHTML(champ) {
+    return '<button type="button" class="oeil" data-oeil="' + champ + '" aria-label="Maintenir pour voir le code" title="Maintenir pour voir le code">' + I.eye + '</button>';
+  }
+  function montrerCode(champ, on) {
+    const el = document.getElementById(champ);
+    if (el) el.type = on ? 'text' : 'password';
+    const b = document.querySelector('[data-oeil="' + champ + '"]');
+    if (b) b.classList.toggle('actif', !!on);
+  }
+  function cacherCodes() { document.querySelectorAll('[data-oeil].actif').forEach((b) => montrerCode(b.dataset.oeil, false)); }
+  document.addEventListener('pointerdown', (ev) => {
+    const b = ev.target instanceof Element ? ev.target.closest('[data-oeil]') : null;
+    if (!b) return;
+    ev.preventDefault();   // le clavier reste ouvert sur le champ
+    montrerCode(b.dataset.oeil, true);
+  });
+  ['pointerup', 'pointercancel'].forEach((t) => document.addEventListener(t, cacherCodes));
+  document.addEventListener('keydown', (ev) => {
+    const cible = ev.target instanceof Element ? ev.target : null;
+    if (cible && (ev.key === ' ' || ev.key === 'Enter') && cible.matches('[data-oeil]')) { ev.preventDefault(); montrerCode(cible.dataset.oeil, true); }
+  });
+  document.addEventListener('keyup', (ev) => {
+    const cible = ev.target instanceof Element ? ev.target : null;
+    if (cible && (ev.key === ' ' || ev.key === 'Enter') && cible.matches('[data-oeil]')) cacherCodes();
+  });
+  window.addEventListener('blur', cacherCodes);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) cacherCodes(); });
+  function formStatus() { return '<div id="formstatus" class="status status-alerte" hidden></div>'; }
+  // Alerte : erreur présentée sobrement (titre, explication, progression des essais), à la place du bandeau rouge plein.
+  function alerteHTML(titre, texte, essais) {
+    const icone = '<span class="rico danger">' + svg('<circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16.5h.01"/>') + '</span>';
+    if (!titre) return '<div class="alerte alerte-seul" role="alert">' + icone + '<div class="alerte-corps"><span class="alerte-texte-seul">' + texte + '</span></div></div>';
+    const barres = essais ? '<div class="alerte-essais">' + Array.from({ length: essais.total }, (_, i) => '<i' + (i < essais.n ? ' class="on"' : '') + '></i>').join('') + '<span class="alerte-compte">Essai ' + essais.n + ' sur ' + essais.total + '</span></div>' : '';
+    return '<div class="alerte" role="alert">' + icone + '<div class="alerte-corps"><b class="alerte-titre">' + titre + '</b><span class="alerte-texte">' + texte + '</span>' + barres + '</div></div>';
+  }
   function pendingBanner() {
     const p = pendingAll().find((x) => x.type === 'ff-request' || x.type === 'remote-claim');
     return p ? '<div class="pending-stack">' + noticeHTML(p) + '</div>' : '';
@@ -1255,7 +1426,7 @@ button.chip{cursor:pointer;font:inherit}
       'ff-request': ['Une personne a scanné votre identité', 'Vérifier et répondre', 'demande'],
       'remote-claim': [esc(libelleInvitation(p) || 'Quelqu’un') + ' a accepté votre invitation', p.ok ? 'Envoyer le code, dans l’appli' : 'Voir la demande', 'lien-ouvert'],
       'remote-sent': [p.confirme ? 'Mots confirmés par la personne' : 'Demande envoyée', 'Voir l’attente', 'attente'],
-      'verif': [esc(p.peerPseudo || 'La personne') + ' vous demande des mots', 'Les lire à voix haute', 'verif'],
+      'verif': [esc(p.peerPseudo || 'La personne') + ' vous demande des mots', 'Toucher les mots demandés', 'verif'],
       'code': ['Code reçu', 'Finir l’invitation', 'finir'],
       'code-envoye': [esc(p.name || 'La personne') + ' a reçu son code', 'Pas encore ajouté : la personne doit toucher « Finir l’invitation »', 'lien-ouvert'],
       'ff-accepted': [esc(p.peerPseudo || 'La personne') + ' a accepté votre demande', 'Comparer les mots', 'verifier-ff'],
@@ -1632,7 +1803,8 @@ button.chip{cursor:pointer;font:inherit}
         '<div class="input-row"><input id="pseudo" class="field" value="' + esc(S.draftPseudo) + '" autocomplete="off"><button class="btn btn-secondary btn-inline" data-act="regen" aria-label="Générer un pseudo">' + I.refresh + '<span>Autre pseudo</span></button></div>' +
         '<p class="hint">C’est le seul nom que les autres voient.</p>' +
         '<label class="label" for="s1">Code secret</label>' +
-        '<input id="s1" class="field" type="password" autocomplete="new-password" placeholder="8 caractères minimum, lettres et chiffres">' +
+        '<div class="champ-oeil"><input id="s1" class="field" type="password" autocomplete="new-password" placeholder="8 caractères minimum, lettres et chiffres">' + oeilHTML('s1') + '</div>' +
+        jaugeCodeHTML('s1') +
         '<p class="hint">Au moins 8 caractères, lettres et chiffres mélangés. Les majuscules comptent.</p>' +
         '<label class="label" for="s2">Répétez le code secret</label>' +
         '<input id="s2" class="field" type="password" autocomplete="new-password">' +
@@ -1641,7 +1813,7 @@ button.chip{cursor:pointer;font:inherit}
         formStatus() +
       '</div>' +
       qrDecorCard() +
-      '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="create">Créer mon identité</button>' +
+      '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="create">' + libelleCreation() + '</button>' +
         (S.arg === 'invite' ? '' : S.arg === 'sauvegarde'
           ? '<button class="btn btn-ghost" data-act="go" data-arg="creer">Je n’ai pas de sauvegarde</button>'
           : '<button class="btn btn-ghost" data-act="go" data-arg="creer|sauvegarde">J’ai une sauvegarde de mes contacts</button>') +
@@ -1652,10 +1824,11 @@ button.chip{cursor:pointer;font:inherit}
     const v = etatVerrou();
     const attente = attenteRestante();
     if (attente > 0) setTimeout(surveillerAttente, 0);
-    const msg = S.verrouMessage ? notice('err', esc(S.verrouMessage)) : '';
+    const essai = /^(.*?)\s*Essai (\d+) sur (\d+)\.?$/.exec(S.verrouMessage || '');
+    const msg = S.verrouMessage ? (essai ? alerteHTML('Code incorrect', esc(essai[1]), { n: Number(essai[2]), total: Number(essai[3]) }) : alerteHTML('Attention', esc(S.verrouMessage))) : '';
     const effaces = v.efface ? notice('info', 'Vos messages reçus ont été effacés, après trois erreurs. Vos contacts sont toujours là.') : '';
-    const attenteHtml = attente > 0 ? notice('err', 'Trop d’essais. Réessayez dans <span id="compte-attente">' + dureeAttente(attente) + '</span>.') : '';
-    const avertissement = v.n === 2 && attente === 0 ? notice('err', 'Attention : au prochain essai raté, tous vos messages reçus seront effacés.') : '';
+    const attenteHtml = attente > 0 ? alerteHTML('Trop d’essais', 'Réessayez dans <span id="compte-attente">' + dureeAttente(attente) + '</span>.') : '';
+    const avertissement = v.n === 2 && attente === 0 ? alerteHTML('Attention', 'Au prochain essai raté, tous vos messages reçus seront effacés.') : '';
     const bloque = attente > 0 ? ' disabled' : '';
     return '<div class="screen center-col" style="justify-content:center;flex:1">' +
       '<div class="brand" style="padding:0;justify-content:center">' + LOGO + '<span>Pli Scellé</span></div>' +
@@ -1690,10 +1863,11 @@ button.chip{cursor:pointer;font:inherit}
     if (actif) return '<div class="screen">' + topbar({ back: 'identite', title: 'Code d’urgence' }) + titre +
       '<section class="card"><p class="hint">Activé sur cet appareil.</p></section><div class="dock stack" style="position:static"><button class="btn btn-danger" data-act="urgencesupprimer">Supprimer le code d’urgence</button></div></div>';
     return '<div class="screen">' + topbar({ back: 'identite', title: 'Code d’urgence' }) + titre +
-      (optionAcquise('codeUrgence') ? '' : coutHTML('codeUrgence')) + '<div class="card form"><label class="label" for="uact">Votre code secret actuel</label><input id="uact" class="field" type="password" autocomplete="off">' +
-      '<label class="label" for="u1">Code d’urgence</label><input id="u1" class="field" type="password" autocomplete="new-password" placeholder="8 caractères minimum, lettres et chiffres">' +
+      (optionAcquise('codeUrgence') ? '' : paiementHTML('codeUrgence')) + '<div class="card form"><label class="label" for="uact">Votre code secret actuel</label><input id="uact" class="field" type="password" autocomplete="off">' +
+      '<label class="label" for="u1">Code d’urgence</label><div class="champ-oeil"><input id="u1" class="field" type="password" autocomplete="new-password" placeholder="8 caractères minimum, lettres et chiffres">' + oeilHTML('u1') + '</div>' +
+      jaugeCodeHTML('u1') +
       '<label class="label" for="u2">Répétez le code d’urgence</label><input id="u2" class="field" type="password" autocomplete="new-password">' + formStatus() + '</div>' +
-      '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="urgenceenregistrer">Enregistrer le code d’urgence</button></div>' +
+      boutonsPaiement('codeUrgence', 'urgenceenregistrer', 'Enregistrer le code d’urgence') +
     '</div>';
   }
   // Où en est une demande de reprise, pour une ligne « lien à reprendre ».
@@ -1831,7 +2005,7 @@ button.chip{cursor:pointer;font:inherit}
       '</div>';
     }
     return '<div class="screen">' + topbar({ back: 'ajouter', title: 'Scanner un QR code' }) +
-      '<p class="lead">Photographiez le QR code de la personne, ou choisissez son image. L’appli reconnaît seule s’il s’agit d’une personne présente ou d’une invitation.</p>' +
+      '<p class="lead">Photographiez le QR code de la personne, ou choisissez son image. L’appli reconnaît seule une invitation.</p>' +
       (inv ? notice('info', 'Invitation reçue. Envoyez votre demande : la personne vous enverra son code ensuite, dans l’appli.') : '') +
       '<section class="card step-card"><div class="step-head"><span class="step-n">1</span><b>Lire le QR code</b></div>' +
         '<label class="btn btn-primary file-btn">' + I.camera + '<span>Ouvrir l’appareil photo</span><input id="photo" class="sr-only" type="file" accept="image/*" capture="environment"></label>' +
@@ -1865,7 +2039,7 @@ button.chip{cursor:pointer;font:inherit}
     const fini = pendingAll().some((p) => p.type === 'remote-sent' && p.fini);
     // Les 6 mots se calculent des deux côtés à partir des deux clés : le scanneur les voit dès l’envoi, en même temps que la personne.
     const aInvitation = pendingAll().some((p) => p.type === 'remote-sent');
-    const words = S.words && S.words.length ? (aInvitation ? wordsBlock('Votre empreinte', 'Rien à toucher ici. La personne qui invite vous demandera trois de ces mots : vous les toucherez alors sur votre écran.') : wordsBlock('Mots d’empreinte à comparer','Comparez-les une seule fois, à voix haute ou au téléphone. S’ils sont identiques sur les deux écrans, vous pouvez communiquer en toute sécurité.')) : '';
+    const words = S.words && S.words.length ? (aInvitation ? wordsBlock('Votre empreinte', 'Rien à toucher ici. La personne qui invite vous demandera trois de ces mots : vous les toucherez alors sur votre écran.') : wordsBlock('Mots d’empreinte à comparer','Comparez-les sur les deux écrans, une seule fois. S’ils sont identiques, vous pouvez communiquer en toute sécurité.')) : '';
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Demande envoyée' }) +
       '<div class="progress"><div class="pstep done"><span class="dot">' + '✓' + '</span><div><b>Demande envoyée</b><span>Votre demande a bien été transmise.</span></div></div>' +
         (confirme ? '<div class="pstep done"><span class="dot">✓</span><div><b>Mots confirmés par la personne</b><span>La personne a comparé les mots : rien à faire de votre côté.</span></div></div>' : '<div class="pstep now"><span class="dot">2</span><div><b>Confirmation de la personne</b><span>La personne vérifie les mots de son côté.</span></div></div>') +
@@ -1881,7 +2055,7 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Demande reçue' }) +
       '<div><h1>Une personne a scanné votre identité</h1><p class="lead" style="margin-top:6px">Vérifiez qu’elle est bien devant vous, puis comparez les mots.</p></div>' +
       personCard(p.peerPseudo, 'Code vérifié') + nameField() +
-      wordsBlock('Mots d’empreinte à comparer','Comparez-les une seule fois, à voix haute ou au téléphone. S’ils sont identiques sur les deux écrans, vous pouvez communiquer en toute sécurité.') +
+      wordsBlock('Mots d’empreinte à comparer','Comparez-les sur les deux écrans, une seule fois. S’ils sont identiques, vous pouvez communiquer en toute sécurité.') +
       '<div class="dock stack"><button class="btn btn-primary" data-act="acceptff" data-arg="' + esc(p.pid) + '">Les mots sont identiques</button><button class="btn btn-danger" data-act="refuseff" data-arg="' + esc(p.pid) + '">Refuser</button></div>' +
     '</div>';
   }
@@ -1891,7 +2065,7 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Ajouter ce contact' }) +
       '<div><h1>Ajouter ce contact</h1><p class="lead" style="margin-top:6px">La personne a accepté. Comparez les mots avant de continuer.</p></div>' +
       personCard(p.peerPseudo, 'Accepté') + nameField() +
-      wordsBlock('Mots d’empreinte à comparer','Comparez-les une seule fois, à voix haute ou au téléphone. S’ils sont identiques sur les deux écrans, vous pouvez communiquer en toute sécurité.') +
+      wordsBlock('Mots d’empreinte à comparer','Comparez-les sur les deux écrans, une seule fois. S’ils sont identiques, vous pouvez communiquer en toute sécurité.') +
       '<div class="dock stack"><button class="btn btn-primary" data-act="confirmff" data-arg="' + esc(p.pid) + '">Les mots sont identiques</button><button class="btn btn-danger" data-act="drop" data-arg="' + esc(p.pid) + '">Ce n’est pas la bonne personne</button></div>' +
     '</div>';
   }
@@ -1976,7 +2150,7 @@ button.chip{cursor:pointer;font:inherit}
     if (!p) return viewAccueil();
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation acceptée' }) +
       '<div><h1>Vous pouvez écrire à ' + esc(p.peerPseudo) + '</h1><p class="lead" style="margin-top:6px">' + (p.type === 'remote-accepted' ? 'Votre invitation est acceptée. Donnez un nom à cette personne pour l’ajouter à vos contacts.' : 'Le code a été vérifié à la connexion. Comparez les mots, puis donnez un nom pour ajouter ce contact.') + '</p></div>' +
-      (p.type !== 'remote-accepted' && S.words && S.words.length ? wordsBlock('Mots d’empreinte à comparer','Comparez-les une seule fois, à voix haute ou au téléphone. S’ils sont identiques sur les deux écrans, vous pouvez communiquer en toute sécurité.') : '') +
+      (p.type !== 'remote-accepted' && S.words && S.words.length ? wordsBlock('Mots d’empreinte à comparer','Comparez-les sur les deux écrans, une seule fois. S’ils sont identiques, vous pouvez communiquer en toute sécurité.') : '') +
       nameField() +
       '<div class="dock"><button class="btn btn-primary" data-act="confirmremote" data-arg="' + esc(p.pid) + '">Ajouter ce contact</button></div>' +
     '</div>';
@@ -2021,6 +2195,15 @@ button.chip{cursor:pointer;font:inherit}
         ? esc(lien.name) + ' a supprimé son identité : le lien est en pause. Vous pourrez écrire dès qu’il aura repris le lien.'
         : 'Lien à réactiver : touchez « Réactiver les liens » dans l’accueil avant d’écrire.') + '</div>';
     }
+    // Date et heure de maintenant, en heure locale : valeurs par défaut du formulaire d’événement.
+    const quandHTML = () => {
+      const d = new Date();
+      const p = (n) => String(n).padStart(2, '0');
+      const jour = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+      const heure = p(d.getHours()) + ':' + p(d.getMinutes());
+      return '<div class="event-when"><div class="event-cel"><label class="event-lab" for="evDate">Date</label><input id="evDate" class="field" type="date" value="' + jour + '"></div>' +
+        '<div class="event-cel"><label class="event-lab" for="evHeure">Heure</label><input id="evHeure" class="field event-heure" type="time" value="' + heure + '"></div></div>';
+    };
     const on = S.once !== false;
     return '<div class="composer">' +
       '<div class="composer-tools">' +
@@ -2028,7 +2211,7 @@ button.chip{cursor:pointer;font:inherit}
       '</div>' +
       (S.plusOpen ? plusFeuilleHTML(cid) : '') +
       '<div id="linkRow" class="link-row"' + (S.linkOpen ? '' : ' hidden') + '><input id="linkIn" class="field" placeholder="Adresse du lien" inputmode="url" autocomplete="off"><button class="btn btn-secondary btn-send" type="button" data-act="addlink">Ajouter</button></div>' +
-      '<div id="eventRow" class="event-row"' + (S.eventOpen ? '' : ' hidden') + '><input id="evTitre" class="field" placeholder="Titre de l’événement" maxlength="60" autocomplete="off"><input id="evQuand" class="field" type="datetime-local" aria-label="Date et heure"><button class="btn btn-secondary" type="button" data-act="addevent">Ajouter l’événement</button></div>' +
+      '<div id="eventRow" class="event-row"' + (S.eventOpen ? '' : ' hidden') + '><input id="evTitre" class="field" placeholder="Titre de l’événement" maxlength="60" autocomplete="off">' + quandHTML() + '<div class="event-actions"><button class="btn btn-ghost" type="button" data-act="fermerevent">Annuler</button><button class="btn btn-secondary" type="button" data-act="addevent">Ajouter l’événement</button></div></div>' +
       '<div id="attachRow" class="attach-row">' + attachChipsHTML() + '</div>' +
       (S.voice ? voiceBarHTML(cid) : '<div class="composer-row">' +
         '<button class="btn-plus" type="button" data-act="plusmenu" aria-label="Ajouter une photo, un document ou un lien">+</button>' +
@@ -2148,8 +2331,8 @@ button.chip{cursor:pointer;font:inherit}
   function motsEmpreinteHTML(c) {
     return (S.motsCle && S.motsCle.cid === c.cid ? wordsBlock('Mots d’empreinte', [
         'Ces six mots forment l’empreinte de votre conversation. Ils sont calculés à partir des clés de chiffrement des deux personnes, et doivent être identiques sur les deux téléphones.',
-        'Une seule comparaison suffit, au moment d’ajouter le contact : lisez les six mots à voix haute, ou au téléphone, dans le même ordre. S’ils sont identiques des deux côtés, personne ne s’est intercalé pour lire ou modifier vos messages : vous pouvez alors communiquer en toute sécurité.',
-        'Vous n’avez rien à revérifier ensuite, quel que soit le nombre de messages. Il faudra seulement recommencer si l’un de vous recrée son identité. Si un seul mot diffère, ne faites pas confiance à ce lien : coupez-le, puis recréez-le ensemble, en vous voyant ou en vous entendant.',
+        'Une seule comparaison suffit, au moment d’ajouter le contact. Que ce soit en face à face ou à distance, l’appli choisit trois de ces six mots et les demande : l’une des deux personnes les touche sur son écran, et l’appli compare elle-même. S’ils sont identiques, personne ne s’est intercalé pour lire ou modifier vos messages : vous pouvez alors communiquer en toute sécurité.',
+        'Vous n’avez rien à revérifier ensuite, quel que soit le nombre de messages. Il faudra seulement recommencer si l’un de vous recrée son identité. Si les mots ne sont pas identiques, ne faites pas confiance à ce lien : coupez-le, puis recréez-le ensemble, face à face ou à distance.',
         'Pli Scellé chiffre les messages sur votre téléphone : seuls vous deux pouvez les lire. Il n’y a ni compte, ni numéro de téléphone, et le serveur qui transporte les messages ne voit que du contenu chiffré.'
       ], S.motsCle.mots) : '');
   }
@@ -2259,7 +2442,7 @@ button.chip{cursor:pointer;font:inherit}
       '<section><div class="section-title">Accès à l’appli</div><div class="list">' +
         (S.bioAvail ? '<button class="rowlink" data-act="go" data-arg="biometrie"><span class="rico">' + I.finger + '</span><span>Empreinte ou Face ID</span><span class="state">' + (LS.get('bio', null) ? 'Activé' : 'Désactivé') + '</span>' + I.chev + '</button>' : '') +
         '<button class="rowlink" data-act="go" data-arg="urgence"><span class="rico">' + I.shield + '</span><span class="row-text"><span class="row-title">Code d’urgence</span><span class="row-sub">' + (LS.get('urgence', null) ? 'Activé' : 'Désactivé') + '</span></span>' + tarifHTML('codeUrgence') + I.chev + '</button></div></section>' +
-      '<section><div class="section-title">Identités</div><div class="list"><button class="rowlink" data-act="go" data-arg="ajouteridentite"><span class="rico">' + I.user + '</span><span>Créer un agent double' + (creditsAgent() ? '<span class="row-sub">Payé : touchez pour le créer</span>' : '') + '</span>' + tarifHTML('agentDouble') + I.chev + '</button></div></section>' +
+      '<section><div class="section-title">Identités</div><div class="list"><button class="rowlink" data-act="go" data-arg="ajouteridentite"><span class="rico">' + svg(BQ_PICTOS.personnes) + '</span><span>Créer un agent double' + (creditsAgent() ? '<span class="row-sub">Payé : touchez pour le créer</span>' : '') + '</span>' + tarifHTML('agentDouble') + I.chev + '</button></div></section>' +
       '<section><div class="section-title">Alertes</div><div class="list"><button class="rowlink" data-act="togglesound"><span class="rico warn">' + I.volume + '</span><span>Sonnerie à la réception</span><span class="state">' + (getPrefs().sound ? 'Activée' : 'Désactivée') + '</span>' + I.chev + '</button><button class="rowlink" data-act="go" data-arg="sonnerie"><span class="rico warn">' + I.music + '</span><span>Choisir la sonnerie</span><span class="state">' + TONES[getPrefs().tone].label + '</span>' + I.chev + '</button></div><div class="list" style="margin-top:12px"><button class="rowlink" data-act="togglenotif"><span class="rico warn">' + I.bell + '</span><span>Notifications quand l’appli est fermée</span><span class="state">' + (getPrefs().notif ? (getPrefs().push ? 'Activées' : 'En attente') : 'Désactivées') + '</span>' + I.chev + '</button></div>' + notifHintHTML() + '<p class="hint">La sonnerie joue à chaque message ou demande reçus, tant que l’appli est ouverte (et vibre sur Android).</p></section>' +
       '<section><div class="section-title">Sauvegarde</div><div class="list"><button class="rowlink" data-act="go" data-arg="sauvegarde"><span class="rico">' + I.download + '</span><span>Sauvegarder mes contacts</span>' + tarifHTML('sauvegarde') + I.chev + '</button><button class="rowlink" data-act="go" data-arg="installer"><span class="rico">' + I.upload + '</span><span>Installer une sauvegarde</span>' + I.chev + '</button></div><p class="hint">' + (LS.get('lastBackup', 0) ? 'Dernière sauvegarde : ' + esc(new Date(LS.get('lastBackup', 0)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })) : 'Pas encore de sauvegarde. Sans elle, vos contacts ne sont que dans ce navigateur.') + '</p></section>' +
       '<section><div class="section-title">Sécurité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="supprimer"><span class="rico danger">' + I.trash + '</span><span>Supprimer mon identité</span>' + I.chev + '</button></div></section>' + (idActif === 'b' ? '<section><div class="section-title">Liens et identité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="couper-liens"><span class="rico danger">' + I.unlink + '</span><span>Couper tous les liens</span>' + I.chev + '</button></div></section>' : '') +
@@ -2339,7 +2522,7 @@ button.chip{cursor:pointer;font:inherit}
     return '<div class="screen">' + topbar({ back: del ? 'supprimer' : 'identite', title: del ? 'Supprimer mon identité' : 'Sauvegarder mes contacts' }) +
       '<div><h1>' + (del ? 'Gardez vos contacts' : 'Sauvegarde de vos contacts') + '</h1><p class="lead" style="margin-top:6px">' + (del ? 'Avant de supprimer votre identité, copiez cette sauvegarde. Elle permet de reprendre le lien avec chaque contact.' : 'Elle contient vos contacts et de quoi reprendre le lien avec chacun. Votre code secret la protège : sans lui, le fichier ne s’ouvre pas. Il ne s’installe qu’une fois.') + '</p></div>' +
       (when ? notice('ok', 'Dernière sauvegarde : ' + esc(when)) : '') +
-      (!del && !optionAcquise('sauvegarde') ? coutHTML('sauvegarde') : '') +
+      (!del && !optionAcquise('sauvegarde') ? paiementHTML('sauvegarde') : '') +
       (S.backupMessage ? notice(S.backupMessage.kind, esc(S.backupMessage.text)) : '') +
       (S.backupText ? '<section class="card form"><span class="label">Fichier prêt</span><p class="hint">pli-sauvegarde-' + new Date().toISOString().slice(0, 10) + '.json · ' + enc.encode(S.backupText).length + ' octets</p><p class="hint">Dans le menu qui s’ouvre, touchez « Enregistrer dans Fichiers ».</p></section>' +
         '<div class="dock"><button class="btn btn-primary" data-act="enregistrerfichier">Enregistrer le fichier</button></div>' +
@@ -2350,7 +2533,7 @@ button.chip{cursor:pointer;font:inherit}
           ? (S.backupText ? '' : '<div class="dock"><button class="btn btn-primary" data-act="go" data-arg="identite">Terminé</button></div>')
           : '<section class="card form"><label class="label" for="bcode">Code secret : il chiffre cette sauvegarde</label><input id="bcode" class="field" type="password" autocomplete="off">' + formStatus() +
             '<p class="hint">Vous le retaperez pour ouvrir ce fichier. L’application ne le garde pas.</p></section>' +
-            '<div class="dock"><button class="btn btn-primary" data-act="backup">Préparer la sauvegarde</button></div>')) +
+            boutonsPaiement('sauvegarde', 'backup', 'Préparer la sauvegarde'))) +
     '</div>';
   }
   // Juste après la création : l’identité, le pseudo, et ce qui reste privé. Rien de nouveau à voir ici : tout se fait ensuite.
@@ -2453,6 +2636,7 @@ button.chip{cursor:pointer;font:inherit}
     app.classList.toggle('meme-ecran', same);   // même écran redessiné : il ne rejoue pas son apparition
     hydrateVoices();
     Object.keys(keep).forEach((id) => { const el = document.getElementById(id); if (el) el.value = keep[id]; });
+    majJauges();
     appliquerRecherche();
     if (S.screen === 'nouveau' && !same) { const r = document.getElementById('recherche'); if (r) r.focus({ preventScroll: true }); }
     autoGrow();          // la zone reprend la hauteur du brouillon restauré…
@@ -2467,8 +2651,8 @@ button.chip{cursor:pointer;font:inherit}
   function setStatus(id, kind, text) {
     const el = document.getElementById(id);
     if (!el) return flashNow({ t: text, ok: kind === 'ok' });
-    el.className = 'status status-' + kind;
-    el.textContent = text;
+    if (kind === 'err') { el.className = 'status status-alerte'; el.innerHTML = alerteHTML(null, esc(text)); }
+    else { el.className = 'status status-' + kind; el.textContent = text; }
     el.hidden = false;
   }
   function flashNow(f) {
@@ -2531,6 +2715,11 @@ button.chip{cursor:pointer;font:inherit}
   // ses contacts sont prévenus si c’est possible, puis ses données sont effacées. Rien n’est effacé avant l’inscription.
   async function actAjouterIdentite(pseudo, code) {
     if (await codeDejaUtilise(code, 'b')) return setStatus('formstatus', 'err', 'Ce code est déjà celui de votre autre identité. Choisissez-en un autre.');
+    // Le code d’urgence de la première identité efface tout l’appareil à l’ouverture : l’agent double ne peut pas le reprendre.
+    const ouverte = idActif; idActif = 'a';
+    const urgence = LS.get('urgence', null);
+    idActif = ouverte;
+    if (urgence && await codeCorrect(urgence, code)) return setStatus('formstatus', 'err', 'Ce code est déjà votre code d’urgence. Choisissez-en un autre.');
     let prete;
     try { prete = await preparerIdentite(pseudo, code); }
     catch (e) { return setStatus('formstatus', 'err', 'Création impossible : le relais ne répond pas. Réessayez.'); }
@@ -2595,9 +2784,9 @@ button.chip{cursor:pointer;font:inherit}
   }
   function viewAjouterIdentite() {
     return '<div class="screen">' + topbar({ back: 'identite', title: 'Créer un agent double' }) +
-      '<div><h1>Créer un agent double</h1><p class="lead" style="margin-top:6px">Un seul agent double à la fois sur cet appareil. S’il en existe déjà un, il sera effacé et remplacé, et ses contacts seront prévenus si possible.</p></div>' + (creditsAgent() ? notice('ok', 'Votre agent double est déjà payé : rien ne sera débité à la création.') : coutHTML('agentDouble')) +
+      '<div><h1>Créer un agent double</h1><p class="lead" style="margin-top:6px">Un seul agent double à la fois sur cet appareil. S’il en existe déjà un, il sera effacé et remplacé, et ses contacts seront prévenus si possible.</p></div>' + paiementHTML('agentDouble') +
       '<div class="card form"><label class="label" for="acode">Votre code secret actuel</label><input id="acode" class="field" type="password" autocomplete="off">' + formStatus() + '</div>' +
-      '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="ajouterverifier">Continuer</button></div>' +
+      boutonsPaiement('agentDouble', 'ajouterverifier', 'Continuer') +
     '</div>';
   }
   async function actVerifierAjout() {
@@ -3337,10 +3526,10 @@ button.chip{cursor:pointer;font:inherit}
     const f = m.fichier || {};
     const doc = f.genre === 'document';
     const ico = '<span class="fichier-ico" aria-hidden="true">' + I.file + '</span>';
-    const detail = esc(f.nom || '') + ' · ' + tailleFichier(f.taille);
+    const detail = '<span class="fichier-ligne"><span class="fichier-nom">' + esc(f.nom || '') + '</span><span class="fichier-taille"> · ' + tailleFichier(f.taille) + '</span></span>';
     if (m.dir === 'out') return '<div class="tile mine">' + ico + '<span class="tt"><b>' + (doc ? 'Document envoyé' : 'Photo envoyée') + '</b><span class="hint">' + detail + (f.apercu ? ' · aperçu seulement, effacée à l’ouverture' : ' · téléchargé une fois, puis effacé') + '</span></span></div>';
-    if (m.state === 'new' && f.apercu) return '<button class="tile unread" data-act="voirfichier" data-arg="' + esc(m.mid) + '">' + ico + '<span class="tt"><b>Photo reçue</b><span class="hint">' + detail + '</span><span class="hint">Aperçu seulement : vous pouvez la voir, pas la télécharger.</span><span class="nouveau">Nouveau</span></span></button>';
-    if (m.state === 'new') return '<button class="tile unread" data-act="telechargerfichier" data-arg="' + esc(m.mid) + '">' + ico + '<span class="tt"><b>' + (doc ? 'Document reçu' : 'Photo reçue') + '</b><span class="hint">' + detail + '</span><span class="hint" id="fp-' + esc(m.mid) + '">Téléchargez le fichier : il sera supprimé juste après.</span><span class="nouveau">Nouveau</span></span></button>';
+    if (m.state === 'new' && f.apercu) return '<button class="tile unread" data-act="voirfichier" data-arg="' + esc(m.mid) + '">' + ico + '<span class="tt"><b>Photo reçue</b><span class="hint">' + detail + '</span><span class="hint">Aperçu seulement : vous pouvez la voir, pas la télécharger.</span><span class="fichier-action" id="fp-' + esc(m.mid) + '">' + (S.apercuEnCours === m.mid ? 'Ouverture…' : 'Voir l’aperçu') + '</span><span class="nouveau">Nouveau</span></span></button>';
+    if (m.state === 'new') return '<button class="tile unread" data-act="telechargerfichier" data-arg="' + esc(m.mid) + '">' + ico + '<span class="tt"><b>' + (doc ? 'Document reçu' : 'Photo reçue') + '</b><span class="hint">' + detail + '</span><span class="hint">Téléchargez le fichier : il sera supprimé juste après.</span><span class="fichier-action" id="fp-' + esc(m.mid) + '">' + (S.telechargement === m.mid ? 'Téléchargement…' : 'Télécharger') + '</span><span class="nouveau">Nouveau</span></span></button>';
     if (m.expire) return '<div class="tile read">' + ico + '<span class="tt"><b>' + (doc ? 'Document expiré' : 'Photo expirée') + '</b><span class="hint">Non téléchargé dans les 48 heures : il a été effacé</span></span></div>';
     if (m.vu) return '<div class="tile read">' + ico + '<span class="tt"><b>Photo vue</b><span class="hint">Aperçu terminé : elle a été effacée du relais</span></span></div>';
     return '<div class="tile read">' + ico + '<span class="tt"><b>' + (doc ? 'Document téléchargé' : 'Photo téléchargée') + '</b><span class="hint">Effacé du relais après le téléchargement</span></span></div>';
@@ -3357,6 +3546,7 @@ button.chip{cursor:pointer;font:inherit}
     const f = m.fichier;
     S.telechargement = mid;
     const afficher = (n) => { const el = document.getElementById('fp-' + mid); if (el) el.textContent = 'Téléchargement : ' + n + ' / ' + f.total; };
+    afficher(0);
     try {
       const key = await sharedKey(c.raw);
       const moi = await mailboxOf(S.me.raw);
@@ -3412,6 +3602,8 @@ button.chip{cursor:pointer;font:inherit}
     if (Date.now() - (m.ts || 0) > FICHIER_DUREE_MS) { marquer((x) => { x.state = 'gone'; x.goneAt = Date.now(); x.expire = true; }); return render(); }
     const f = m.fichier;
     S.apercuEnCours = mid;
+    const bouton = document.getElementById('fp-' + mid);
+    if (bouton) bouton.textContent = 'Ouverture…';
     let url = null;
     try {
       url = URL.createObjectURL(await recupererFichier(m, c));
@@ -3426,6 +3618,7 @@ button.chip{cursor:pointer;font:inherit}
       return render();
     }
     S.apercuEnCours = null;
+    if (bouton) bouton.textContent = 'Voir l’aperçu';
     const fond = document.createElement('div');
     fond.id = 'apercu-fichier';
     fond.className = 'apercu-fond';
@@ -3724,10 +3917,12 @@ button.chip{cursor:pointer;font:inherit}
     voicesend: (cid) => actSendVoice(cid),
     showlink: () => { S.linkOpen = !S.linkOpen; S.eventOpen = false; S.plusOpen = false; render(); const r = $('#linkRow'); if (r) { r.hidden = !S.linkOpen; if (S.linkOpen) $('#linkIn').focus(); } },
     showevent: () => { S.eventOpen = !S.eventOpen; S.linkOpen = false; S.plusOpen = false; S.plusMsg = ''; render(); const t = $('#evTitre'); if (S.eventOpen && t) t.focus(); },
+    fermerevent: () => { S.eventOpen = false; const champ = $('#evTitre'); if (champ) champ.value = ''; render(); },
     addevent: () => {
       const titre = ($('#evTitre') ? $('#evTitre').value : '').trim();
       if (!titre) { const t = $('#evTitre'); if (t) t.focus(); return; }
-      const quand = $('#evQuand') ? $('#evQuand').value : '';
+      const jour = $('#evDate') ? $('#evDate').value : '';
+      const quand = jour ? jour + 'T' + (($('#evHeure') && $('#evHeure').value) || '00:00') : '';
       const d = quand ? new Date(quand) : null;
       const quandTxt = d && !isNaN(d) ? d.toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
       S.attach = S.attach || [];
@@ -3811,7 +4006,7 @@ button.chip{cursor:pointer;font:inherit}
     render();
   });
   document.addEventListener('visibilitychange', () => { if (document.hidden) { stopVoice(true); arreterParArriere(); } else { poll(); verifierVersion(); } });
-  document.addEventListener('input', (ev) => { if (ev.target && ev.target.id === 'draft') { autoGrow(); syncComposerAct(); } if (ev.target && ev.target.id === 'recherche') appliquerRecherche(); });
+  document.addEventListener('input', (ev) => { if (ev.target && ev.target.id === 'draft') { autoGrow(); syncComposerAct(); } if (ev.target && ev.target.id === 'recherche') appliquerRecherche(); if (ev.target && (ev.target.id === 's1' || ev.target.id === 'u1')) majJauge(ev.target); });
 
   function tick() {
     const cd = document.getElementById('cd');

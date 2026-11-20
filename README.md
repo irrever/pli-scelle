@@ -12,9 +12,9 @@ Sur iPhone, pour recevoir les notifications quand l'appli est fermée : Safari �
 
 Tout se passe dans un seul écran, « Ajouter une personne » :
 
-- **Scanner un QR code** : photographiez le QR code de la personne, ou choisissez son image. L’appli reconnaît seule une invitation ou une personne présente. Touchez « Envoyer ma demande » : la demande part sans code. Le code viendra ensuite, dans l’appli.
+- **Scanner un QR code** : photographiez le QR code de la personne, ou choisissez son image. L’appli reconnaît seule une invitation. Touchez « Envoyer ma demande » : la demande part sans code. Le code viendra ensuite, dans l’appli.
 - **Mon QR code** : montrez-le à la personne, face à face, ou touchez « Envoyer le lien » pour le lui envoyer à distance. Le code se donne à part, ou se dit de vive voix.
-- Les six mots affichés des deux côtés doivent être identiques avant d’ajouter le contact.
+- Les six mots affichés des deux côtés doivent être identiques avant d’ajouter le contact. Que ce soit en face à face ou à distance, l’appli choisit trois de ces six mots et les demande : l’une des deux personnes les touche sur son écran, et l’appli compare elle-même.
 
 ## Le relais
 

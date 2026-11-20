@@ -37,7 +37,7 @@ La clé publiable dans `index.html` est publique par conception : la protection 
 
 - Une photo part jusqu'à 15 Mo, un document jusqu'à 25 Mo. Rien n'est recompressé : le fichier reçu est identique à l'original.
 - Le fichier est chiffré avec la clé du lien, puis envoyé par morceaux de 96 Ko dans la table `pli_pieces`. Le relais ne voit ni le nom du fichier ni son contenu : seulement des morceaux chiffrés, donc une taille approximative.
-- Le destinataire touche la tuile « Photo reçue » ou « Document reçu » : le fichier est reconstitué sur son téléphone, enregistré, puis effacé du relais. Il ne peut pas être téléchargé une seconde fois.
+- Le destinataire touche la tuile « Photo reçue » ou « Document reçu » : le fichier est reconstitué sur son téléphone, enregistré, puis effacé du relais. Il ne peut pas être téléchargé une seconde fois. Pour une photo, l’envoyeur peut choisir « Aperçu seul » : le destinataire la voit dans l’appli, sans bouton de téléchargement, et elle est effacée du relais à la fermeture. Ce n’est pas une protection absolue : une capture d’écran reste possible. Les documents restent téléchargeables.
 - Sans téléchargement, il est effacé au bout de 48 heures : côté relais (à chaque envoi et chaque lecture, et par `pli_pieces_purge()` si vous l'appelez à la main ou par `pg_cron`), côté appli (la tuile devient « Photo expirée »).
 - La table grossit avec les fichiers en attente, jusqu'à 48 heures. Surveillez la taille de la base du projet Supabase.
 
@@ -66,7 +66,7 @@ Pour changer de clés, il faut refaire l'inscription de chaque appareil : désac
 
 ## Garder ses contacts
 
-- **Sauvegarder** : Mon identité → « Sauvegarder mes contacts ». Le fichier, chiffré par votre code secret, contient vos contacts et de quoi reprendre le lien avec chacun. Gardez-le comme un mot de passe. L'option coûte 200 sceaux, une fois par identité (voir Boutique).
+- **Sauvegarder** : Mon identité → « Sauvegarder mes contacts ». Le fichier, chiffré par votre code secret, contient vos contacts et de quoi reprendre le lien avec chacun. Gardez-le comme un mot de passe. L'option coûte 200 sceaux à l'achat ou à l'activation, une fois par identité (voir Boutique).
 - **Supprimer son identité en gardant ses contacts** : Mon identité → Supprimer mon identité → « Garder mes contacts et supprimer ». Chaque contact passe en pause pendant 7 jours, sans être coupé. Il apparaît grisé dans « Liens en attente » et ne peut plus être ouvert.
 - **Reprendre** : après « Créer mon identité », l’appli propose « Installer ma sauvegarde ». Une sauvegarde ne s’installe qu’une fois : ensuite, les autres sauvegardes de la même identité sont refusées. Puis « Réactiver les liens » envoie la demande à chaque contact. Le lien repart sans nouveau QR code, tant que la personne n’a pas supprimé son identité de son côté.
 - **Limites** : si les deux personnes suppriment leur identité, il faut refaire un QR code. Après 7 jours de pause, le lien est retiré. Une sauvegarde faite avec une version antérieure de l’appli ne peut plus être installée.
@@ -79,7 +79,8 @@ Mon identité → « Voir les options et recharger ». Le solde, en sceaux, rest
 - Agent double : 500 sceaux à chaque création.
 - Code d'urgence : 300 sceaux, une fois par identité.
 - Sauvegarde des contacts : 200 sceaux, une fois par identité.
-- Pack complet : 900 sceaux (agent double, code d'urgence, sauvegarde). Pack sécurité : 450 sceaux (code d'urgence, sauvegarde). Refusés si le code d'urgence ou la sauvegarde est déjà acquis.
+- Pack complet : 900 sceaux (agent double, code d'urgence, sauvegarde). Pack sécurité : 450 sceaux (code d'urgence, sauvegarde). Un pack s'achète toujours, même si l'une de ses options est déjà là : chaque option du pack ajoute un crédit au compte.
+- Options : chaque achat ajoute un crédit au compte, même si l'option est déjà activée sur une identité. Activer une option sur une identité consomme un crédit du compte, sans rien débiter ; sans crédit, elle se paie à ce moment-là.
 
 Installer une sauvegarde ne coûte rien. Les achats ne sont pas encore branchés (`PAIEMENT_ACTIF` vaut `false` dans `index.html`) : les boutons affichent « Bientôt », et rien n'est débité.
 

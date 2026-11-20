@@ -274,7 +274,8 @@ button.chip{cursor:pointer;font:inherit}
 .bq-solde{background:var(--surface);border:1px solid var(--line-2);border-radius:22px;padding:20px 20px 18px;box-shadow:var(--shadow);display:flex;flex-direction:column}
 .bq-solde-haut{display:flex;align-items:center;justify-content:space-between}
 .bq-etiq{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
-.bq-sceau{width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#d6ebf2 0%,#7fb3c6 52%,#0b6b5c 100%);box-shadow:inset 0 0 0 3px var(--surface),inset 0 0 0 4px rgba(11,107,92,.45)}
+.bq-qr{flex:none;width:34px;height:34px}
+.bq-qr .qr-build{width:34px;padding:2px;border-radius:4px}
 .bq-solde-n{display:flex;align-items:baseline;gap:10px;margin:14px 0 2px}
 .bq-solde-n b{font-size:60px;font-weight:300;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums;color:var(--ink)}
 .bq-solde-n span{font-size:18px;color:var(--muted)}
@@ -296,6 +297,8 @@ button.chip{cursor:pointer;font:inherit}
 .bq-btn{margin-top:8px;font:inherit;font-size:13px;font-weight:600;border-radius:10px;padding:7px 11px;border:1px solid var(--accent);background:transparent;color:var(--accent);cursor:pointer;max-width:160px}
 .bq-btn.plein{background:var(--accent);color:var(--on-accent)}
 .bq-bientot,.bq-acquis{margin-top:8px;font-size:13px;color:var(--muted);font-weight:500}
+.bq-achete{display:inline-flex;align-items:center;gap:6px;opacity:.85;cursor:default;border-color:var(--line);color:var(--ink-2)}
+.bq-achete svg{width:16px;height:16px;flex:none}
 .bq-recharger:focus-visible,.bq-btn:focus-visible,.bq-prix-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .bq-solde-ligne{margin:0;font-size:14px;color:var(--muted)}
 .bq-solde-ligne b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
@@ -344,6 +347,10 @@ button.chip{cursor:pointer;font:inherit}
 .bubble-evt{display:inline-block;font-weight:600}
 .fichier-ico{width:52px;height:52px;flex:none;border-radius:8px;display:grid;place-items:center;background:var(--surface);color:var(--accent)}
 .fichier-ico svg{width:26px;height:26px}
+.apercu-fond{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));box-sizing:border-box}
+.apercu-img{max-width:100%;max-height:72vh;object-fit:contain;border-radius:8px;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.apercu-note{margin:0;color:#fff;font-size:15px;text-align:center}
+.chip-opt{height:22px;padding:0 8px;border:0;border-radius:999px;background:var(--surface);color:var(--accent);font-size:13px;font-weight:600;cursor:pointer}
 </style>
 <div id="app"><div class="screen"><p class="lead" style="padding-top:24px">Chargement…</p></div></div>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
@@ -372,7 +379,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v136';
+  const APP_VERSION = 'v137';
   // Monnaie de l’appli : une unité vaut 0,01 €, donc 10 € font 1 000 unités. Elle reste sur l’appareil : aucun compte, rien n’est envoyé.
   // Le nom n’est pas encore choisi : il ne s’écrit qu’ici (et dans les libellés générés).
   const MONNAIE = { un: 'sceau', pluriel: 'sceaux' };
@@ -400,11 +407,21 @@ button.chip{cursor:pointer;font:inherit}
     if (soldeMonnaie() < n) return false;
     return ecrireSolde(soldeMonnaie() - n);
   }
-  // Option de cette identité, payée une fois : valable tant qu’elle existe. true si elle est gratuite pour l’instant, déjà acquise, ou payée à l’instant.
+  // Crédits d’option dans le compte (partagés par les identités de ce téléphone) : chaque achat en ajoute un, même si l’option est déjà activée ici.
+  const creditsOption = (cle) => { const v = LSG.get('credits.' + cle, 0); return Number.isInteger(v) && v > 0 ? v : 0; };
+  const ecrireCreditsOption = (cle, n) => LSG.set('credits.' + cle, Math.max(0, n));
+  // Activer une option sur cette identité : déjà activée ici, elle est gratuite ; sinon un crédit du compte est consommé ; sinon elle se paie à l’instant.
   function acheterOptionAppareil(cle) {
     if (!PAIEMENT_ACTIF || optionAcquise(cle)) return true;
+    if (creditsOption(cle) > 0) { ecrireCreditsOption(cle, creditsOption(cle) - 1); return LS.set('acces.' + cle, true); }
     if (!debiter(COUTS[cle])) return false;
     return LS.set('acces.' + cle, true);
+  }
+  // Acheter une option pour le compte : débitée, elle ajoute un crédit, même si elle est déjà activée sur cette identité.
+  function acheterCreditOption(cle) {
+    if (!debiter(COUTS[cle])) return false;
+    ecrireCreditsOption(cle, creditsOption(cle) + 1);
+    return true;
   }
   // Création d’un agent double : un crédit déjà payé s’il en reste, sinon le coût en unités.
   const creationPrete = () => !PAIEMENT_ACTIF || creditsAgent() > 0 || soldeMonnaie() >= COUTS.agentDouble;
@@ -419,6 +436,7 @@ button.chip{cursor:pointer;font:inherit}
   const tarifHTML = (cle) => {
     if (cle === 'agentDouble' && creditsAgent() > 0) return '<span class="tarif paye">Payé</span>';
     if (cle !== 'agentDouble' && optionAcquise(cle)) return '<span class="tarif acquis">Acquis</span>';
+    if (cle !== 'agentDouble' && creditsOption(cle) > 0) return '<span class="tarif acquis">Crédit : ' + creditsOption(cle) + '</span>';
     return '<span class="tarif" aria-label="Coût : ' + libMonnaie(COUTS[cle]) + '">' + libMonnaie(COUTS[cle]) + '</span>';
   };
   let decompteTimer = null;   // décompte de l’effacement radical, dans « Mon identité »
@@ -2029,7 +2047,7 @@ button.chip{cursor:pointer;font:inherit}
     b.textContent = on ? 'Lecture unique' : 'Relisible';
   }
   function attachChipsHTML() {
-    return (S.attach || []).map((a, i) => '<span class="attach-chip"><span>' + esc(a.label) + '</span><button type="button" data-act="rmattach" data-arg="' + i + '" aria-label="Retirer">×</button></span>').join('') + (S.envoiProg ? '<span id="fenvoi" class="hint">' + esc(S.envoiProg) + '</span>' : '');
+    return (S.attach || []).map((a, i) => '<span class="attach-chip"><span>' + esc(a.label) + '</span>' + (a.kind === 'photo' && a.file ? '<button type="button" class="chip-opt" data-act="togglefichier" data-arg="' + i + '">' + (a.apercu ? 'Aperçu seul' : 'Téléchargeable') + '</button>' : '') + '<button type="button" data-act="rmattach" data-arg="' + i + '" aria-label="Retirer">×</button></span>').join('') + (S.envoiProg ? '<span id="fenvoi" class="hint">' + esc(S.envoiProg) + '</span>' : '');
   }
   function renderAttach() {
     const row = $('#attachRow');
@@ -2597,6 +2615,8 @@ button.chip{cursor:pointer;font:inherit}
   // Nombre avec espace insécable pour les milliers : « 1 000 ».
   const bqChiffre = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
   const bqLibelle = (n) => bqChiffre(n) + ' ' + (n > 1 ? MONNAIE.pluriel : MONNAIE.un);
+  // Crédits d’option dans le compte, sous le titre de l’option.
+  const compteOption = (cle) => { const n = creditsOption(cle); return n ? '<div class="bq-acc">Dans votre compte : ' + n + '</div>' : ''; };
   function bqLigne(titre, sous, prix, unite, action) {
     return '<div class="bq-ligne"><div class="bq-texte"><div class="bq-titre">' + titre + '</div>' + sous + '</div>' +
       '<div class="bq-prix"><div class="bq-prix-n">' + prix + '</div><div class="bq-prix-u">' + unite + '</div>' + action + '</div></div>';
@@ -2611,20 +2631,19 @@ button.chip{cursor:pointer;font:inherit}
     const payeAcc = credits ? '<div class="bq-acc">Payé ×' + credits + ' : touchez pour le créer.</div>' : '';
     const options = [
       bqLigne('Agent double', payeAcc + '<div class="bq-sub">À chaque création. Lié à l’identité. Effacé : à racheter.</div>', bqChiffre(COUTS.agentDouble), MONNAIE.pluriel, boutonBoutique('agentDouble', 'Acheter un crédit', false)),
-      bqLigne('Code d’urgence', '<div class="bq-sub">Valable tant que l’identité existe.</div>', bqChiffre(COUTS.codeUrgence), 'sceaux', optionAcquise('codeUrgence') ? '<span class="bq-acquis">Acquis</span>' : boutonBoutique('codeUrgence', 'Débloquer', false)),
-      bqLigne('Sauvegarde des contacts', '<div class="bq-sub">Valable tant que l’identité existe.</div>', bqChiffre(COUTS.sauvegarde), 'sceaux', optionAcquise('sauvegarde') ? '<span class="bq-acquis">Acquise</span>' : boutonBoutique('sauvegarde', 'Débloquer', false))
+      bqLigne('Code d’urgence', '<div class="bq-sub">Valable tant que l’identité existe.</div>' + compteOption('codeUrgence'), bqChiffre(COUTS.codeUrgence), 'sceaux', boutonBoutique('codeUrgence', 'Acheter', false)),
+      bqLigne('Sauvegarde des contacts', '<div class="bq-sub">Valable tant que l’identité existe.</div>' + compteOption('sauvegarde'), bqChiffre(COUTS.sauvegarde), 'sceaux', boutonBoutique('sauvegarde', 'Acheter', false))
     ].join('');
     const packs = ['complet', 'securite'].map((k) => {
       const p = PACKS[k];
-      const deja = p.contient.some((c) => c !== 'agentDouble' && optionAcquise(c));
       const economie = p.contient.reduce((t, c) => t + COUTS[c], 0) - p.prix;
       const contenu = p.contient.map((c) => nomsOptions[c]).join(', ');
-      return bqLigne(p.nom, '<div class="bq-sub">' + contenu.charAt(0).toUpperCase() + contenu.slice(1) + '</div><div class="bq-acc">Économie : ' + bqLibelle(economie) + '</div>', bqChiffre(p.prix), MONNAIE.pluriel, deja ? '<span class="bq-acquis">En partie acquis</span>' : boutonBoutique('pack:' + k, 'Acheter', true));
+      return bqLigne(p.nom, '<div class="bq-sub">' + contenu.charAt(0).toUpperCase() + contenu.slice(1) + '</div><div class="bq-acc">Économie : ' + bqLibelle(economie) + '</div>', bqChiffre(p.prix), MONNAIE.pluriel, boutonBoutique('pack:' + k, 'Acheter', true));
     }).join('');
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Boutique' }) +
       (PAIEMENT_ACTIF ? '' : notice('info', 'Pas encore branché : rien n’est débité.')) +
       '<section class="bq-solde" aria-label="Solde">' +
-        '<div class="bq-solde-haut"><span class="bq-etiq">Solde</span><span class="bq-sceau" aria-hidden="true"></span></div>' +
+        '<div class="bq-solde-haut"><span class="bq-etiq">Solde</span><div class="bq-qr" aria-hidden="true"><div class="qr-build">' + qrDecorCells() + '</div></div></div>' +
         '<div class="bq-solde-n"><b>' + bqChiffre(solde) + '</b><span>' + MONNAIE.pluriel + '</span></div>' +
         '<div class="bq-barre" role="img" aria-label="' + bqLibelle(solde) + ' sur ' + bqChiffre(complet) + ' pour le pack complet"><i style="width:' + pct + '%"></i></div>' +
         '<div class="bq-sous"><span>' + bqChiffre(solde) + '</span><span>Pack complet : ' + bqChiffre(complet) + '</span></div>' +
@@ -2632,7 +2651,7 @@ button.chip{cursor:pointer;font:inherit}
         '<button class="bq-recharger" type="button" data-act="go" data-arg="recharger">Recharger</button>' +
       '</section>' +
       '<div><div class="section-title">Options</div><div class="bq-liste">' + options + '</div><p class="hint">Restaurer une sauvegarde reste gratuit.</p></div>' +
-      '<div><div class="section-title">Packs</div><div class="bq-liste">' + packs + '</div><p class="hint">Refusé si une option est déjà acquise.</p></div>' +
+      '<div><div class="section-title">Packs</div><div class="bq-liste">' + packs + '</div><p class="hint">Chaque option du pack s’ajoute à votre compte.</p></div>' +
     '</div>';
   }
   // Recharger : six tuiles, trois par ligne. Le prix en euros n’apparaît que sur cet écran.
@@ -2647,7 +2666,7 @@ button.chip{cursor:pointer;font:inherit}
   const BQ_TEXTES = {
     200: { picto: 'nuage', accroche: ['Sauvegardez vos contacts'], detail: ['À l’abri, prêts à revenir.'] },
     300: { picto: 'bouclier', accroche: ['Effacez votre compte'], detail: ['Discret, il n’affiche rien.'] },
-    500: { picto: 'personnes', accroche: ['Créez une double identité', 'Double identité'], detail: ['Une seconde identité, cachée.', 'Une seconde, cachée.'] },
+    500: { picto: 'personnes', accroche: ['Créez une double identité', 'Double identité'], detail: ['Une seconde identité, cachée.', 'Une seconde identité, cachée.'] },
     1000: { picto: 'etoile', accroche: ['Pack complet'], detail: ['Les trois options, à prix réduit.', 'Trois options, à prix réduit.'] },
     2000: { picto: 'couches', accroche: ['Deux identités équipées', 'Deux identités'], detail: ['Deux packs complets, à prix réduit.', 'Deux packs complets.'] },
     5000: { picto: 'couches', accroche: ['Cinq identités équipées', 'Cinq identités'], detail: ['Cinq packs complets, à prix réduit.', 'Cinq packs complets.'] }
@@ -2681,18 +2700,16 @@ button.chip{cursor:pointer;font:inherit}
     if (cle.indexOf('recharge:') === 0) erreur = 'Les recharges ne sont pas encore branchées.';
     else if (cle.indexOf('pack:') === 0) erreur = acheterPack(cle.slice(5));
     else if (cle === 'agentDouble') { if (debiter(COUTS.agentDouble)) ajouterCredit(); else erreur = 'Solde insuffisant : il faut ' + libMonnaie(COUTS.agentDouble) + '.'; }
-    else if (optionAcquise(cle)) erreur = 'Déjà acquis sur cet appareil.';
-    else erreur = acheterOptionAppareil(cle) ? null : 'Solde insuffisant : il faut ' + libMonnaie(COUTS[cle]) + '.';
+    else erreur = acheterCreditOption(cle) ? null : 'Solde insuffisant : il faut ' + libMonnaie(COUTS[cle]) + '.';
     S.flash = erreur ? { t: erreur, ok: false } : { t: 'Achat fait. Le solde est mis à jour.', ok: true };
     go('boutique');
   }
-  // Pack : débité d’un coup, il donne ses options (et un crédit d’agent double s’il en contient un).
+  // Pack : débité d’un coup, il ajoute un crédit de chaque option au compte (et un crédit d’agent double s’il en contient un).
   function acheterPack(nom) {
     const p = PACKS[nom];
     if (!p) return 'Pack inconnu.';
-    if (p.contient.some((c) => c !== 'agentDouble' && optionAcquise(c))) return 'Un élément de ce pack est déjà acquis : achetez les autres séparément.';
     if (!debiter(p.prix)) return 'Solde insuffisant : il faut ' + libMonnaie(p.prix) + '.';
-    p.contient.forEach((c) => { if (c === 'agentDouble') ajouterCredit(); else LS.set('acces.' + c, true); });
+    p.contient.forEach((c) => { if (c === 'agentDouble') ajouterCredit(); else ecrireCreditsOption(c, creditsOption(c) + 1); });
     return null;
   }
   // Seconde identité, cachée : appui long de 2 secondes sur la carte « Mon identité », quand la première est ouverte.
@@ -3218,10 +3235,10 @@ button.chip{cursor:pointer;font:inherit}
         const envoi = await envoyerFichier(c, p, key);
         const nom = p.file.name.slice(0, 120);
         const type = (p.file.type || '').slice(0, 100);
-        const meta = await encryptFor(key, { id: envoi.id, nom: nom, type: type, taille: p.file.size, total: envoi.total, genre: p.kind, ts: envoi.debut });
+        const meta = await encryptFor(key, { id: envoi.id, nom: nom, type: type, taille: p.file.size, total: envoi.total, genre: p.kind, apercu: p.kind === 'photo' && p.apercu === true, ts: envoi.debut });
         await S.db.collection('box').add({ to: await mailboxOf(c.raw), from: S.me.raw, kind: 'fichier', ts: Date.now(), iv: meta.iv, ct: meta.ct });
         const all = msgsAll();
-        all.push({ mid: rid(10), cid: cid, dir: 'out', kind: 'fichier', fichier: { nom: nom, type: type, taille: p.file.size, genre: p.kind }, state: 'sent', ts: Date.now(), once: false });
+        all.push({ mid: rid(10), cid: cid, dir: 'out', kind: 'fichier', fichier: { nom: nom, type: type, taille: p.file.size, genre: p.kind, apercu: p.kind === 'photo' && p.apercu === true }, state: 'sent', ts: Date.now(), once: false });
         LS.set('msgs', all);
         S.attach = (S.attach || []).filter((a) => a !== p);
         S.envoiProg = '';
@@ -3310,7 +3327,7 @@ button.chip{cursor:pointer;font:inherit}
     const taille = Number(body.taille);
     if (id.length < 16 || id.length > 64 || !(total >= 1 && total <= 400) || !(taille >= 0 && taille <= max)) return false;
     const all = msgsAll();
-    all.push({ mid: docId, cid: c.cid, dir: 'in', kind: 'fichier', fichier: { id: id, nom: String(body.nom || 'fichier').slice(0, 120), type: String(body.type || '').slice(0, 100), taille: taille, total: total, genre: genre }, state: 'new', ts: body.ts || Date.now(), once: false });
+    all.push({ mid: docId, cid: c.cid, dir: 'in', kind: 'fichier', fichier: { id: id, nom: String(body.nom || 'fichier').slice(0, 120), type: String(body.type || '').slice(0, 100), taille: taille, total: total, genre: genre, apercu: genre === 'photo' && body.apercu === true }, state: 'new', ts: body.ts || Date.now(), once: false });
     LS.set('msgs', all);
     marqueConversation(c.cid, body.ts || Date.now());
     return true;
@@ -3321,9 +3338,11 @@ button.chip{cursor:pointer;font:inherit}
     const doc = f.genre === 'document';
     const ico = '<span class="fichier-ico" aria-hidden="true">' + I.file + '</span>';
     const detail = esc(f.nom || '') + ' · ' + tailleFichier(f.taille);
-    if (m.dir === 'out') return '<div class="tile mine">' + ico + '<span class="tt"><b>' + (doc ? 'Document envoyé' : 'Photo envoyée') + '</b><span class="hint">' + detail + ' · téléchargé une fois, puis effacé</span></span></div>';
+    if (m.dir === 'out') return '<div class="tile mine">' + ico + '<span class="tt"><b>' + (doc ? 'Document envoyé' : 'Photo envoyée') + '</b><span class="hint">' + detail + (f.apercu ? ' · aperçu seulement, effacée à l’ouverture' : ' · téléchargé une fois, puis effacé') + '</span></span></div>';
+    if (m.state === 'new' && f.apercu) return '<button class="tile unread" data-act="voirfichier" data-arg="' + esc(m.mid) + '">' + ico + '<span class="tt"><b>Photo reçue</b><span class="hint">' + detail + '</span><span class="hint">Aperçu seulement : vous pouvez la voir, pas la télécharger.</span><span class="nouveau">Nouveau</span></span></button>';
     if (m.state === 'new') return '<button class="tile unread" data-act="telechargerfichier" data-arg="' + esc(m.mid) + '">' + ico + '<span class="tt"><b>' + (doc ? 'Document reçu' : 'Photo reçue') + '</b><span class="hint">' + detail + '</span><span class="hint" id="fp-' + esc(m.mid) + '">Téléchargez le fichier : il sera supprimé juste après.</span><span class="nouveau">Nouveau</span></span></button>';
     if (m.expire) return '<div class="tile read">' + ico + '<span class="tt"><b>' + (doc ? 'Document expiré' : 'Photo expirée') + '</b><span class="hint">Non téléchargé dans les 48 heures : il a été effacé</span></span></div>';
+    if (m.vu) return '<div class="tile read">' + ico + '<span class="tt"><b>Photo vue</b><span class="hint">Aperçu terminé : elle a été effacée du relais</span></span></div>';
     return '<div class="tile read">' + ico + '<span class="tt"><b>' + (doc ? 'Document téléchargé' : 'Photo téléchargée') + '</b><span class="hint">Effacé du relais après le téléchargement</span></span></div>';
   }
   // Téléchargement : les morceaux sont déchiffrés sur ce téléphone, le fichier est enregistré, puis effacé du relais.
@@ -3367,6 +3386,61 @@ button.chip{cursor:pointer;font:inherit}
       S.telechargement = null;
       render();
     }
+  }
+  // Morceaux déchiffrés et réassemblés, sans rien enregistrer : sert à l’aperçu.
+  async function recupererFichier(m, c) {
+    const f = m.fichier;
+    const key = await sharedKey(c.raw);
+    const moi = await mailboxOf(S.me.raw);
+    const morceaux = new Array(f.total);
+    await parQuatre(f.total, async (i) => {
+      const rows = await rpc('pli_piece_get', { p_mailbox: moi, p_secret: S.me.secret, p_id: f.id, p_idx: i });
+      const ligne = Array.isArray(rows) ? rows[0] : null;
+      if (!ligne) throw new Error('introuvable');
+      morceaux[i] = await dechiffrerOctets(key, ligne.out_data);
+    });
+    return new Blob(morceaux, { type: f.type || 'image/jpeg' });
+  }
+  // Aperçu seulement : la photo s’affiche dans une fenêtre, sans lien de téléchargement. À la fermeture, elle est effacée du relais.
+  async function actVoirFichier(mid) {
+    if (S.telechargement || S.apercuEnCours) return;
+    const m = msgsAll().find((x) => x.mid === mid);
+    if (!m || m.kind !== 'fichier' || m.dir !== 'in' || m.state !== 'new' || !m.fichier || !m.fichier.apercu) return;
+    const c = contacts().find((x) => x.cid === m.cid);
+    if (!c) return;
+    const marquer = (fn) => { const frais = msgsAll(); const x = frais.find((y) => y.mid === mid); if (x) { fn(x); LS.set('msgs', frais); } };
+    if (Date.now() - (m.ts || 0) > FICHIER_DUREE_MS) { marquer((x) => { x.state = 'gone'; x.goneAt = Date.now(); x.expire = true; }); return render(); }
+    const f = m.fichier;
+    S.apercuEnCours = mid;
+    let url = null;
+    try {
+      url = URL.createObjectURL(await recupererFichier(m, c));
+    } catch (e) {
+      S.apercuEnCours = null;
+      if (e && e.message === 'introuvable') {
+        marquer((x) => { x.state = 'gone'; x.goneAt = Date.now(); x.expire = true; });
+        flashNow({ t: 'Ce fichier n’est plus sur le relais : il a expiré.', ok: false });
+      } else {
+        flashNow({ t: 'Ouverture impossible. Vérifiez la connexion, puis réessayez.', ok: false });
+      }
+      return render();
+    }
+    S.apercuEnCours = null;
+    const fond = document.createElement('div');
+    fond.id = 'apercu-fichier';
+    fond.className = 'apercu-fond';
+    fond.innerHTML = '<img class="apercu-img" alt="' + esc(f.nom) + '" draggable="false" src="' + esc(url) + '"><p class="apercu-note">Aperçu seulement : cette photo ne se télécharge pas. Elle sera effacée à la fermeture.</p><button type="button" class="btn btn-primary apercu-fermer">Fermer</button>';
+    fond.addEventListener('contextmenu', (e) => e.preventDefault());
+    fond.querySelector('.apercu-fermer').addEventListener('click', async () => {
+      fond.remove();
+      URL.revokeObjectURL(url);
+      let efface = true;
+      try { const moi = await mailboxOf(S.me.raw); await rpc('pli_piece_delete', { p_mailbox: moi, p_secret: S.me.secret, p_id: f.id }); } catch (e) { efface = false; }
+      if (!efface) LS.set('fichiersAEffacer', LS.get('fichiersAEffacer', []).concat([f.id]));
+      marquer((x) => { x.state = 'gone'; x.goneAt = Date.now(); x.vu = true; });
+      render();
+    });
+    document.body.appendChild(fond);
   }
   // Enregistre le fichier sur le téléphone : le navigateur le range dans ses téléchargements.
   function enregistrerFichier(blob, nom) {
@@ -3621,8 +3695,10 @@ button.chip{cursor:pointer;font:inherit}
     send: actSend,
     reveal: actReveal,
     telechargerfichier: (mid) => actTelechargerFichier(mid),
+    voirfichier: (mid) => actVoirFichier(mid),
+    togglefichier: (arg) => { const a = (S.attach || [])[Number(arg)]; if (a) a.apercu = !a.apercu; renderAttach(); },
     fermermsg: (mid) => actFermerMessage(mid),
-    setlecture: (arg) => { const [cid, v] = String(arg).split('|'); const cs = contacts(); const c = cs.find((x) => x.cid === cid); if (c) { c.lecture = Number(v); LS.set('contacts', cs); } render(); },
+    setlecture: (arg) => { const [cid, v] = String(arg).split('|'); const cs = contacts(); const c = cs.find((x) => x.cid === cid); if (c) { c.lecture = Number(v); LS.set('contacts', cs); } S.plusOpen = false; S.plusPanneau = null; S.plusMsg = ''; render(); },
     cut: (cid) => { S.plusOpen = false; S.plusPanneau = null; S.plusMsg = ''; go('couper', cid); },
     cutyes: (cid) => actCut(cid),
     effacerdemarre: () => actEffacerDemarre(),
@@ -3729,7 +3805,7 @@ button.chip{cursor:pointer;font:inherit}
     const estDoc = t.id === 'pickDoc';
     if (choisi.size > (estDoc ? FICHIER_DOC_MAX : FICHIER_PHOTO_MAX)) { t.value = ''; S.plusOpen = false; S.flash = { t: estDoc ? 'Document trop lourd : 25 Mo au plus.' : 'Photo trop lourde : 15 Mo au plus.', ok: false }; return render(); }
     S.attach = S.attach || [];
-    S.attach.push({ kind: estDoc ? 'document' : 'photo', label: choisi.name, file: choisi });
+    S.attach.push({ kind: estDoc ? 'document' : 'photo', label: choisi.name, file: choisi, apercu: false });
     t.value = '';
     S.plusOpen = false;   // le menu « + » se referme après le choix
     render();

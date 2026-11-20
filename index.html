@@ -2882,7 +2882,7 @@ button.chip{cursor:pointer;font:inherit}
   async function effacementUrgence() {
     for (const id of IDENTITES.filter(presente)) { idActif = id; S.me = LS.get('me', null); await effacerIdentite(false, true); }
     localStorage.removeItem('pli.solde');
-    localStorage.removeItem('pli.credits.agentDouble');
+    Object.keys(localStorage).filter((k) => k.indexOf('pli.credits.') === 0).forEach((k) => localStorage.removeItem(k));   // crédits d’agent double et d’options : tout l’appareil
     Object.keys(localStorage).filter((k) => k.indexOf('pli.acces.') === 0).forEach((k) => localStorage.removeItem(k));
     idActif = 'a';
     S.priv = null; S.autre = null; S.verrouMessage = null; S.flash = null;

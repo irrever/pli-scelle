@@ -446,7 +446,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v139';
+  const APP_VERSION = 'v140';
   // Monnaie de l’appli : une unité vaut 0,01 €, donc 10 € font 1 000 unités. Elle reste sur l’appareil : aucun compte, rien n’est envoyé.
   // Le nom n’est pas encore choisi : il ne s’écrit qu’ici (et dans les libellés générés).
   const MONNAIE = { un: 'sceau', pluriel: 'sceaux' };
@@ -1701,7 +1701,7 @@ button.chip{cursor:pointer;font:inherit}
     if (m.state === 'new') return '<button class="tile ' + (m.seen ? 'read' : 'unread') + '" data-act="reveal" data-arg="' + esc(m.mid) + '">' + qrVignette(m.cid + ':' + m.ts) + '<span class="tt">' + (m.seen ? '<b>Message relisible</b><span class="hint">Toucher pour revoir</span>' : '<b>QR code reçu</b><span class="hint">Toucher pour lire' + (m.once === false ? '' : ' · visible ' + libelleDuree(m.cid) + ', puis effacé') + '</span><span class="nouveau">Nouveau</span>') + '</span></button>';
     if (m.state === 'open') {
       const libre = m.until - Date.now() > 1e12;
-      return '<div class="bubble bubble-ouvert" role="button" tabindex="0" data-act="fermermsg" data-arg="' + esc(m.mid) + '">' + esc(m.text) + piecesMsgHTML(m) + (libre ? '' : '<span class="bubble-timer" data-until="' + esc(m.until) + '">Se referme dans ' + Math.max(0, Math.ceil((m.until - Date.now()) / 1000)) + ' s</span>') + '<span class="bubble-fin">' + (m.once === false ? 'Touchez pour refermer' : 'Touchez pour fermer et effacer') + '</span></div>';
+      return '<div class="bubble bubble-ouvert" role="button" tabindex="0" data-act="fermermsg" data-arg="' + esc(m.mid) + '">' + esc(m.text) + piecesMsgHTML(m) + (libre ? '' : '<span class="bubble-timer" data-until="' + esc(m.until) + '"' + (m.once === false ? ' data-relisible="1"' : '') + '>Se referme dans ' + Math.max(0, Math.ceil((m.until - Date.now()) / 1000)) + ' s' + (m.once === false ? ', puis reste relisible' : '') + '</span>') + '<span class="bubble-fin">' + (m.once === false ? 'Touchez pour refermer' : 'Touchez pour fermer et effacer') + '</span></div>';
     }
     return '<div class="tile read">' + qrVignette(m.cid + ':' + m.ts, 'faded') + '<span class="tt"><b>Message lu</b><span class="hint">Le contenu a été effacé</span></span></div>';
   }
@@ -1961,7 +1961,7 @@ button.chip{cursor:pointer;font:inherit}
       (notices ? '<div class="pending-stack">' + notices + '</div>' : '') +
       invitationsEnAttenteHTML() +
       (versionNouvelle ? '<div class="pending-stack"><button class="notice warn" data-act="recharger">' + I.refresh + '<span class="grow">Nouvelle version (' + esc(versionNouvelle) + ') disponible<br><span class="more">Touchez pour la charger. Vos données restent sur cet appareil.</span></span>' + I.chev + '</button></div>' : '') +
-      (idActif === 'a' && getPrefs().sound && !sonPret() ? notice('info', 'La sonnerie est en pause. Touchez l’écran une fois pour la réactiver.') : '') +
+      noticeSonPause() +
       (idActif === 'a' && cs.length && !(getPrefs().notif && getPrefs().push) ? '<div class="pending-stack"><button class="notice warn" data-act="togglenotif">' + I.msg + '<span class="grow">Notifications quand l’appli est fermée : ' + (getPrefs().notif ? 'pas encore prêtes' : 'désactivées') + '<br><span class="more">Touchez pour ' + (getPrefs().notif ? 'réessayer' : 'les activer sur cet appareil') + '.</span></span>' + I.chev + '</button></div>' : '') +
       (cs.some((c) => c.pend) ? '<div class="pending-stack"><button class="notice warn" data-act="reactiver">' + I.link + '<span class="grow">Réactiver les liens<br><span class="more">Vos contacts sont installés. Touchez pour leur envoyer la demande : chacun confirme dans son appli.</span></span>' + I.chev + '</button></div>' : '') +
       (idActif === 'a' && cs.length && !LS.get('lastBackup', 0) ? '<div class="pending-stack"><button class="notice warn" data-act="go" data-arg="sauvegarde">' + I.shield + '<span class="grow">Sauvegardez vos contacts<br><span class="more">Sans sauvegarde, ils restent dans ce navigateur seulement.</span></span>' + I.chev + '</button></div>' : '') +
@@ -2340,7 +2340,7 @@ button.chip{cursor:pointer;font:inherit}
     if (!c) return viewAccueil();
     return '<div class="screen" style="gap:12px">' +
       topbar({ backAct: 'go', backArg: 'accueil', titleHTML: '<span class="conv-title"><span class="code code-sm">' + esc(c.label) + '</span><span class="hint" style="display:inline-flex;align-items:center;gap:4px;color:var(--accent)">' + empreinteIcone(14, EMP[cleEmpreinte(c)]) + 'Vérifié</span></span>', right: '<button class="iconbtn" data-act="reglages" data-arg="' + esc(c.cid) + '" aria-label="Réglages du contact">' + I.more + '</button>' }) +
-      convFilHTML(c) +
+      noticeSonPause() + convFilHTML(c) +
       '' + composerHTML(c.cid) + '' +
     '</div>';
   }
@@ -2600,6 +2600,9 @@ button.chip{cursor:pointer;font:inherit}
   }
   // Dans la zone de saisie : le micro tant qu’il n’y a ni texte ni pièce jointe, puis le bouton d’envoi.
   function syncComposerAct() {
+    // Une pièce ajoutée, retirée ou basculée : pendant une seconde, un toucher sur l’envoi ne part pas (évite l’envoi involontaire).
+    const sig = (S.attach || []).map((a) => a.kind + ':' + a.label + ':' + (a.apercu ? 1 : 0)).join('|');
+    if (sig !== S.attachSig) { S.attachSig = sig; S.attachAt = Date.now(); }
     const b = document.getElementById('composerAct');
     const d = document.getElementById('draft');
     if (!b || !d) return;
@@ -3423,6 +3426,7 @@ button.chip{cursor:pointer;font:inherit}
     const lien = contacts().find((x) => x.cid === cid);
     if (lien && (lien.pause || lien.pend)) return flashNow({ t: 'Le lien n’est pas actif : écrire est impossible pour l’instant.' });
     if (S.envoiEnCours) return;
+    if (S.attachAt && Date.now() - S.attachAt < 1000 && (S.attach || []).length) return;   // pièce ajoutée, retirée ou basculée à l’instant : le toucher ne part pas
     const inp = $('#draft');
     const text = (inp.value || '').trim();
     const pieces = S.attach || [];
@@ -4048,7 +4052,7 @@ button.chip{cursor:pointer;font:inherit}
     if (expireOpened() && S.screen === 'conv') render();
     document.querySelectorAll('[data-until]').forEach((el) => {
       const s = Math.max(0, Math.ceil((Number(el.dataset.until) - Date.now()) / 1000));
-      el.textContent = 'Se referme dans ' + s + ' s';
+      el.textContent = 'Se referme dans ' + s + ' s' + (el.dataset.relisible ? ', puis reste relisible' : '');
     });
   }
   setInterval(tick, 1000);
@@ -4065,11 +4069,13 @@ button.chip{cursor:pointer;font:inherit}
     return ctxSon;
   }
   function sonPret() { const c = sonContexte(); return !!c && c.state === 'running'; }
+  // La notice « sonnerie en pause » : sur l’accueil et dans une conversation, là où un message peut arriver.
+  function noticeSonPause() { return idActif === 'a' && getPrefs().sound && !sonPret() ? notice('info', 'La sonnerie est en pause. Touchez l’écran une fois pour la réactiver.') : ''; }
   function touchSon() {
     const c = sonContexte();
     if (!c || c.state === 'running') return;
     try {
-      c.resume().then(() => { if (S.screen === 'accueil') S.needRender = true; }).catch(() => {});
+      c.resume().then(() => { if (S.screen === 'accueil' || S.screen === 'conv') S.needRender = true; }).catch(() => {});
       const s = c.createBufferSource(); s.buffer = c.createBuffer(1, 1, 22050); s.connect(c.destination); s.start(0);
     } catch (e) { /* son indisponible sur ce téléphone */ }
   }
@@ -4083,7 +4089,11 @@ button.chip{cursor:pointer;font:inherit}
     carillon: { label: 'Carillon', gain: 0.6, len: 0.35, partiels: [[1, 1, 1], [2, 0.12, 0.5]], notes: [[1046, 0], [1318, 0.18], [1568, 0.36], [1046, 0.75], [1318, 0.93], [1568, 1.11]] },
     deux: { label: 'Deux notes', gain: 0.6, len: 0.5, partiels: [[1, 1, 1], [2, 0.15, 0.5]], notes: [[880, 0], [660, 0.35], [880, 0.7], [660, 1.05]] },
     cloche: { label: 'Cloche', gain: 0.25, len: 1.6, partiels: [[1, 1, 1], [2.76, 0.35, 0.4], [5.4, 0.12, 0.2]], notes: [[660, 0], [990, 0], [1320, 0], [660, 1.1], [990, 1.1], [1320, 1.1]] },
-    doux: { label: 'Doux', gain: 0.55, len: 1.1, partiels: [[1, 1, 1], [2, 0.3, 0.6], [3, 0.08, 0.3]], notes: [[784, 0], [988, 0.5], [1175, 1.0]] }
+    doux: { label: 'Doux', gain: 0.55, len: 1.1, partiels: [[1, 1, 1], [2, 0.3, 0.6], [3, 0.08, 0.3]], notes: [[784, 0], [988, 0.5], [1175, 1.0]] },
+    source: { label: 'Source', gain: 0.6, len: 0.6, partiels: [[1, 1, 1], [2, 0.18, 0.5], [3, 0.05, 0.25]], notes: [[1568, 0], [1318, 0.12], [1046, 0.24]] },
+    goutte: { label: 'Goutte', gain: 0.5, len: 0.25, partiels: [[1, 1, 1], [2, 0.3, 0.4]], notes: [[1760, 0], [1318, 0.18], [1760, 0.36]] },
+    vague: { label: 'Vague', gain: 0.5, len: 1.2, partiels: [[1, 1, 1], [2, 0.25, 0.5]], notes: [[659, 0], [880, 0.4], [1046, 0.8]] },
+    eclat: { label: 'Éclat', gain: 0.45, len: 0.5, partiels: [[1, 1, 1], [2, 0.4, 0.5], [3, 0.15, 0.3]], notes: [[1397, 0], [1760, 0.12], [2093, 0.24]] }
   };
   // « geste » est vrai quand la sonnerie est demandée par un toucher (essai, réglage). Hors toucher, iOS refuse le son :
   // on ne le joue pas en retard, l’accueil signale que la sonnerie est en pause.

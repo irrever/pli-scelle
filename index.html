@@ -446,7 +446,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v140';
+  const APP_VERSION = 'v141';
   // Monnaie de l’appli : une unité vaut 0,01 €, donc 10 € font 1 000 unités. Elle reste sur l’appareil : aucun compte, rien n’est envoyé.
   // Le nom n’est pas encore choisi : il ne s’écrit qu’ici (et dans les libellés générés).
   const MONNAIE = { un: 'sceau', pluriel: 'sceaux' };
@@ -3877,7 +3877,7 @@ button.chip{cursor:pointer;font:inherit}
     // Sur la seconde, le cadenas la ferme. Un second appui, à la suite, verrouille tout et renvoie au code de la première.
     lock: () => { if (idActif === 'b' && S.autre) return fermerSeconde(); verrouiller(); },
     togglesound: actToggleSound,
-    settone: (t) => { setPref('tone', t); if (idActif !== 'b') playChime(t, true); go('sonnerie'); },
+    settone: (t) => { setPref('tone', t); preparerSonnerie(t); if (idActif !== 'b') playChime(t, true); go('sonnerie'); },
     togglenotif: actToggleNotif,
     ajouterverifier: actVerifierAjout,
     ouvrirseconde: actOuvrirSeconde,
@@ -4068,7 +4068,76 @@ button.chip{cursor:pointer;font:inherit}
     if (!ctxSon) { try { ctxSon = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ctxSon = null; } }
     return ctxSon;
   }
-  function sonPret() { const c = sonContexte(); return !!c && c.state === 'running'; }
+  // Sur iPhone, iOS suspend le contexte audio entre deux touchers. Un élément audio, déverrouillé par un toucher,
+  // joue ensuite la sonnerie sans nouveau toucher : c’est lui qui sonne à l’arrivée d’un message.
+  const elSon = new Audio();
+  elSon.preload = 'auto';
+  let sonDeverrouille = false;
+  function encodeWav(echantillons, taux) {
+    const n = echantillons.length, tampon = new ArrayBuffer(44 + n * 2), v = new DataView(tampon);
+    const ecrire = (pos, texte) => { for (let i = 0; i < texte.length; i++) v.setUint8(pos + i, texte.charCodeAt(i)); };
+    ecrire(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); ecrire(8, 'WAVE'); ecrire(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, taux, true);
+    v.setUint32(28, taux * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    ecrire(36, 'data'); v.setUint32(40, n * 2, true);
+    for (let i = 0; i < n; i++) { const s = Math.max(-1, Math.min(1, echantillons[i])); v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true); }
+    return new Blob([tampon], { type: 'audio/wav' });
+  }
+  // La sonnerie, rendue hors ligne avec les mêmes notes que playChime : un fichier WAV pour l’élément audio.
+  async function rendreSonnerie(nom) {
+    const def = TONES[nom] || TONES.pli, taux = 22050;
+    const duree = Math.max(...def.notes.map((n) => n[1])) + def.len + 0.1;
+    const hors = new OfflineAudioContext(1, Math.ceil(duree * taux), taux);
+    const sortie = hors.createDynamicsCompressor();
+    sortie.threshold.value = -3; sortie.knee.value = 0; sortie.ratio.value = 20; sortie.attack.value = 0.002; sortie.release.value = 0.1;
+    sortie.connect(hors.destination);
+    def.notes.forEach(([f, dt]) => def.partiels.forEach(([multiple, niveau, relatif]) => {
+      const o = hors.createOscillator(), g = hors.createGain();
+      const debut = dt + 0.02, fin = debut + def.len * relatif;
+      o.type = 'sine'; o.frequency.value = f * multiple;
+      g.gain.setValueAtTime(0.0001, debut);
+      g.gain.exponentialRampToValueAtTime(def.gain * niveau, debut + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, fin);
+      o.connect(g); g.connect(sortie);
+      o.start(debut); o.stop(fin + 0.02);
+    }));
+    const rendu = await hors.startRendering();
+    return encodeWav(rendu.getChannelData(0), taux);
+  }
+  // Prépare le fichier de la sonnerie demandée. Une seule préparation à la fois pour une même sonnerie.
+  function preparerSonnerie(nom) {
+    nom = nom || getPrefs().tone;
+    if (!TONES[nom] || elSon.dataset.tone === nom || elSon.dataset.demande === nom) return;
+    elSon.dataset.demande = nom;
+    rendreSonnerie(nom).then((blob) => {
+      if (elSon.dataset.demande !== nom) return;   // la sonnerie a changé entre-temps
+      if (elSon.src) URL.revokeObjectURL(elSon.src);
+      elSon.src = URL.createObjectURL(blob);
+      elSon.load();
+      elSon.dataset.tone = nom;
+    }).catch(() => { elSon.dataset.demande = ''; });
+  }
+  // Premier toucher : l’élément audio joue un instant, muet, puis s’arrête. Ensuite il sonne sans toucher.
+  function deverrouillerSon() {
+    if (sonDeverrouille) return;
+    if (elSon.dataset.tone !== getPrefs().tone) { preparerSonnerie(); return; }
+    elSon.muted = true;
+    const fin = () => { elSon.pause(); elSon.currentTime = 0; elSon.muted = false; sonDeverrouille = true; if (S.screen === 'accueil' || S.screen === 'conv') S.needRender = true; };
+    const p = elSon.play();
+    if (p && p.then) p.then(fin).catch(() => { elSon.muted = false; }); else fin();
+  }
+  // Joue la sonnerie par l’élément, s’il est déverrouillé et prêt. Sinon, le contexte audio prend le relais.
+  function jouerElement(nom) {
+    if (!sonDeverrouille || elSon.dataset.tone !== nom) return false;
+    elSon.muted = false; elSon.currentTime = 0;
+    const p = elSon.play();
+    if (p && p.catch) p.catch(() => jouerContexte(nom, false));
+    return true;
+  }
+  function sonPret() {
+    if (sonDeverrouille && elSon.dataset.tone === getPrefs().tone) return true;
+    const c = sonContexte(); return !!c && c.state === 'running';
+  }
   // La notice « sonnerie en pause » : sur l’accueil et dans une conversation, là où un message peut arriver.
   function noticeSonPause() { return idActif === 'a' && getPrefs().sound && !sonPret() ? notice('info', 'La sonnerie est en pause. Touchez l’écran une fois pour la réactiver.') : ''; }
   function touchSon() {
@@ -4080,6 +4149,7 @@ button.chip{cursor:pointer;font:inherit}
     } catch (e) { /* son indisponible sur ce téléphone */ }
   }
   ['pointerdown', 'touchend', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, touchSon));
+  ['pointerdown', 'touchend', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, deverrouillerSon));
   // Sonneries au choix : suites de notes générées sur place, sans fichier.
   // « partiels » : harmoniques de chaque note, [multiple de la fréquence, niveau relatif, durée relative].
   // « Pli » est la sonnerie de l’appli : deux notes claires, avec une touche aiguë qui rappelle le papier plié.
@@ -4111,6 +4181,12 @@ button.chip{cursor:pointer;font:inherit}
   }
   function playChime(tone, geste) {
     if (idActif !== 'a') return;   // l’identité cachée ne sonne jamais
+    const nom = tone || getPrefs().tone;
+    if (jouerElement(nom)) return;
+    jouerContexte(nom, geste);
+  }
+  // Sonnerie par le contexte audio : repli si l’élément n’est pas encore prêt.
+  function jouerContexte(tone, geste) {
     try {
       const c = sonContexte();
       if (!c) return;

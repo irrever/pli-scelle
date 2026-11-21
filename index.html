@@ -276,8 +276,7 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 .event-when{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:end}
 .event-cel{display:grid;gap:4px;min-width:0}
 .event-lab{font-size:13px;color:var(--muted);padding-left:2px}
-.event-when .field{min-width:0;min-height:46px;padding:8px 10px;font-size:16px}
-.event-when .event-heure{min-height:56px;font-size:24px;font-weight:600}
+.event-when .field{display:block;width:100%;max-width:100%;min-width:0;min-height:46px;padding:8px 10px;font-size:16px;-webkit-appearance:none;appearance:none}
 .event-actions{display:flex;gap:8px}
 .event-actions .btn{flex:1}
 .fichier-ligne{display:flex;min-width:0}
@@ -332,6 +331,7 @@ button.chip{cursor:pointer;font:inherit}
 .attach-chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 6px 0 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:15px;font-weight:600;max-width:100%}
 .attach-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
 .attach-chip button{width:24px;height:24px;border:0;border-radius:50%;background:transparent;color:inherit;font-size:16px;line-height:1;cursor:pointer}
+.attach-chip .chip-opt{width:auto;height:22px;padding:0 8px;border-radius:999px;background:var(--surface);font-size:13px;white-space:nowrap;flex:none}
 .link-row{display:flex;gap:8px}
 .link-row[hidden]{display:none}
 .link-row .field{flex:1;min-width:0}
@@ -414,6 +414,8 @@ button.chip{cursor:pointer;font:inherit}
 .fichier-ico svg{width:26px;height:26px}
 .apercu-fond{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));box-sizing:border-box}
 .apercu-img{max-width:100%;max-height:72vh;object-fit:contain;border-radius:8px;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.apercu-doc{width:100%;height:72vh;border:0;border-radius:8px;background:#fff}
+.apercu-texte{width:100%;max-height:72vh;overflow:auto;margin:0;padding:14px;border-radius:8px;background:#fff;color:#10233A;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word;box-sizing:border-box}
 .apercu-note{margin:0;color:#fff;font-size:15px;text-align:center}
 .chip-opt{height:22px;padding:0 8px;border:0;border-radius:999px;background:var(--surface);color:var(--accent);font-size:13px;font-weight:600;cursor:pointer}
 </style>
@@ -444,7 +446,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v138';
+  const APP_VERSION = 'v139';
   // Monnaie de l’appli : une unité vaut 0,01 €, donc 10 € font 1 000 unités. Elle reste sur l’appareil : aucun compte, rien n’est envoyé.
   // Le nom n’est pas encore choisi : il ne s’écrit qu’ici (et dans les libellés générés).
   const MONNAIE = { un: 'sceau', pluriel: 'sceaux' };
@@ -1824,8 +1826,10 @@ button.chip{cursor:pointer;font:inherit}
     const v = etatVerrou();
     const attente = attenteRestante();
     if (attente > 0) setTimeout(surveillerAttente, 0);
-    const essai = /^(.*?)\s*Essai (\d+) sur (\d+)\.?$/.exec(S.verrouMessage || '');
-    const msg = S.verrouMessage ? (essai ? alerteHTML('Code incorrect', esc(essai[1]), { n: Number(essai[2]), total: Number(essai[3]) }) : alerteHTML('Attention', esc(S.verrouMessage))) : '';
+    // « Trois erreurs » ne vaut que pendant le délai : une fois celui-ci passé, le message disparaît, comme l’alerte « Trop d’essais ».
+    const texte = S.verrouMessage && !(attente === 0 && /^Trois erreurs/.test(S.verrouMessage)) ? S.verrouMessage : null;
+    const essai = /^(.*?)\s*Essai (\d+) sur (\d+)\.?$/.exec(texte || '');
+    const msg = texte ? (essai ? alerteHTML('Code incorrect', esc(essai[1]), { n: Number(essai[2]), total: Number(essai[3]) }) : alerteHTML('Attention', esc(texte))) : '';
     const effaces = v.efface ? notice('info', 'Vos messages reçus ont été effacés, après trois erreurs. Vos contacts sont toujours là.') : '';
     const attenteHtml = attente > 0 ? alerteHTML('Trop d’essais', 'Réessayez dans <span id="compte-attente">' + dureeAttente(attente) + '</span>.') : '';
     const avertissement = v.n === 2 && attente === 0 ? alerteHTML('Attention', 'Au prochain essai raté, tous vos messages reçus seront effacés.') : '';
@@ -1859,7 +1863,7 @@ button.chip{cursor:pointer;font:inherit}
   }
   function viewUrgence() {
     const actif = !!LS.get('urgence', null);
-    const titre = '<div><h1>Code d’urgence</h1><p class="lead" style="margin-top:6px">Ce code efface tout cet appareil, messages compris, sans rien afficher. Il doit être différent de votre code secret.</p></div>';
+    const titre = '<div><h1>Code d’urgence</h1><p class="lead" style="margin-top:6px">Ce code efface tout cet appareil, messages compris, sans rien afficher. Depuis la page d’accueil, là où vous entrez votre code secret, tapez-le à la place : tout disparaît. Il doit être différent de votre code secret.</p></div>';
     if (actif) return '<div class="screen">' + topbar({ back: 'identite', title: 'Code d’urgence' }) + titre +
       '<section class="card"><p class="hint">Activé sur cet appareil.</p></section><div class="dock stack" style="position:static"><button class="btn btn-danger" data-act="urgencesupprimer">Supprimer le code d’urgence</button></div></div>';
     return '<div class="screen">' + topbar({ back: 'identite', title: 'Code d’urgence' }) + titre +
@@ -2178,7 +2182,7 @@ button.chip{cursor:pointer;font:inherit}
     const listeDurees = panneau === 'duree' ? '<section class="list">' + DUREES_LECTURE.map(([d, t]) => '<button class="rowlink' + (v === d ? ' on' : '') + '" type="button" data-act="setlecture" data-arg="' + esc(cid) + '|' + d + '"><span>' + t + '</span>' + (v === d ? '<span class="state" style="color:var(--accent)">' + I.check + '</span>' : '') + '</button>').join('') + '</section>' : '';
     return '<div class="plus-sheet"><div class="grille-actions">' +
       fichier('pickPhoto', I.image, 'Photo', 'image/*', '') +
-      fichier('pickCamera', I.camera, 'Caméra', 'image/*', 'environment') +
+      fichier('pickCamera', I.camera, 'Caméra', 'image/*,video/*', 'environment') +
       fichier('pickDoc', I.file, 'Document', '', '') +
       bouton('', 'showevent', '', I.calendar, 'Événement', '') +
       bouton('', 'showlink', '', I.link, 'Lien', '') +
@@ -2229,8 +2233,21 @@ button.chip{cursor:pointer;font:inherit}
     b.className = 'chip' + (on ? ' on' : '');
     b.textContent = on ? 'Lecture unique' : 'Relisible';
   }
+  // Ce que l’aperçu sait montrer dans l’appli : une image, un PDF ou un texte. Les autres documents se téléchargent seulement.
+  function typeApercu(nom, type) {
+    const t = String(type || '').toLowerCase(), n = String(nom || '').toLowerCase();
+    if (t.indexOf('image/') === 0) return 'image';
+    if (t === 'application/pdf' || /\.pdf$/.test(n)) return 'pdf';
+    if (t.indexOf('text/') === 0 || /\.(txt|md|csv|json)$/.test(n)) return 'texte';
+    return null;
+  }
+  // Titre d’une tuile de fichier selon son genre et son état : « Photo envoyée », « Vidéo reçue », « Document téléchargé »…
+  function titreFichier(genre, etat) {
+    const mots = genre === 'document' ? ['Document', 'envoyé', 'reçu', 'téléchargé'] : [genre === 'video' ? 'Vidéo' : 'Photo', 'envoyée', 'reçue', 'téléchargée'];
+    return mots[0] + ' ' + mots[{ envoye: 1, recu: 2, telecharge: 3 }[etat]];
+  }
   function attachChipsHTML() {
-    return (S.attach || []).map((a, i) => '<span class="attach-chip"><span>' + esc(a.label) + '</span>' + (a.kind === 'photo' && a.file ? '<button type="button" class="chip-opt" data-act="togglefichier" data-arg="' + i + '">' + (a.apercu ? 'Aperçu seul' : 'Téléchargeable') + '</button>' : '') + '<button type="button" data-act="rmattach" data-arg="' + i + '" aria-label="Retirer">×</button></span>').join('') + (S.envoiProg ? '<span id="fenvoi" class="hint">' + esc(S.envoiProg) + '</span>' : '');
+    return (S.attach || []).map((a, i) => '<span class="attach-chip"><span>' + esc(a.label) + '</span>' + (a.file && (a.kind === 'photo' || (a.kind === 'document' && typeApercu(a.file.name, a.file.type))) ? '<button type="button" class="chip-opt" data-act="togglefichier" data-arg="' + i + '">' + (a.apercu ? 'Aperçu seul' : 'Téléchargeable') + '</button>' : '') + '<button type="button" data-act="rmattach" data-arg="' + i + '" aria-label="Retirer">×</button></span>').join('') + (S.envoiProg ? '<span id="fenvoi" class="hint">' + esc(S.envoiProg) + '</span>' : '');
   }
   function renderAttach() {
     const row = $('#attachRow');
@@ -2520,7 +2537,7 @@ button.chip{cursor:pointer;font:inherit}
     const when = last ? new Date(last).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '';
     const del = S.delMode === true;
     return '<div class="screen">' + topbar({ back: del ? 'supprimer' : 'identite', title: del ? 'Supprimer mon identité' : 'Sauvegarder mes contacts' }) +
-      '<div><h1>' + (del ? 'Gardez vos contacts' : 'Sauvegarde de vos contacts') + '</h1><p class="lead" style="margin-top:6px">' + (del ? 'Avant de supprimer votre identité, copiez cette sauvegarde. Elle permet de reprendre le lien avec chaque contact.' : 'Elle contient vos contacts et de quoi reprendre le lien avec chacun. Votre code secret la protège : sans lui, le fichier ne s’ouvre pas. Il ne s’installe qu’une fois.') + '</p></div>' +
+      '<div><h1>' + (del ? 'Gardez vos contacts' : 'Sauvegarde de vos contacts') + '</h1><p class="lead" style="margin-top:6px">' + (del ? 'Avant de supprimer votre identité, copiez cette sauvegarde. Elle permet de reprendre le lien avec chaque contact.' : 'Si vous changez de téléphone ou perdez celui-ci, ce fichier vous permet de retrouver vos contacts. Il ne contient pas vos messages. Votre code secret le protège : sans lui, il ne s’ouvre pas. Il ne s’installe qu’une fois.') + '</p></div>' +
       (when ? notice('ok', 'Dernière sauvegarde : ' + esc(when)) : '') +
       (!del && !optionAcquise('sauvegarde') ? paiementHTML('sauvegarde') : '') +
       (S.backupMessage ? notice(S.backupMessage.kind, esc(S.backupMessage.text)) : '') +
@@ -2784,7 +2801,7 @@ button.chip{cursor:pointer;font:inherit}
   }
   function viewAjouterIdentite() {
     return '<div class="screen">' + topbar({ back: 'identite', title: 'Créer un agent double' }) +
-      '<div><h1>Créer un agent double</h1><p class="lead" style="margin-top:6px">Un seul agent double à la fois sur cet appareil. S’il en existe déjà un, il sera effacé et remplacé, et ses contacts seront prévenus si possible.</p></div>' + paiementHTML('agentDouble') +
+      '<div><h1>Créer un agent double</h1><p class="lead" style="margin-top:6px">Avec un agent double, vous créez une identité cachée sur cet appareil, qui n’apparaît pas à l’écran d’ouverture. Un seul agent double à la fois.</p></div>' + paiementHTML('agentDouble') +
       '<div class="card form"><label class="label" for="acode">Votre code secret actuel</label><input id="acode" class="field" type="password" autocomplete="off">' + formStatus() + '</div>' +
       boutonsPaiement('agentDouble', 'ajouterverifier', 'Continuer') +
     '</div>';
@@ -3411,7 +3428,7 @@ button.chip{cursor:pointer;font:inherit}
     const pieces = S.attach || [];
     const liens = pieces.filter((a) => a.kind === 'link').map((a) => a.url);
     const evenements = pieces.filter((a) => a.kind === 'event').map((a) => ({ titre: a.titre || '', quand: a.quand || '' }));
-    const fichiers = pieces.filter((a) => (a.kind === 'photo' || a.kind === 'document') && a.file);
+    const fichiers = pieces.filter((a) => (a.kind === 'photo' || a.kind === 'document' || a.kind === 'video') && a.file);
     if (!text && !liens.length && !evenements.length && !fichiers.length) return;
     const c = contacts().find((x) => x.cid === cid);
     if (!c) return go('accueil');
@@ -3424,10 +3441,10 @@ button.chip{cursor:pointer;font:inherit}
         const envoi = await envoyerFichier(c, p, key);
         const nom = p.file.name.slice(0, 120);
         const type = (p.file.type || '').slice(0, 100);
-        const meta = await encryptFor(key, { id: envoi.id, nom: nom, type: type, taille: p.file.size, total: envoi.total, genre: p.kind, apercu: p.kind === 'photo' && p.apercu === true, ts: envoi.debut });
+        const meta = await encryptFor(key, { id: envoi.id, nom: nom, type: type, taille: p.file.size, total: envoi.total, genre: p.kind, apercu: (p.kind === 'photo' || (p.kind === 'document' && typeApercu(p.file.name, p.file.type))) && p.apercu === true, ts: envoi.debut });
         await S.db.collection('box').add({ to: await mailboxOf(c.raw), from: S.me.raw, kind: 'fichier', ts: Date.now(), iv: meta.iv, ct: meta.ct });
         const all = msgsAll();
-        all.push({ mid: rid(10), cid: cid, dir: 'out', kind: 'fichier', fichier: { nom: nom, type: type, taille: p.file.size, genre: p.kind, apercu: p.kind === 'photo' && p.apercu === true }, state: 'sent', ts: Date.now(), once: false });
+        all.push({ mid: rid(10), cid: cid, dir: 'out', kind: 'fichier', fichier: { nom: nom, type: type, taille: p.file.size, genre: p.kind, apercu: (p.kind === 'photo' || (p.kind === 'document' && typeApercu(p.file.name, p.file.type))) && p.apercu === true }, state: 'sent', ts: Date.now(), once: false });
         LS.set('msgs', all);
         S.attach = (S.attach || []).filter((a) => a !== p);
         S.envoiProg = '';
@@ -3509,14 +3526,14 @@ button.chip{cursor:pointer;font:inherit}
     if (!c) return false;
     const key = await sharedKey(c.raw);
     const body = await decryptFrom(key, m.iv, m.ct);
-    const genre = body.genre === 'document' ? 'document' : 'photo';
+    const genre = body.genre === 'document' ? 'document' : body.genre === 'video' ? 'video' : 'photo';
     const max = genre === 'photo' ? FICHIER_PHOTO_MAX : FICHIER_DOC_MAX;
     const id = String(body.id || '');
     const total = Number(body.total);
     const taille = Number(body.taille);
     if (id.length < 16 || id.length > 64 || !(total >= 1 && total <= 400) || !(taille >= 0 && taille <= max)) return false;
     const all = msgsAll();
-    all.push({ mid: docId, cid: c.cid, dir: 'in', kind: 'fichier', fichier: { id: id, nom: String(body.nom || 'fichier').slice(0, 120), type: String(body.type || '').slice(0, 100), taille: taille, total: total, genre: genre, apercu: genre === 'photo' && body.apercu === true }, state: 'new', ts: body.ts || Date.now(), once: false });
+    all.push({ mid: docId, cid: c.cid, dir: 'in', kind: 'fichier', fichier: { id: id, nom: String(body.nom || 'fichier').slice(0, 120), type: String(body.type || '').slice(0, 100), taille: taille, total: total, genre: genre, apercu: (genre === 'photo' || (genre === 'document' && typeApercu(String(body.nom || ''), String(body.type || '')))) && body.apercu === true }, state: 'new', ts: body.ts || Date.now(), once: false });
     LS.set('msgs', all);
     marqueConversation(c.cid, body.ts || Date.now());
     return true;
@@ -3525,14 +3542,16 @@ button.chip{cursor:pointer;font:inherit}
   function msgFichierHTML(m) {
     const f = m.fichier || {};
     const doc = f.genre === 'document';
-    const ico = '<span class="fichier-ico" aria-hidden="true">' + I.file + '</span>';
+    // Comme une bulle de message : le QR code de la marque remplace le pictogramme du fichier. Fané quand la tuile n’offre plus rien.
+    const ico = qrVignette(m.mid);
+    const icoFane = qrVignette(m.mid, 'faded');
     const detail = '<span class="fichier-ligne"><span class="fichier-nom">' + esc(f.nom || '') + '</span><span class="fichier-taille"> · ' + tailleFichier(f.taille) + '</span></span>';
-    if (m.dir === 'out') return '<div class="tile mine">' + ico + '<span class="tt"><b>' + (doc ? 'Document envoyé' : 'Photo envoyée') + '</b><span class="hint">' + detail + (f.apercu ? ' · aperçu seulement, effacée à l’ouverture' : ' · téléchargé une fois, puis effacé') + '</span></span></div>';
-    if (m.state === 'new' && f.apercu) return '<button class="tile unread" data-act="voirfichier" data-arg="' + esc(m.mid) + '">' + ico + '<span class="tt"><b>Photo reçue</b><span class="hint">' + detail + '</span><span class="hint">Aperçu seulement : vous pouvez la voir, pas la télécharger.</span><span class="fichier-action" id="fp-' + esc(m.mid) + '">' + (S.apercuEnCours === m.mid ? 'Ouverture…' : 'Voir l’aperçu') + '</span><span class="nouveau">Nouveau</span></span></button>';
-    if (m.state === 'new') return '<button class="tile unread" data-act="telechargerfichier" data-arg="' + esc(m.mid) + '">' + ico + '<span class="tt"><b>' + (doc ? 'Document reçu' : 'Photo reçue') + '</b><span class="hint">' + detail + '</span><span class="hint">Téléchargez le fichier : il sera supprimé juste après.</span><span class="fichier-action" id="fp-' + esc(m.mid) + '">' + (S.telechargement === m.mid ? 'Téléchargement…' : 'Télécharger') + '</span><span class="nouveau">Nouveau</span></span></button>';
-    if (m.expire) return '<div class="tile read">' + ico + '<span class="tt"><b>' + (doc ? 'Document expiré' : 'Photo expirée') + '</b><span class="hint">Non téléchargé dans les 48 heures : il a été effacé</span></span></div>';
-    if (m.vu) return '<div class="tile read">' + ico + '<span class="tt"><b>Photo vue</b><span class="hint">Aperçu terminé : elle a été effacée du relais</span></span></div>';
-    return '<div class="tile read">' + ico + '<span class="tt"><b>' + (doc ? 'Document téléchargé' : 'Photo téléchargée') + '</b><span class="hint">Effacé du relais après le téléchargement</span></span></div>';
+    if (m.dir === 'out') return '<div class="tile mine">' + ico + '<span class="tt"><b>' + titreFichier(f.genre, 'envoye') + '</b><span class="hint">' + detail + (f.apercu ? ' · aperçu seulement, effacée à l’ouverture' : ' · téléchargé une fois, puis effacé') + '</span></span></div>';
+    if (m.state === 'new' && f.apercu) return '<button class="tile unread" data-act="voirfichier" data-arg="' + esc(m.mid) + '">' + ico + '<span class="tt"><b>' + titreFichier(f.genre, 'recu') + '</b><span class="hint">' + detail + '</span><span class="hint">Aperçu seulement : vous pouvez la voir, pas la télécharger.</span><span class="fichier-action" id="fp-' + esc(m.mid) + '">' + (S.apercuEnCours === m.mid ? 'Ouverture…' : 'Voir l’aperçu') + '</span><span class="nouveau">Nouveau</span></span></button>';
+    if (m.state === 'new') return '<button class="tile unread" data-act="telechargerfichier" data-arg="' + esc(m.mid) + '">' + ico + '<span class="tt"><b>' + titreFichier(f.genre, 'recu') + '</b><span class="hint">' + detail + '</span><span class="hint">Téléchargez le fichier : il sera supprimé juste après.</span><span class="fichier-action" id="fp-' + esc(m.mid) + '">' + (S.telechargement === m.mid ? 'Téléchargement…' : 'Télécharger') + '</span><span class="nouveau">Nouveau</span></span></button>';
+    if (m.expire) return '<div class="tile read">' + icoFane + '<span class="tt"><b>' + (doc ? 'Document expiré' : 'Photo expirée') + '</b><span class="hint">Non téléchargé dans les 48 heures : il a été effacé</span></span></div>';
+    if (m.vu) return '<div class="tile read">' + icoFane + '<span class="tt"><b>Photo vue</b><span class="hint">Aperçu terminé : elle a été effacée du relais</span></span></div>';
+    return '<div class="tile read">' + icoFane + '<span class="tt"><b>' + titreFichier(f.genre, 'telecharge') + '</b><span class="hint">Effacé du relais après le téléchargement</span></span></div>';
   }
   // Téléchargement : les morceaux sont déchiffrés sur ce téléphone, le fichier est enregistré, puis effacé du relais.
   async function actTelechargerFichier(mid) {
@@ -3604,9 +3623,11 @@ button.chip{cursor:pointer;font:inherit}
     S.apercuEnCours = mid;
     const bouton = document.getElementById('fp-' + mid);
     if (bouton) bouton.textContent = 'Ouverture…';
-    let url = null;
+    let url = null, texteApercu = null;
     try {
-      url = URL.createObjectURL(await recupererFichier(m, c));
+      const contenu = await recupererFichier(m, c);
+      url = URL.createObjectURL(contenu);
+      if (typeApercu(f.nom, f.type) === 'texte') texteApercu = (await contenu.text()).slice(0, 200000);
     } catch (e) {
       S.apercuEnCours = null;
       if (e && e.message === 'introuvable') {
@@ -3622,7 +3643,12 @@ button.chip{cursor:pointer;font:inherit}
     const fond = document.createElement('div');
     fond.id = 'apercu-fichier';
     fond.className = 'apercu-fond';
-    fond.innerHTML = '<img class="apercu-img" alt="' + esc(f.nom) + '" draggable="false" src="' + esc(url) + '"><p class="apercu-note">Aperçu seulement : cette photo ne se télécharge pas. Elle sera effacée à la fermeture.</p><button type="button" class="btn btn-primary apercu-fermer">Fermer</button>';
+    const type = typeApercu(f.nom, f.type);
+    const doc = f.genre === 'document';
+    const corps = type === 'pdf' ? '<iframe class="apercu-doc" src="' + esc(url) + '" title="Aperçu du document"></iframe>'
+      : type === 'texte' ? '<pre class="apercu-texte">' + esc(texteApercu || '') + '</pre>'
+      : '<img class="apercu-img" alt="' + esc(f.nom) + '" draggable="false" src="' + esc(url) + '">';
+    fond.innerHTML = corps + '<p class="apercu-note">Aperçu seulement : ' + (doc ? 'ce document ne se télécharge pas. Il sera effacé' : 'cette photo ne se télécharge pas. Elle sera effacée') + ' à la fermeture.</p><button type="button" class="btn btn-primary apercu-fermer">Fermer</button>';
     fond.addEventListener('contextmenu', (e) => e.preventDefault());
     fond.querySelector('.apercu-fermer').addEventListener('click', async () => {
       fond.remove();
@@ -3998,9 +4024,12 @@ button.chip{cursor:pointer;font:inherit}
     if (!t || ['pickPhoto', 'pickCamera', 'pickDoc'].indexOf(t.id) < 0 || !t.files || !t.files[0]) return;
     const choisi = t.files[0];
     const estDoc = t.id === 'pickDoc';
-    if (choisi.size > (estDoc ? FICHIER_DOC_MAX : FICHIER_PHOTO_MAX)) { t.value = ''; S.plusOpen = false; S.flash = { t: estDoc ? 'Document trop lourd : 25 Mo au plus.' : 'Photo trop lourde : 15 Mo au plus.', ok: false }; return render(); }
+    // La caméra prend aussi les vidéos : une vidéo part comme un fichier téléchargeable (sans aperçu), jusqu’à 25 Mo.
+    const estVideo = t.id === 'pickCamera' && (String(choisi.type || '').indexOf('video/') === 0 || /\.(mov|mp4|m4v)$/i.test(choisi.name || ''));
+    const grand = estVideo || estDoc;
+    if (choisi.size > (grand ? FICHIER_DOC_MAX : FICHIER_PHOTO_MAX)) { t.value = ''; S.plusOpen = false; S.flash = { t: estVideo ? 'Vidéo trop lourde : 25 Mo au plus.' : estDoc ? 'Document trop lourd : 25 Mo au plus.' : 'Photo trop lourde : 15 Mo au plus.', ok: false }; return render(); }
     S.attach = S.attach || [];
-    S.attach.push({ kind: estDoc ? 'document' : 'photo', label: choisi.name, file: choisi, apercu: false });
+    S.attach.push({ kind: estVideo ? 'video' : estDoc ? 'document' : 'photo', label: choisi.name, file: choisi, apercu: false });
     t.value = '';
     S.plusOpen = false;   // le menu « + » se referme après le choix
     render();

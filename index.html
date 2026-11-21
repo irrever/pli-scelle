@@ -234,6 +234,10 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 .conv-title{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0}
 /* conversation */
 .thread{flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:10px;padding:8px 0;background:var(--fil)}
+/* Page d’une conversation : même couleur de la barre du haut à la zone de saisie, et dans la bande du haut */
+.conv-screen{background:var(--fil)}
+.conv-screen .topbar,.conv-screen .composer{background:var(--fil)}
+body:has(.conv-screen),body:has(.conv-screen)::before{background:var(--fil)}
 .bubble{max-width:82%;padding:11px 14px;border-radius:18px 18px 18px 6px;background:var(--surface);border:1px solid var(--line-2);box-shadow:var(--shadow);font-size:16px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
 .bubble.mine{margin-left:auto;background:var(--accent-soft);border-color:transparent;border-radius:18px 18px 6px 18px}
 .tile{display:flex;align-items:center;gap:12px;max-width:82%;padding:12px 14px;border-radius:16px;background:var(--surface);border:1px solid var(--line-2);box-shadow:var(--shadow);color:var(--ink);text-align:left;cursor:pointer}
@@ -446,7 +450,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v142';
+  const APP_VERSION = 'v143';
   // Monnaie de l’appli : une unité vaut 0,01 €, donc 10 € font 1 000 unités. Elle reste sur l’appareil : aucun compte, rien n’est envoyé.
   // Le nom n’est pas encore choisi : il ne s’écrit qu’ici (et dans les libellés générés).
   const MONNAIE = { un: 'sceau', pluriel: 'sceaux' };
@@ -2338,7 +2342,7 @@ button.chip{cursor:pointer;font:inherit}
   function viewConv() {
     const c = contacts().find((x) => x.cid === S.arg);
     if (!c) return viewAccueil();
-    return '<div class="screen" style="gap:12px">' +
+    return '<div class="screen conv-screen" style="gap:12px">' +
       topbar({ backAct: 'go', backArg: 'accueil', titleHTML: '<span class="conv-title"><span class="code code-sm">' + esc(c.label) + '</span><span class="hint" style="display:inline-flex;align-items:center;gap:4px;color:var(--accent)">' + empreinteIcone(14, EMP[cleEmpreinte(c)]) + 'Vérifié</span></span>', right: '<button class="iconbtn" data-act="reglages" data-arg="' + esc(c.cid) + '" aria-label="Réglages du contact">' + I.more + '</button>' }) +
       noticeSonPause() + convFilHTML(c) +
       '' + composerHTML(c.cid) + '' +
@@ -4122,7 +4126,7 @@ button.chip{cursor:pointer;font:inherit}
     if (sonDeverrouille) return;
     if (elSon.dataset.tone !== getPrefs().tone) { preparerSonnerie(); return; }
     elSon.muted = true;
-    const fin = () => { elSon.pause(); elSon.currentTime = 0; elSon.muted = false; sonDeverrouille = true; if (S.screen === 'accueil' || S.screen === 'conv') S.needRender = true; };
+    const fin = () => { elSon.pause(); elSon.currentTime = 0; elSon.muted = false; sonDeverrouille = true; document.querySelectorAll('.sonnerie-pause').forEach((e) => e.remove()); };
     const p = elSon.play();
     if (p && p.then) p.then(fin).catch(() => { elSon.muted = false; }); else fin();
   }
@@ -4139,12 +4143,12 @@ button.chip{cursor:pointer;font:inherit}
     const c = sonContexte(); return !!c && c.state === 'running';
   }
   // La notice « sonnerie en pause » : sur l’accueil et dans une conversation, là où un message peut arriver.
-  function noticeSonPause() { return idActif === 'a' && getPrefs().sound && !sonPret() ? notice('info', 'La sonnerie est en pause. Touchez l’écran une fois pour la réactiver.') : ''; }
+  function noticeSonPause() { return idActif === 'a' && getPrefs().sound && !sonPret() ? '<div class="sonnerie-pause">' + notice('info', 'La sonnerie est en pause. Touchez l’écran une fois pour la réactiver.') + '</div>' : ''; }
   function touchSon() {
     const c = sonContexte();
     if (!c || c.state === 'running') return;
     try {
-      c.resume().then(() => { if (S.screen === 'accueil' || S.screen === 'conv') S.needRender = true; }).catch(() => {});
+      c.resume().then(() => { document.querySelectorAll('.sonnerie-pause').forEach((e) => e.remove()); }).catch(() => {});
       const s = c.createBufferSource(); s.buffer = c.createBuffer(1, 1, 22050); s.connect(c.destination); s.start(0);
     } catch (e) { /* son indisponible sur ce téléphone */ }
   }

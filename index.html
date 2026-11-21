@@ -6,7 +6,7 @@
 <title>Pli Scellé</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
-:root{--bg:#FFFFFF;--surface:#FFFFFF;--surface-2:#F5F7FA;--ink:#10233A;--ink-2:#33475C;--muted:#5B6B7D;--line:#D3DAE2;--line-2:#E3E8EE;--accent:#0B6B5C;--on-accent:#FFFFFF;--accent-soft:#DDEFEA;--warn:#8A5200;--warn-soft:#FBEFD9;--danger:#B3261E;--danger-soft:#F9E3E1;--id-bg:#10233A;--id-ink:#E6EDF4;--id-muted:#9FB0C3;--id-accent:#9FD8C9;--shadow:0 1px 2px rgba(16,35,58,.06),0 6px 18px rgba(16,35,58,.06);color-scheme:light}
+:root{--bg:#FFFFFF;--fil:#DFE7EE;--surface:#FFFFFF;--surface-2:#F5F7FA;--ink:#10233A;--ink-2:#33475C;--muted:#5B6B7D;--line:#D3DAE2;--line-2:#E3E8EE;--accent:#0B6B5C;--on-accent:#FFFFFF;--accent-soft:#DDEFEA;--warn:#8A5200;--warn-soft:#FBEFD9;--danger:#B3261E;--danger-soft:#F9E3E1;--id-bg:#10233A;--id-ink:#E6EDF4;--id-muted:#9FB0C3;--id-accent:#9FD8C9;--shadow:0 1px 2px rgba(16,35,58,.06),0 6px 18px rgba(16,35,58,.06);color-scheme:light}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 "IBM Plex Sans",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
@@ -233,7 +233,7 @@ button.word{color:var(--ink);font:inherit;font-weight:600;text-align:left;width:
 .contact-hero{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding-top:8px}
 .conv-title{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0}
 /* conversation */
-.thread{flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:10px;padding:8px 0}
+.thread{flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:10px;padding:8px 0;background:var(--fil)}
 .bubble{max-width:82%;padding:11px 14px;border-radius:18px 18px 18px 6px;background:var(--surface);border:1px solid var(--line-2);box-shadow:var(--shadow);font-size:16px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
 .bubble.mine{margin-left:auto;background:var(--accent-soft);border-color:transparent;border-radius:18px 18px 6px 18px}
 .tile{display:flex;align-items:center;gap:12px;max-width:82%;padding:12px 14px;border-radius:16px;background:var(--surface);border:1px solid var(--line-2);box-shadow:var(--shadow);color:var(--ink);text-align:left;cursor:pointer}
@@ -446,7 +446,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v141';
+  const APP_VERSION = 'v142';
   // Monnaie de l’appli : une unité vaut 0,01 €, donc 10 € font 1 000 unités. Elle reste sur l’appareil : aucun compte, rien n’est envoyé.
   // Le nom n’est pas encore choisi : il ne s’écrit qu’ici (et dans les libellés générés).
   const MONNAIE = { un: 'sceau', pluriel: 'sceaux' };

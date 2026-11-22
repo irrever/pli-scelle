@@ -450,7 +450,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v143';
+  const APP_VERSION = 'v144';
   // Monnaie de l’appli : une unité vaut 0,01 €, donc 10 € font 1 000 unités. Elle reste sur l’appareil : aucun compte, rien n’est envoyé.
   // Le nom n’est pas encore choisi : il ne s’écrit qu’ici (et dans les libellés générés).
   const MONNAIE = { un: 'sceau', pluriel: 'sceaux' };
@@ -714,9 +714,10 @@ button.chip{cursor:pointer;font:inherit}
     return c;
   }
   // Une trace reste 2 minutes : « Message lu » (contenu effacé) ou « Message envoyé ». Ensuite elle disparaît, pour que la liste ne s’allonge pas.
+  const DUREE_TRACE_ENVOI = 48 * 60 * 60 * 1000;   // la trace d’un envoi (« Envoyé », puis « Reçu ») reste 48 heures, comme les fichiers
   function traceEffacee(m, now) {
     if (m.state === 'gone') return now - (m.goneAt || m.until || 0) > EFFACE_MS;
-    return m.dir === 'out' && m.state === 'sent' && now - (m.ts || 0) > EFFACE_MS;
+    return m.dir === 'out' && m.state === 'sent' && now - (m.ts || 0) > DUREE_TRACE_ENVOI;
   }
   function expireOpened() {
     const all = msgsAll(); let ch = false;
@@ -1029,6 +1030,7 @@ button.chip{cursor:pointer;font:inherit}
       case 'accept': return onAccept(m);
       case 'refuse': return onRefuse(m);
       case 'msg': return onMsg(m, docId);
+      case 'recu': return onRecu(m);
       case 'voicepart': return onVoicePart(m);
       case 'fichier': return onFichier(m, docId);
       case 'cut': return onCut(m);
@@ -1206,7 +1208,27 @@ button.chip{cursor:pointer;font:inherit}
     all.push({ mid: docId, cid: c.cid, dir: 'in', text: String(body.t || ''), liens: nettoyerLiens(body.liens), evenements: nettoyerEvenements(body.evenements), state: 'new', ts: body.ts || Date.now(), once: body.once !== false });
     LS.set('msgs', all);
     marqueConversation(c.cid, body.ts || Date.now());
+    if (body.mid) envoyerRecu(c, body.mid);
     return true;
+  }
+  // Accusé de réception : le téléphone qui a rangé un message renvoie à l’expéditeur, chiffré, l’identifiant de l’envoi.
+  async function envoyerRecu(c, mid) {
+    try {
+      const key = await sharedKey(c.raw);
+      const meta = await encryptFor(key, { recu: mid, ts: Date.now() });
+      await S.db.collection('box').add({ to: await mailboxOf(c.raw), from: S.me.raw, kind: 'recu', ts: Date.now(), iv: meta.iv, ct: meta.ct });
+    } catch (e) { /* pas d’accusé : l’expéditeur reste sur « Envoyé » */ }
+  }
+  // L’accusé de la personne : la trace d’envoi passe à « Reçu ». Ce n’est pas un message : rien ne sonne.
+  async function onRecu(m) {
+    const c = contacts().find((x) => x.raw === m.from);
+    if (!c) return false;
+    const key = await sharedKey(c.raw);
+    const body = await decryptFrom(key, m.iv, m.ct);
+    const all = msgsAll();
+    const trace = all.find((x) => x.dir === 'out' && x.mid === body.recu);
+    if (trace && !trace.recu) { trace.recu = true; LS.set('msgs', all); S.needRender = true; }
+    return false;
   }
   async function onCut(m) {
     // Coupure : seulement si le serveur a vérifié l’expéditeur.
@@ -1701,7 +1723,7 @@ button.chip{cursor:pointer;font:inherit}
   function msgHTML(m) {
     if (m.kind === 'voice') return msgVoiceHTML(m);
     if (m.kind === 'fichier') return msgFichierHTML(m);
-    if (m.dir === 'out') return '<div class="tile mine">' + qrVignette(m.cid + ':' + m.ts) + '<span class="tt"><b>Message envoyé</b><span class="hint">' + (m.once === false ? 'Relisible' : 'Lecture unique') + '</span></span></div>';
+    if (m.dir === 'out') return '<div class="tile mine">' + qrVignette(m.cid + ':' + m.ts) + '<span class="tt"><b>' + (m.recu ? 'Message reçu' : 'Message envoyé') + '</b><span class="hint">' + (m.once === false ? 'Relisible' : 'Lecture unique') + '</span></span></div>';
     if (m.state === 'new') return '<button class="tile ' + (m.seen ? 'read' : 'unread') + '" data-act="reveal" data-arg="' + esc(m.mid) + '">' + qrVignette(m.cid + ':' + m.ts) + '<span class="tt">' + (m.seen ? '<b>Message relisible</b><span class="hint">Toucher pour revoir</span>' : '<b>QR code reçu</b><span class="hint">Toucher pour lire' + (m.once === false ? '' : ' · visible ' + libelleDuree(m.cid) + ', puis effacé') + '</span><span class="nouveau">Nouveau</span>') + '</span></button>';
     if (m.state === 'open') {
       const libre = m.until - Date.now() > 1e12;
@@ -3449,20 +3471,22 @@ button.chip{cursor:pointer;font:inherit}
         const envoi = await envoyerFichier(c, p, key);
         const nom = p.file.name.slice(0, 120);
         const type = (p.file.type || '').slice(0, 100);
-        const meta = await encryptFor(key, { id: envoi.id, nom: nom, type: type, taille: p.file.size, total: envoi.total, genre: p.kind, apercu: (p.kind === 'photo' || (p.kind === 'document' && typeApercu(p.file.name, p.file.type))) && p.apercu === true, ts: envoi.debut });
+        const midFichier = rid(10);   // identifiant de l’envoi : le destinataire le renvoie dans son accusé de réception
+        const meta = await encryptFor(key, { id: envoi.id, nom: nom, type: type, taille: p.file.size, total: envoi.total, genre: p.kind, apercu: (p.kind === 'photo' || (p.kind === 'document' && typeApercu(p.file.name, p.file.type))) && p.apercu === true, ts: envoi.debut, mid: midFichier });
         await S.db.collection('box').add({ to: await mailboxOf(c.raw), from: S.me.raw, kind: 'fichier', ts: Date.now(), iv: meta.iv, ct: meta.ct });
         const all = msgsAll();
-        all.push({ mid: rid(10), cid: cid, dir: 'out', kind: 'fichier', fichier: { nom: nom, type: type, taille: p.file.size, genre: p.kind, apercu: (p.kind === 'photo' || (p.kind === 'document' && typeApercu(p.file.name, p.file.type))) && p.apercu === true }, state: 'sent', ts: Date.now(), once: false });
+        all.push({ mid: midFichier, cid: cid, dir: 'out', kind: 'fichier', fichier: { nom: nom, type: type, taille: p.file.size, genre: p.kind, apercu: (p.kind === 'photo' || (p.kind === 'document' && typeApercu(p.file.name, p.file.type))) && p.apercu === true }, state: 'sent', ts: Date.now(), once: false });
         LS.set('msgs', all);
         S.attach = (S.attach || []).filter((a) => a !== p);
         S.envoiProg = '';
         renderAttach();
       }
       if (text || liens.length || evenements.length) {
-        const body = await encryptFor(key, { t: text, ts: Date.now(), once: S.once !== false, liens: liens, evenements: evenements });
+        const midTexte = rid(10);   // identifiant de l’envoi : le destinataire le renvoie dans son accusé de réception
+        const body = await encryptFor(key, { t: text, ts: Date.now(), once: S.once !== false, liens: liens, evenements: evenements, mid: midTexte });
         await S.db.collection('box').add({ to: await mailboxOf(c.raw), from: S.me.raw, kind: 'msg', ts: Date.now(), iv: body.iv, ct: body.ct });
         const all = msgsAll();
-        all.push({ mid: rid(10), cid: cid, dir: 'out', state: 'sent', ts: Date.now(), once: S.once !== false });
+        all.push({ mid: midTexte, cid: cid, dir: 'out', state: 'sent', ts: Date.now(), once: S.once !== false });
         LS.set('msgs', all);
       }
     } catch (e) {
@@ -3544,6 +3568,7 @@ button.chip{cursor:pointer;font:inherit}
     all.push({ mid: docId, cid: c.cid, dir: 'in', kind: 'fichier', fichier: { id: id, nom: String(body.nom || 'fichier').slice(0, 120), type: String(body.type || '').slice(0, 100), taille: taille, total: total, genre: genre, apercu: (genre === 'photo' || (genre === 'document' && typeApercu(String(body.nom || ''), String(body.type || '')))) && body.apercu === true }, state: 'new', ts: body.ts || Date.now(), once: false });
     LS.set('msgs', all);
     marqueConversation(c.cid, body.ts || Date.now());
+    if (body.mid) envoyerRecu(c, body.mid);
     return true;
   }
   // Tuile d’un fichier : la consigne reste jusqu’au téléchargement ; ensuite la tuile dit qu’il a été effacé.
@@ -3554,7 +3579,7 @@ button.chip{cursor:pointer;font:inherit}
     const ico = qrVignette(m.mid);
     const icoFane = qrVignette(m.mid, 'faded');
     const detail = '<span class="fichier-ligne"><span class="fichier-nom">' + esc(f.nom || '') + '</span><span class="fichier-taille"> · ' + tailleFichier(f.taille) + '</span></span>';
-    if (m.dir === 'out') return '<div class="tile mine">' + ico + '<span class="tt"><b>' + titreFichier(f.genre, 'envoye') + '</b><span class="hint">' + detail + (f.apercu ? ' · aperçu seulement, effacée à l’ouverture' : ' · téléchargé une fois, puis effacé') + '</span></span></div>';
+    if (m.dir === 'out') return '<div class="tile mine">' + ico + '<span class="tt"><b>' + titreFichier(f.genre, m.recu ? 'recu' : 'envoye') + '</b><span class="hint">' + detail + (f.apercu ? ' · aperçu seulement, effacée à l’ouverture' : ' · téléchargé une fois, puis effacé') + '</span></span></div>';
     if (m.state === 'new' && f.apercu) return '<button class="tile unread" data-act="voirfichier" data-arg="' + esc(m.mid) + '">' + ico + '<span class="tt"><b>' + titreFichier(f.genre, 'recu') + '</b><span class="hint">' + detail + '</span><span class="hint">Aperçu seulement : vous pouvez la voir, pas la télécharger.</span><span class="fichier-action" id="fp-' + esc(m.mid) + '">' + (S.apercuEnCours === m.mid ? 'Ouverture…' : 'Voir l’aperçu') + '</span><span class="nouveau">Nouveau</span></span></button>';
     if (m.state === 'new') return '<button class="tile unread" data-act="telechargerfichier" data-arg="' + esc(m.mid) + '">' + ico + '<span class="tt"><b>' + titreFichier(f.genre, 'recu') + '</b><span class="hint">' + detail + '</span><span class="hint">Téléchargez le fichier : il sera supprimé juste après.</span><span class="fichier-action" id="fp-' + esc(m.mid) + '">' + (S.telechargement === m.mid ? 'Téléchargement…' : 'Télécharger') + '</span><span class="nouveau">Nouveau</span></span></button>';
     if (m.expire) return '<div class="tile read">' + icoFane + '<span class="tt"><b>' + (doc ? 'Document expiré' : 'Photo expirée') + '</b><span class="hint">Non téléchargé dans les 48 heures : il a été effacé</span></span></div>';

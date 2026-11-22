@@ -40,7 +40,8 @@ p{margin:0}
 .topbar.bare{padding-left:0}
 .topbar-right{display:flex;align-items:center;gap:4px}
 .iconbtn{width:44px;height:44px;border-radius:12px;border:0;background:transparent;color:var(--ink);display:grid;place-items:center;cursor:pointer;flex:none}
-.iconbtn:hover{background:var(--surface)}
+@media (hover:hover){.iconbtn:hover{background:var(--surface)}}
+button,a,[data-act]{touch-action:manipulation}
 .iconbtn .ico{width:22px;height:22px}
 .iconbtn-ph{width:44px;height:44px;flex:none}
 /* boutons */
@@ -68,9 +69,9 @@ textarea.field{resize:vertical;min-height:72px;font-size:16px;line-height:1.4}
 .row-item{display:flex;align-items:center;gap:12px;width:100%;padding:14px 16px;border:0;border-top:1px solid var(--line-2);background:transparent;text-align:left;cursor:pointer;color:var(--ink)}
 .row-item[hidden]{display:none}
 .row-item:first-child{border-top:0}
-.row-item:hover{background:var(--surface-2)}
+@media (hover:hover){.row-item:hover{background:var(--surface-2)}}
 .row-item.is-off{cursor:default}
-.row-item.is-off:hover{background:transparent}
+@media (hover:hover){.row-item.is-off:hover{background:transparent}}
 .row-item.is-off .avatar{background:var(--surface-2);color:var(--muted)}
 .row-item.is-off .row-title{color:var(--muted)}
 .row-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
@@ -90,7 +91,7 @@ textarea.field{resize:vertical;min-height:72px;font-size:16px;line-height:1.4}
 .rico .ico{width:20px;height:20px}
 .rico + span{flex:1;min-width:0}
 .choice{display:flex;align-items:center;gap:14px;width:100%;padding:16px;border-radius:18px;border:1px solid var(--line-2);background:var(--surface);box-shadow:var(--shadow);text-align:left;cursor:pointer;color:var(--ink)}
-.choice:hover{border-color:var(--line)}
+@media (hover:hover){.choice:hover{border-color:var(--line)}}
 .choice-icon{width:44px;height:44px;border-radius:14px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;flex:none}
 .choice-text{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0}
 .choice-text b{font-size:16px;font-weight:600}
@@ -115,6 +116,13 @@ textarea.field{resize:vertical;min-height:72px;font-size:16px;line-height:1.4}
 .status[hidden]{display:none}
 .flash{position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));z-index:30;margin:0!important;box-shadow:var(--shadow);pointer-events:none}
 .status-ok{background:var(--accent-soft);color:var(--accent)}
+.etat-ok{display:inline-flex;align-items:center;gap:5px;color:var(--accent);font-weight:600;font-size:15px}
+.etat-ok svg{width:16px;height:16px;flex:none}
+.etat-bloc{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:16px;margin:0}
+.etat-rond{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--accent);color:var(--on-accent);flex:none}
+.etat-rond svg{width:16px;height:16px}
+.etat-bloc b{display:block;font-size:17px;font-weight:600}
+.etat-bloc div span{display:block;font-size:15px;margin-top:4px;color:var(--ink-2)}
 .status.big{font-size:17px;font-weight:600;padding:16px;border-radius:16px}
 .status-info{background:var(--warn-soft);color:var(--warn)}
 /* Conteneur des erreurs : il porte une alerte, sans fond rouge ni retrait */
@@ -451,7 +459,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v146';
+  const APP_VERSION = 'v147';
   // Monnaie de l’appli : une unité vaut 0,01 €, donc 10 € font 1 000 unités. Elle reste sur l’appareil : aucun compte, rien n’est envoyé.
   // Le nom n’est pas encore choisi : il ne s’écrit qu’ici (et dans les libellés générés).
   const MONNAIE = { un: 'sceau', pluriel: 'sceaux' };
@@ -635,14 +643,14 @@ button.chip{cursor:pointer;font:inherit}
   async function mailboxOf(rawB64) { return hex(await sha(unb64u(rawB64))); }
   async function proofFor(K, rawB64) { return b64u(await sha(cat(K, unb64u(rawB64)))); }
   function cmpBytes(a, b) { const n = Math.min(a.length, b.length); for (let i = 0; i < n; i++) if (a[i] !== b[i]) return a[i] - b[i]; return a.length - b.length; }
-  // six mots tirés de l'empreinte commune aux deux identités (ordre indifférent)
+  // dix mots tirés de l'empreinte commune aux deux identités (ordre indifférent)
   async function wordsFor(a, b) {
     const pair = cmpBytes(a, b) <= 0 ? cat(a, b) : cat(b, a);
     const h = await sha(pair);
     const out = []; let acc = 0, nb = 0;
-    for (let i = 0; i < h.length && out.length < 6; i++) {
+    for (let i = 0; i < h.length && out.length < 10; i++) {
       acc = ((acc << 8) | h[i]) & 0xffff; nb += 8;
-      while (nb >= 6 && out.length < 6) { nb -= 6; out.push(WORDS[(acc >> nb) & 63]); }
+      while (nb >= 6 && out.length < 10) { nb -= 6; out.push(WORDS[(acc >> nb) & 63]); }
     }
     // L’emblème de ce contact vient de la même empreinte : il est identique sur les deux téléphones.
     out.chemin = empreinteChemin(h);
@@ -1054,7 +1062,7 @@ button.chip{cursor:pointer;font:inherit}
   }
   // Une personne valide l’invitation : le QR code est consommé, et l’appli choisit trois mots à lui demander.
   function tirerPositions() {
-    const r = rand(12); const liste = [1, 2, 3, 4, 5, 6];
+    const r = rand(12); const liste = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
     for (let i = liste.length - 1; i > 0; i--) { const j = r[i] % (i + 1); const t = liste[i]; liste[i] = liste[j]; liste[j] = t; }
     return liste.slice(0, 3).sort((a, b) => a - b);
   }
@@ -1099,7 +1107,7 @@ button.chip{cursor:pointer;font:inherit}
     return true;
   }
   // Côté personne qui invite : les mots touchés par l’invitée sont comparés aux siens. Rien n’est tapé.
-  // Premier essai faux : l’appli demande les six mots (dernière chance). Second essai faux : refus.
+  // Premier essai faux : l’appli demande les dix mots (dernière chance). Second essai faux : refus.
   async function onMots(m) {
     const body = await decryptFrom(await sharedKey(m.from), m.iv, m.ct);
     const pend = pendingAll();
@@ -1120,9 +1128,9 @@ button.chip{cursor:pointer;font:inherit}
       return true;
     }
     if ((p.niveau || 1) === 1) {
-      pend[idx] = Object.assign({}, p, { niveau: 2, pos: [1, 2, 3, 4, 5, 6], ok: false, mots: mes });
+      pend[idx] = Object.assign({}, p, { niveau: 2, pos: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], ok: false, mots: mes });
       LS.set('pending', pend);
-      await sendTo(m.from, { kind: 'verif', inv: body.inv, pos: [1, 2, 3, 4, 5, 6], pseudo: S.me.pseudo, niveau: 2 });
+      await sendTo(m.from, { kind: 'verif', inv: body.inv, pos: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], pseudo: S.me.pseudo, niveau: 2 });
       S.needRender = true;
       return true;
     }
@@ -1269,12 +1277,12 @@ button.chip{cursor:pointer;font:inherit}
       return true;
     }
     if (c.rts && Number(p.ts) <= c.rts) return false;
-    // Rien ne bouge tout de suite : la personne compare les six mots avec celle qui reprend, puis confirme.
+    // Rien ne bouge tout de suite : la personne compare les dix mots avec celle qui reprend, puis confirme.
     LS.set('pending', pendingAll().filter((q) => !(q.type === 'reprise-verif' && q.cid === c.cid)));
     pushPending({ type: 'reprise-verif', cid: c.cid, peer: p.raw, oldRaw: m.old, pseudo: String(p.pseudo || ''), ts: Number(p.ts) || Date.now() });
     return true;
   }
-  // La personne a comparé les six mots : le lien passe sur la nouvelle identité. Une seule fois.
+  // La personne a comparé les dix mots : le lien passe sur la nouvelle identité. Une seule fois.
   async function confirmerReprise(pid) {
     const p = pendingById(pid);
     if (!p || p.type !== 'reprise-verif') return go('accueil');
@@ -1890,12 +1898,14 @@ button.chip{cursor:pointer;font:inherit}
     '</div>';
   }
   function viewUrgence() {
-    const actif = !!LS.get('urgence', null);
+    const actif = !!LS.get('urgence', null) && !S.urgenceChange;
     const titre = '<div><h1>Code d’urgence</h1><p class="lead" style="margin-top:6px">Ce code efface tout cet appareil, messages compris, sans rien afficher. Depuis la page d’accueil, là où vous entrez votre code secret, tapez-le à la place : tout disparaît. Il doit être différent de votre code secret.</p></div>';
     if (actif) return '<div class="screen">' + topbar({ back: 'identite', title: 'Code d’urgence' }) + titre +
-      '<section class="card"><p class="hint">Activé sur cet appareil.</p></section><div class="dock stack" style="position:static"><button class="btn btn-danger" data-act="urgencesupprimer">Supprimer le code d’urgence</button></div></div>';
+      '<section class="status status-ok etat-bloc"><span class="etat-rond">' + I.check + '</span><div><b>Achetée et active sur cet appareil</b><span>Active tant que cette identité existe : vous pouvez en changer le code, pas le supprimer. Rien d’autre à payer.</span></div></section>' +
+      '<div class="dock stack" style="position:static"><button class="btn btn-secondary" data-act="urgencechanger">Changer le code d’urgence</button></div>' +
+      '<div style="flex:1;display:flex;align-items:center;justify-content:center;min-height:200px"><div class="id-qr" aria-hidden="true" style="width:min(240px,70vw)"><div class="qr-build">' + qrDecorCells() + '</div></div></div></div>';
     return '<div class="screen">' + topbar({ back: 'identite', title: 'Code d’urgence' }) + titre +
-      (optionAcquise('codeUrgence') ? '' : paiementHTML('codeUrgence')) + '<div class="card form"><label class="label" for="uact">Votre code secret actuel</label><input id="uact" class="field" type="password" autocomplete="off">' +
+      (S.urgenceChange ? '<section class="card"><p class="hint">Code oublié ? Pas de souci : saisissez d’abord votre code secret, puis le nouveau code d’urgence. Votre code secret confirme que c’est bien vous qui changez de code.</p></section>' : '') + (optionAcquise('codeUrgence') ? '' : paiementHTML('codeUrgence')) + '<div class="card form"><label class="label" for="uact">Votre code secret actuel</label><input id="uact" class="field" type="password" autocomplete="off">' +
       '<label class="label" for="u1">Code d’urgence</label><div class="champ-oeil"><input id="u1" class="field" type="password" autocomplete="new-password" placeholder="8 caractères minimum, lettres et chiffres">' + oeilHTML('u1') + '</div>' +
       jaugeCodeHTML('u1') +
       '<label class="label" for="u2">Répétez le code d’urgence</label><input id="u2" class="field" type="password" autocomplete="new-password">' + formStatus() + '</div>' +
@@ -2102,7 +2112,7 @@ button.chip{cursor:pointer;font:inherit}
     '</div>';
   }
   // Côté personne qui invite : l’invitée touche les mots sur son écran ; l’appli les compare, sans rien taper.
-  // L’empreinte à six mots est affichée ici, comme sur son écran. Une fois identique, les mots touchés sont cochés.
+  // L’empreinte à dix mots est affichée ici, comme sur son écran. Une fois identique, les mots touchés sont cochés.
   function viewLienOuvert() {
     const p = pendingById(S.arg);
     if (!p) return viewAccueil();
@@ -2113,10 +2123,10 @@ button.chip{cursor:pointer;font:inherit}
       '</div>';
     }
     const titre = '<h1>' + esc(libelleInvitation(p) || 'Quelqu’un') + ' a accepté votre invitation</h1>';
-    const empreinte = Array.isArray(p.mots) && p.mots.length >= 6;
+    const empreinte = Array.isArray(p.mots) && p.mots.length >= 10;
     const coches = p.ok && Array.isArray(p.recu) ? p.recu : [];
     const grille = empreinte
-      ? '<div class="words-grid">' + [0, 1, 2, 3, 4, 5].map((k) => {
+      ? '<div class="words-grid">' + [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((k) => {
           const coche = coches.indexOf(k + 1) >= 0;
           return '<div class="word' + (coche ? ' sel' : '') + '"><span class="word-n">' + (coche ? '✓ ' : '') + (k + 1) + '</span><span>' + esc(p.mots[k]) + '</span></div>';
         }).join('') + '</div>'
@@ -2130,7 +2140,7 @@ button.chip{cursor:pointer;font:inherit}
     }
     const liste = (p.pos || []).join(', ').replace(/, (\d)$/, ' et $1');
     const explication = (p.niveau || 1) === 2
-      ? 'Pas les mêmes au premier essai : elle touche maintenant les six mots, qui sont aussi sur son écran. C’est la dernière chance.'
+      ? 'Pas les mêmes au premier essai : elle touche maintenant les dix mots, qui sont aussi sur son écran. C’est la dernière chance.'
       : 'Elle touche les mots ' + liste + ' sur son écran. L’appli compare : vous n’avez rien à taper.';
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Invitation' }) +
       '<div>' + titre + '<p class="lead" style="margin-top:6px">' + explication + '</p></div>' +
@@ -2151,9 +2161,9 @@ button.chip{cursor:pointer;font:inherit}
     const touches = S.selMots && S.selMots.pid === p.pid ? S.selMots.idx : [];
     const nom = esc(p.peerPseudo || 'La personne');
     const lead = deuxieme
-      ? nom + ' vous demande les six mots. Au premier essai, les mots ne correspondaient pas : c’est la dernière chance. Touchez les six, puis envoyez.'
+      ? nom + ' vous demande les dix mots. Au premier essai, les mots ne correspondaient pas : c’est la dernière chance. Touchez les dix, puis envoyez.'
       : nom + ' vous demande les mots ' + liste + '. Touchez-les sur votre écran, puis envoyez.';
-    const tuiles = [0, 1, 2, 3, 4, 5].map((k) => {
+    const tuiles = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((k) => {
       const touche = touches.indexOf(k) >= 0;
       const demande = p.pos.indexOf(k + 1) >= 0;
       return '<button class="word' + (touche ? ' sel' : '') + '" data-act="touchemot" data-demande="' + (demande ? '1' : '0') + '" data-arg="' + esc(p.pid) + '|' + k + '" aria-pressed="' + (touche ? 'true' : 'false') + '"><span class="word-n">' + (touche ? '✓ ' : '') + (k + 1) + '</span><span>' + esc(mots[k] || '') + '</span></button>';
@@ -2372,14 +2382,16 @@ button.chip{cursor:pointer;font:inherit}
       '' + composerHTML(c.cid) + '' +
     '</div>';
   }
-  // Les six mots de l’empreinte, affichés dans les réglages de la conversation.
+  // Les dix mots de l’empreinte, affichés dans les réglages de la conversation.
   function motsEmpreinteHTML(c) {
-    return (S.motsCle && S.motsCle.cid === c.cid ? wordsBlock('Mots d’empreinte', [
-        'Ces six mots forment l’empreinte de votre conversation. Ils sont calculés à partir des clés de chiffrement des deux personnes, et doivent être identiques sur les deux téléphones.',
-        'Une seule comparaison suffit, au moment d’ajouter le contact. Que ce soit en face à face ou à distance, l’appli choisit trois de ces six mots et les demande : l’une des deux personnes les touche sur son écran, et l’appli compare elle-même. S’ils sont identiques, personne ne s’est intercalé pour lire ou modifier vos messages : vous pouvez alors communiquer en toute sécurité.',
+    if (!(S.motsCle && S.motsCle.cid === c.cid)) return '';
+    if (!S.motsAffiches) return '<section class="card"><div class="section-title" style="margin:0;display:flex;align-items:center;gap:8px"><span style="color:var(--accent);display:inline-flex">' + empreinteIcone(44, S.motsCle.mots.chemin || '') + '</span><span>Mots d’empreinte</span></div><p class="hint">Les dix mots de votre conversation. Affichez-les pour les comparer avec ceux de l’autre téléphone.</p><button class="btn btn-secondary" data-act="motsafficher">Afficher les mots</button></section>';
+    return wordsBlock('Mots d’empreinte', [
+        'Ces dix mots forment l’empreinte de votre conversation. Ils sont calculés à partir des clés de chiffrement des deux personnes, et doivent être identiques sur les deux téléphones.',
+        'Une seule comparaison suffit, au moment d’ajouter le contact. Que ce soit en face à face ou à distance, l’appli choisit trois de ces dix mots et les demande : l’une des deux personnes les touche sur son écran, et l’appli compare elle-même. S’ils sont identiques, personne ne s’est intercalé pour lire ou modifier vos messages : vous pouvez alors communiquer en toute sécurité.',
         'Vous n’avez rien à revérifier ensuite, quel que soit le nombre de messages. Il faudra seulement recommencer si l’un de vous recrée son identité. Si les mots ne sont pas identiques, ne faites pas confiance à ce lien : coupez-le, puis recréez-le ensemble, face à face ou à distance.',
         'Pli Scellé chiffre les messages sur votre téléphone : seuls vous deux pouvez les lire. Il n’y a ni compte, ni numéro de téléphone, et le serveur qui transporte les messages ne voit que du contenu chiffré.'
-      ], S.motsCle.mots) : '');
+      ], S.motsCle.mots) + '<div class="dock" style="position:static"><button class="btn btn-ghost" data-act="motsafficher">Masquer les mots</button></div>';
   }
   function viewReglages() {
     const c = contacts().find((x) => x.cid === S.arg);
@@ -2486,10 +2498,10 @@ button.chip{cursor:pointer;font:inherit}
       zoneEffacementHTML() +
       '<section><div class="section-title">Accès à l’appli</div><div class="list">' +
         (S.bioAvail ? '<button class="rowlink" data-act="go" data-arg="biometrie"><span class="rico">' + I.finger + '</span><span>Empreinte ou Face ID</span><span class="state">' + (LS.get('bio', null) ? 'Activé' : 'Désactivé') + '</span>' + I.chev + '</button>' : '') +
-        '<button class="rowlink" data-act="go" data-arg="urgence"><span class="rico">' + I.shield + '</span><span class="row-text"><span class="row-title">Code d’urgence</span><span class="row-sub">' + (LS.get('urgence', null) ? 'Activé' : 'Désactivé') + '</span></span>' + tarifHTML('codeUrgence') + I.chev + '</button>' + '<button class="rowlink" data-act="go" data-arg="verrouillage"><span class="rico">' + I.lock + '</span><span>Verrouillage automatique</span><span class="state">' + libelleVerrou(dureeVerrouMinutes()) + '</span>' + I.chev + '</button></div></section>' +
+        '<button class="rowlink" data-act="go" data-arg="urgence"><span class="rico">' + I.shield + '</span><span class="row-text"><span class="row-title">Code d’urgence</span><span class="row-sub">' + (LS.get('urgence', null) ? '<span class="etat-ok">' + I.check + 'Activé et acheté</span>' : 'Désactivé') + '</span></span>' + tarifHTML('codeUrgence') + I.chev + '</button>' + '<button class="rowlink" data-act="go" data-arg="verrouillage"><span class="rico">' + I.lock + '</span><span>Verrouillage automatique</span><span class="state">' + libelleVerrou(dureeVerrouMinutes()) + '</span>' + I.chev + '</button></div></section>' +
       '<section><div class="section-title">Identités</div><div class="list"><button class="rowlink" data-act="go" data-arg="ajouteridentite"><span class="rico">' + svg(BQ_PICTOS.personnes) + '</span><span>Créer un agent double' + (creditsAgent() ? '<span class="row-sub">Payé : touchez pour le créer</span>' : '') + '</span>' + tarifHTML('agentDouble') + I.chev + '</button></div></section>' +
       '<section><div class="section-title">Alertes</div><div class="list"><button class="rowlink" data-act="togglesound"><span class="rico warn">' + I.volume + '</span><span>Sonnerie à la réception</span><span class="state">' + (getPrefs().sound ? 'Activée' : 'Désactivée') + '</span>' + I.chev + '</button><button class="rowlink" data-act="go" data-arg="sonnerie"><span class="rico warn">' + I.music + '</span><span>Choisir la sonnerie</span><span class="state">' + TONES[getPrefs().tone].label + '</span>' + I.chev + '</button></div><div class="list" style="margin-top:12px"><button class="rowlink" data-act="togglenotif"><span class="rico warn">' + I.bell + '</span><span>Notifications quand l’appli est fermée</span><span class="state">' + (getPrefs().notif ? (getPrefs().push ? 'Activées' : 'En attente') : 'Désactivées') + '</span>' + I.chev + '</button></div>' + notifHintHTML() + '<p class="hint">La sonnerie joue à chaque message ou demande reçus, tant que l’appli est ouverte (et vibre sur Android).</p></section>' +
-      '<section><div class="section-title">Sauvegarde</div><div class="list"><button class="rowlink" data-act="go" data-arg="sauvegarde"><span class="rico">' + I.download + '</span><span>Sauvegarder mes contacts</span>' + tarifHTML('sauvegarde') + I.chev + '</button><button class="rowlink" data-act="go" data-arg="installer"><span class="rico">' + I.upload + '</span><span>Installer une sauvegarde</span>' + I.chev + '</button></div><p class="hint">' + (LS.get('lastBackup', 0) ? 'Dernière sauvegarde : ' + esc(new Date(LS.get('lastBackup', 0)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })) : 'Pas encore de sauvegarde. Sans elle, vos contacts ne sont que dans ce navigateur.') + '</p></section>' +
+      '<section><div class="section-title">Sauvegarde</div><div class="list"><button class="rowlink" data-act="go" data-arg="sauvegarde"><span class="rico">' + I.download + '</span><span class="row-text"><span class="row-title" style="white-space:normal">Sauvegarder mes contacts</span>' + (optionAcquise('sauvegarde') ? '<span class="row-sub"><span class="etat-ok">' + I.check + 'Activée et achetée</span></span>' : '') + '</span>' + tarifHTML('sauvegarde') + I.chev + '</button><button class="rowlink" data-act="go" data-arg="installer"><span class="rico">' + I.upload + '</span><span>Installer une sauvegarde</span>' + I.chev + '</button></div><p class="hint">' + (LS.get('lastBackup', 0) ? 'Dernière sauvegarde : ' + esc(new Date(LS.get('lastBackup', 0)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })) : 'Pas encore de sauvegarde. Sans elle, vos contacts ne sont que dans ce navigateur.') + '</p></section>' +
       '<section><div class="section-title">Sécurité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="supprimer"><span class="rico danger">' + I.trash + '</span><span>Supprimer mon identité</span>' + I.chev + '</button></div></section>' + (idActif === 'b' ? '<section><div class="section-title">Liens et identité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="couper-liens"><span class="rico danger">' + I.unlink + '</span><span>Couper tous les liens</span>' + I.chev + '</button></div></section>' : '') +
       '<p class="hint center" style="padding-top:8px">Version ' + APP_VERSION + ' · dernière synchronisation : ' + esc(LS.get('lastSync', 0) ? new Date(LS.get('lastSync', 0)).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'jamais') + ' · messages reçus : ' + LS.get('recus', 0) + '</p>' +
     '</div>';
@@ -2578,6 +2590,7 @@ button.chip{cursor:pointer;font:inherit}
     const del = S.delMode === true;
     return '<div class="screen">' + topbar({ back: del ? 'supprimer' : 'identite', title: del ? 'Supprimer mon identité' : 'Sauvegarder mes contacts' }) +
       '<div><h1>' + (del ? 'Gardez vos contacts' : 'Sauvegarde de vos contacts') + '</h1><p class="lead" style="margin-top:6px">' + (del ? 'Avant de supprimer votre identité, copiez cette sauvegarde. Elle permet de reprendre le lien avec chaque contact.' : 'Si vous changez de téléphone ou perdez celui-ci, ce fichier vous permet de retrouver vos contacts. Il ne contient pas vos messages. Votre code secret le protège : sans lui, il ne s’ouvre pas. Il ne s’installe qu’une fois.') + '</p></div>' +
+      (!del && optionAcquise('sauvegarde') ? '<section class="status status-ok etat-bloc"><span class="etat-rond">' + I.check + '</span><div><b>Achetée et active sur cet appareil</b><span>Valable tant que cette identité existe. Rien d’autre à payer.</span></div></section>' : '') +
       (when ? notice('ok', 'Dernière sauvegarde : ' + esc(when)) : '') +
       (!del && !optionAcquise('sauvegarde') ? paiementHTML('sauvegarde') : '') +
       (S.backupMessage ? notice(S.backupMessage.kind, esc(S.backupMessage.text)) : '') +
@@ -2615,7 +2628,7 @@ button.chip{cursor:pointer;font:inherit}
       '<section class="card form"><span class="label">Fichier de sauvegarde</span>' +
         '<label class="btn btn-secondary file-btn">' + I.download + '<span>Choisir le fichier</span><input id="restorefile" class="sr-only" type="file"></label>' +
         '<details class="fallback"><summary>Je n’arrive pas à choisir le fichier</summary><div class="stack" style="margin-top:10px"><textarea id="rtext" class="field" rows="4" placeholder="Collez ici le contenu de la sauvegarde"></textarea></div></details>' +
-        '<label class="label" for="rcode">Code secret de l’ancienne identité</label><input id="rcode" class="field" type="password" autocomplete="off">' + formStatus() +
+        '<label class="label" for="rcode">Code secret de votre fichier de sauvegarde</label><input id="rcode" class="field" type="password" autocomplete="off">' + formStatus() +
       '</section>' +
       '<div class="dock"><button class="btn btn-primary" data-act="install">Installer</button></div>' +
     '</div>';
@@ -2627,6 +2640,8 @@ button.chip{cursor:pointer;font:inherit}
     if (screen !== 'lien-coupe') S.cut = null;
     if (screen !== 'sauvegarde') { S.delMode = false; S.backupText = null; S.backupDone = false; S.backupMessage = null; }
     if (screen !== 'scanner') { S.scanKind = null; S.scanText = ''; S.scanLink = false; }
+    if (screen !== 'urgence') S.urgenceChange = false;
+    if (screen !== 'reglages') S.motsAffiches = false;
     S.screen = screen;
     S.arg = (arg == null ? null : arg);
     render();
@@ -3166,7 +3181,6 @@ button.chip{cursor:pointer;font:inherit}
     S.flash = { t: 'Code d’urgence enregistré.', ok: true };
     go('identite');
   }
-  function actSupprimerUrgence() { LS.set('urgence', null); S.flash = { t: 'Code d’urgence supprimé.', ok: true }; go('identite'); }
   async function wrapPkcs8(pkcs8, code) {
     const salt = rand(16), iv = rand(12);
     const kb = await pbkdf2(code, salt, ITER_SECRET);
@@ -3913,7 +3927,7 @@ button.chip{cursor:pointer;font:inherit}
     openp: (a) => { const p = String(a).split('|'); return openPending(p[1], p[0]); },
     conv: (cid) => go('conv', cid),
     reglages: async (cid) => {
-      // Les six mots de ce contact sont calculés avant d’ouvrir la page des réglages.
+      // Les dix mots de ce contact sont calculés avant d’ouvrir la page des réglages.
       const c = contacts().find((x) => x.cid === cid);
       try { if (c && c.raw && S.me && S.me.raw) S.motsCle = { cid: cid, mots: await wordsFor(unb64u(S.me.raw), unb64u(c.raw)) }; } catch (e) { S.motsCle = null; }
       go('reglages', cid);
@@ -3923,6 +3937,7 @@ button.chip{cursor:pointer;font:inherit}
     togglesound: actToggleSound,
     settone: (t) => { setPref('tone', t); preparerSonnerie(t); if (idActif !== 'b') playChime(t, true); go('sonnerie'); },
     setverrou: (m) => { LSG.set('verrouDuree', Number(m)); render(); },
+    motsafficher: () => { S.motsAffiches = !S.motsAffiches; render(); },
     togglenotif: actToggleNotif,
     ajouterverifier: actVerifierAjout,
     ouvrirseconde: actOuvrirSeconde,
@@ -3979,7 +3994,7 @@ button.chip{cursor:pointer;font:inherit}
     oubliecommencer: () => { go('codeoublie-decompte'); demarrerDecompteOublie(); },
     urgenceenregistrer: () => actEnregistrerUrgence(),
     acheter: (cle) => actAcheter(cle),
-    urgencesupprimer: () => actSupprimerUrgence(),
+    urgencechanger: () => { S.urgenceChange = true; render(); },
     repriseok: (a) => confirmerReprise(a),
     reprisenon: (a) => refuserReprise(a),
     recharger: recharger,
@@ -4020,7 +4035,7 @@ button.chip{cursor:pointer;font:inherit}
   };
 
   // Sur l’agent double, ces actions s’affichent mais n’ont aucun effet : rien n’est activé, rien n’est sauvegardé, rien ne sort du téléphone.
-  const ACTS_SANS_EFFET_SUR_LE_DOUBLE = new Set(['enablebio', 'disablebio', 'biounlock', 'create', 'ajouterverifier', 'install', 'reactiver', 'deletekeep', 'urgenceenregistrer', 'urgencesupprimer', 'backup', 'copybackup', 'enregistrerfichier', 'acheter']);
+  const ACTS_SANS_EFFET_SUR_LE_DOUBLE = new Set(['enablebio', 'disablebio', 'biounlock', 'create', 'ajouterverifier', 'install', 'reactiver', 'deletekeep', 'urgenceenregistrer', 'urgencechanger', 'backup', 'copybackup', 'enregistrerfichier', 'acheter']);
   document.addEventListener('click', (ev) => {
     if (ev.target.closest && ev.target.closest('a[href]')) return;
     const el = ev.target.closest && ev.target.closest('[data-act]');

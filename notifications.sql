@@ -70,10 +70,13 @@ begin
 end;
 $$;
 
+-- Les accusés de réception (kind « recu ») ne déclenchent pas de notification : ce sont des traces pour l’expéditeur, pas une activité.
 drop trigger if exists pli_messages_push on public.messages;
 create trigger pli_messages_push
   after insert on public.messages
-  for each row execute function public.pli_push_on_message();
+  for each row
+  when (new.payload->>'kind' is distinct from 'recu')
+  execute function public.pli_push_on_message();
 
 -- Droits : seules ces deux fonctions sont ouvertes à l’appli ; le déclencheur n’est appelé que par la base
 revoke execute on function public.pli_push_put(text, text, jsonb) from public;

@@ -445,12 +445,13 @@ button.chip{cursor:pointer;font:inherit}
   function libelleDuree(cid) { const v = dureeChoisie(cid); return v < 0 ? 'jusqu’à fermeture' : (v < 60 ? v + ' s' : (v / 60) + ' min'); }
   // Photos et documents : 15 Mo et 25 Mo au plus. Envoyés par morceaux chiffrés de 96 Ko ; effacés au téléchargement, ou 48 heures après l’envoi.
   const FICHIER_PHOTO_MAX = 15 * 1024 * 1024, FICHIER_DOC_MAX = 25 * 1024 * 1024, FICHIER_MORCEAU = 96 * 1024, FICHIER_DUREE_MS = 48 * 60 * 60 * 1000;
-  const EFFACE_MS = 2 * 60 * 1000;   // une trace (« Message lu », « Message envoyé ») reste 2 minutes, puis disparaît
+  const DUREE_TRACE_MS = 10 * 60 * 1000;   // une trace reste 10 minutes, de chaque côté : « Message lu » à la réception, « Envoyé » puis « Reçu » à l’envoi
+  const EFFACE_MS = DUREE_TRACE_MS;
   const MAX_FAILS = 5;
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v145';
+  const APP_VERSION = 'v146';
   // Monnaie de l’appli : une unité vaut 0,01 €, donc 10 € font 1 000 unités. Elle reste sur l’appareil : aucun compte, rien n’est envoyé.
   // Le nom n’est pas encore choisi : il ne s’écrit qu’ici (et dans les libellés générés).
   const MONNAIE = { un: 'sceau', pluriel: 'sceaux' };
@@ -713,8 +714,8 @@ button.chip{cursor:pointer;font:inherit}
     LS.set('pending', pendingAll().filter((p) => p.peer !== c.raw));
     return c;
   }
-  // Une trace reste 2 minutes : « Message lu » (contenu effacé) ou « Message envoyé ». Ensuite elle disparaît, pour que la liste ne s’allonge pas.
-  const DUREE_TRACE_ENVOI = 48 * 60 * 60 * 1000;   // la trace d’un envoi (« Envoyé », puis « Reçu ») reste 48 heures, comme les fichiers
+  // Une trace (« Message lu » à la réception, « Envoyé » puis « Reçu » à l’envoi) reste 10 minutes, puis disparaît, pour que la liste ne s’allonge pas.
+  const DUREE_TRACE_ENVOI = DUREE_TRACE_MS;   // la trace d’un envoi (texte, lien, événement ou fichier) suit la même durée que la lecture
   function traceEffacee(m, now) {
     if (m.state === 'gone') return now - (m.goneAt || m.until || 0) > EFFACE_MS;
     return m.dir === 'out' && m.state === 'sent' && now - (m.ts || 0) > DUREE_TRACE_ENVOI;
@@ -1744,7 +1745,7 @@ button.chip{cursor:pointer;font:inherit}
     inviter: viewInviter, attente: viewAttente, demande: viewDemande, 'verifier-ff': viewVerifierFF,
     'lien-ouvert': viewLienOuvert, nommer: viewNommer, contact: viewContact, conv: viewConv,
     nouveau: viewNouveau, reglages: viewReglages, couper: viewCouper, 'lien-coupe': viewLienCoupe, identite: viewIdentite, sonnerie: viewSonnerie, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, seconde: viewSeconde, 'couper-liens': viewCouperLiens, 'essai-trait': viewEssaiTrait, ajouteridentite: viewAjouterIdentite, boutique: viewBoutique, recharger: viewRecharger, 'seconde-prete': viewSecondePrete, 'identite-prete': viewIdentitePrete, verif: viewVerif, finir: viewFinir, reprise: viewRepriseLien,
-    codeoublie: viewCodeOublie, 'codeoublie-decompte': viewCodeOublieDecompte, urgence: viewUrgence,
+    codeoublie: viewCodeOublie, 'codeoublie-decompte': viewCodeOublieDecompte, urgence: viewUrgence, verrouillage: viewVerrouillage,
     invalide: viewInvalide
   };
 
@@ -2485,7 +2486,7 @@ button.chip{cursor:pointer;font:inherit}
       zoneEffacementHTML() +
       '<section><div class="section-title">Accès à l’appli</div><div class="list">' +
         (S.bioAvail ? '<button class="rowlink" data-act="go" data-arg="biometrie"><span class="rico">' + I.finger + '</span><span>Empreinte ou Face ID</span><span class="state">' + (LS.get('bio', null) ? 'Activé' : 'Désactivé') + '</span>' + I.chev + '</button>' : '') +
-        '<button class="rowlink" data-act="go" data-arg="urgence"><span class="rico">' + I.shield + '</span><span class="row-text"><span class="row-title">Code d’urgence</span><span class="row-sub">' + (LS.get('urgence', null) ? 'Activé' : 'Désactivé') + '</span></span>' + tarifHTML('codeUrgence') + I.chev + '</button></div></section>' +
+        '<button class="rowlink" data-act="go" data-arg="urgence"><span class="rico">' + I.shield + '</span><span class="row-text"><span class="row-title">Code d’urgence</span><span class="row-sub">' + (LS.get('urgence', null) ? 'Activé' : 'Désactivé') + '</span></span>' + tarifHTML('codeUrgence') + I.chev + '</button>' + '<button class="rowlink" data-act="go" data-arg="verrouillage"><span class="rico">' + I.lock + '</span><span>Verrouillage automatique</span><span class="state">' + libelleVerrou(dureeVerrouMinutes()) + '</span>' + I.chev + '</button></div></section>' +
       '<section><div class="section-title">Identités</div><div class="list"><button class="rowlink" data-act="go" data-arg="ajouteridentite"><span class="rico">' + svg(BQ_PICTOS.personnes) + '</span><span>Créer un agent double' + (creditsAgent() ? '<span class="row-sub">Payé : touchez pour le créer</span>' : '') + '</span>' + tarifHTML('agentDouble') + I.chev + '</button></div></section>' +
       '<section><div class="section-title">Alertes</div><div class="list"><button class="rowlink" data-act="togglesound"><span class="rico warn">' + I.volume + '</span><span>Sonnerie à la réception</span><span class="state">' + (getPrefs().sound ? 'Activée' : 'Désactivée') + '</span>' + I.chev + '</button><button class="rowlink" data-act="go" data-arg="sonnerie"><span class="rico warn">' + I.music + '</span><span>Choisir la sonnerie</span><span class="state">' + TONES[getPrefs().tone].label + '</span>' + I.chev + '</button></div><div class="list" style="margin-top:12px"><button class="rowlink" data-act="togglenotif"><span class="rico warn">' + I.bell + '</span><span>Notifications quand l’appli est fermée</span><span class="state">' + (getPrefs().notif ? (getPrefs().push ? 'Activées' : 'En attente') : 'Désactivées') + '</span>' + I.chev + '</button></div>' + notifHintHTML() + '<p class="hint">La sonnerie joue à chaque message ou demande reçus, tant que l’appli est ouverte (et vibre sur Android).</p></section>' +
       '<section><div class="section-title">Sauvegarde</div><div class="list"><button class="rowlink" data-act="go" data-arg="sauvegarde"><span class="rico">' + I.download + '</span><span>Sauvegarder mes contacts</span>' + tarifHTML('sauvegarde') + I.chev + '</button><button class="rowlink" data-act="go" data-arg="installer"><span class="rico">' + I.upload + '</span><span>Installer une sauvegarde</span>' + I.chev + '</button></div><p class="hint">' + (LS.get('lastBackup', 0) ? 'Dernière sauvegarde : ' + esc(new Date(LS.get('lastBackup', 0)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })) : 'Pas encore de sauvegarde. Sans elle, vos contacts ne sont que dans ce navigateur.') + '</p></section>' +
@@ -2499,6 +2500,18 @@ button.chip{cursor:pointer;font:inherit}
       '<div><h1>Sonnerie</h1><p class="lead" style="margin-top:6px">Touchez un son pour l’entendre et le choisir. Il sonne à l’arrivée d’un message, tant que l’appli est ouverte.</p></div>' +
       '<section><div class="list">' + Object.keys(TONES).map((k) => '<button class="rowlink' + (actuel === k ? ' on' : '') + '" type="button" data-act="settone" data-arg="' + k + '"><span>' + TONES[k].label + '</span>' + (actuel === k ? '<span class="state" style="color:var(--accent)">' + I.check + '</span>' : '') + '</button>').join('') + '</div></section>' +
       '<p class="hint">' + (getPrefs().sound ? 'La sonnerie est activée.' : 'La sonnerie est désactivée. Activez-la dans « Mon identité », à la ligne « Sonnerie à la réception ».') + '</p>' +
+    '</div>';
+  }
+  // Verrouillage automatique : la durée sans toucher l’écran, réglée pour cet appareil. Cinq minutes par défaut.
+  const CHOIX_VERROU = [[5, 'Cinq minutes (par défaut)'], [10, 'Dix minutes'], [30, 'Trente minutes'], [0, 'Jamais']];
+  function dureeVerrouMinutes() { const v = Number(LSG.get('verrouDuree', 5)); return CHOIX_VERROU.some(([m]) => m === v) ? v : 5; }
+  function libelleVerrou(m) { return m ? m + ' minutes' : 'Jamais'; }
+  function viewVerrouillage() {
+    const actuel = dureeVerrouMinutes();
+    return '<div class="screen">' + topbar({ back: 'identite', title: 'Verrouillage' }) +
+      '<div><h1>Verrouillage automatique</h1><p class="lead" style="margin-top:6px">L’appli se verrouille quand personne ne touche l’écran pendant ce temps. Les trente dernières secondes, un compte à rebours s’affiche : un appui le fait disparaître.</p></div>' +
+      '<section><div class="list">' + CHOIX_VERROU.map(([m, t]) => '<button class="rowlink' + (actuel === m ? ' on' : '') + '" type="button" data-act="setverrou" data-arg="' + m + '"><span>' + t + '</span>' + (actuel === m ? '<span class="state" style="color:var(--accent)">' + I.check + '</span>' : '') + '</button>').join('') + '</div></section>' +
+      '<p class="hint">' + (actuel ? 'Le réglage vaut pour cet appareil. Le cadenas verrouille toujours tout, à tout moment.' : 'Avec « Jamais », l’appli ne se verrouille jamais toute seule. Verrouillez-la vous-même, avec le cadenas, quand vous la quittez.') + '</p>' +
     '</div>';
   }
   function viewSupprimer() {
@@ -2816,7 +2829,7 @@ button.chip{cursor:pointer;font:inherit}
       ligne('Créer un agent double', 'sans effet', false) +
       '</ul></section>' +
       '<section class="card"><h2>Ses réglages</h2><p class="hint">Sur sa page, « mon identité » désigne l’agent double : « Effacer mon identité » et « Supprimer mon identité » n’effacent que lui. Ses autres réglages s’affichent comme sur la première, mais n’ont aucun effet : il ne sonne pas, n’a ni sauvegarde, ni code d’urgence, ni empreinte.</p></section>' +
-      '<section class="card"><h2>Verrouillage</h2><p class="hint">Le cadenas sur la première, ou trois minutes sans toucher l’écran, verrouille tout. Effacer la première efface aussi l’agent double.</p></section>' +
+      '<section class="card"><h2>Verrouillage</h2><p class="hint">Le cadenas sur la première, ou le verrouillage automatique réglé dans « Mon identité », verrouille tout. Effacer la première efface aussi l’agent double.</p></section>' +
       '<div class="dock stack" style="position:static"><button class="btn btn-secondary" data-act="essayer">Essayer le geste</button><button class="btn btn-primary" data-act="go" data-arg="accueil">J’ai compris</button></div>' +
     '</div>';
   }  // Essai du geste, après la création : pour apprendre le trait. Ici rien ne bascule : le geste est seulement reconnu.
@@ -3161,13 +3174,14 @@ button.chip{cursor:pointer;font:inherit}
     const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, pkcs8));
     return { salt: b64u(salt), iv: b64u(iv), ct: b64u(ct) };
   }
-  // Verrouillage automatique : cinq minutes sans toucher l’écran. Les trente dernières secondes, un compte à rebours s’affiche.
-  // Un appui sur l’écran le fait disparaître, parce qu’il remet l’horloge à zéro.
-  const VERROU_MS = 5 * 60 * 1000;
+  // Verrouillage automatique : la durée choisie dans « Mon identité » sans toucher l’écran. Les trente dernières secondes, un compte à rebours s’affiche.
+  // Un appui sur l’écran le fait disparaître, parce qu’il remet l’horloge à zéro. « Jamais » le désactive.
   const AVERTISSEMENT_MS = 30 * 1000;
   function verifierInactivite() {
     if (!S.priv || !S.me) { cacherCompteARebours(); return; }
-    const reste = VERROU_MS - (Date.now() - derniereAction);
+    const minutes = dureeVerrouMinutes();
+    if (!minutes) { cacherCompteARebours(); return; }
+    const reste = minutes * 60 * 1000 - (Date.now() - derniereAction);
     if (reste > AVERTISSEMENT_MS) { cacherCompteARebours(); return; }
     if (reste > 0) { montrerCompteARebours(Math.ceil(reste / 1000)); return; }
     cacherCompteARebours();
@@ -3908,6 +3922,7 @@ button.chip{cursor:pointer;font:inherit}
     lock: () => { if (idActif === 'b' && S.autre) return fermerSeconde(); verrouiller(); },
     togglesound: actToggleSound,
     settone: (t) => { setPref('tone', t); preparerSonnerie(t); if (idActif !== 'b') playChime(t, true); go('sonnerie'); },
+    setverrou: (m) => { LSG.set('verrouDuree', Number(m)); render(); },
     togglenotif: actToggleNotif,
     ajouterverifier: actVerifierAjout,
     ouvrirseconde: actOuvrirSeconde,

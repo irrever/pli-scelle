@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Politique de confidentialité – Pli Scellé</title>
+<style>
+:root{color-scheme:light dark;--bg:#ffffff;--fg:#10233A;--muted:#5B6B7D;--accent:#0B6B5C}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#10233A;--fg:#E6EDF4;--muted:#9FB0C3;--accent:#9FD8C9}}
+:root[data-theme="dark"]{--bg:#10233A;--fg:#E6EDF4;--muted:#9FB0C3;--accent:#9FD8C9}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:720px;margin:0 auto;padding:24px max(16px,env(safe-area-inset-left,0px)) 48px max(16px,env(safe-area-inset-right,0px))}
+h1{font-size:26px;line-height:1.25;margin:0 0 8px}
+h2{font-size:19px;margin:28px 0 8px;color:var(--accent)}
+p,li{margin:8px 0}
+ul{padding-left:20px}
+.meta{color:var(--muted);font-size:14px}
+a{color:var(--accent)}
+footer{margin-top:32px;color:var(--muted);font-size:14px}
+</style>
+</head>
+<body>
+<main>
+<h1>Politique de confidentialité de Pli Scellé</h1>
+<p class="meta">Dernière mise à jour : 22 novembre 2026</p>
+<p><strong>Éditeur :</strong> Aït Sidi Ahmed AbdelmAlek<br><strong>Contact :</strong> <a href="mailto:sarl.bc@sfr.fr">sarl.bc@sfr.fr</a></p>
+<p>Pli Scellé est une messagerie privée entre deux personnes. Cette page explique quelles données sont traitées, où elles se trouvent et comment les supprimer.</p>
+
+<h2>1. Ce que Pli Scellé ne demande pas</h2>
+<p>Pli Scellé ne demande ni nom réel, ni numéro de téléphone, ni adresse e-mail, ni compte. Pour créer une identité, vous choisissez un pseudonyme et un code secret.</p>
+
+<h2>2. Les données et où elles se trouvent</h2>
+<p><strong>Sur votre appareil</strong> (ces données ne sont pas envoyées à l'éditeur) :</p>
+<ul>
+<li>votre pseudonyme et les clés de votre identité, dont la clé privée est chiffrée par votre code secret ;</li>
+<li>vos contacts : le nom que vous leur donnez et leur clé publique ;</li>
+<li>les messages, photos, documents et messages vocaux reçus et envoyés ;</li>
+<li>vos réglages.</li>
+</ul>
+<p><strong>Sur le relais</strong> (serveur Supabase, qui transmet les messages) :</p>
+<ul>
+<li>les identifiants techniques des boîtes de messages, dérivés des clés publiques ;</li>
+<li>les pseudonymes figurant dans les invitations, ainsi que les dates et la taille approximative des envois ;</li>
+<li>les messages et les morceaux de fichiers, chiffrés ;</li>
+<li>pour les notifications, l'adresse technique de votre appareil, si vous les activez.</li>
+</ul>
+<p><strong>Ce que le relais ne voit jamais :</strong> le contenu des messages, des photos et des documents, le nom des fichiers, le nom que vous donnez à vos contacts.</p>
+
+<h2>3. Le chiffrement</h2>
+<p>Les messages, photos, documents et messages vocaux sont chiffrés sur l'appareil de l'expéditeur, avec une clé partagée entre les deux personnes. Le relais ne peut pas les lire.</p>
+
+<h2>4. Durée de conservation</h2>
+<ul>
+<li>Les messages sont supprimés du relais une fois reçus.</li>
+<li>Les morceaux de fichiers qui n'ont pas été récupérés sont supprimés au bout de 48 heures.</li>
+<li>Sur votre appareil, un message à lecture unique disparaît après sa lecture. Les autres restent jusqu'à ce que vous les supprimiez.</li>
+</ul>
+
+<h2>5. Notifications</h2>
+<p>Lorsque vous les activez, les notifications ne contiennent ni texte ni nom. Elles indiquent seulement qu'une activité vous attend.</p>
+
+<h2>6. Vos droits</h2>
+<p>Dans « Mon identité », vous pouvez à tout moment supprimer votre identité et les données de votre appareil. Vous pouvez aussi couper le lien avec un contact. Pour toute demande concernant les données conservées sur le relais, écrivez à <a href="mailto:sarl.bc@sfr.fr">sarl.bc@sfr.fr</a>.</p>
+
+<h2>7. Services utilisés</h2>
+<ul>
+<li>Relais des messages : Supabase.</li>
+<li>Site de l'application web : GitHub Pages.</li>
+<li>Application iPhone : App Store, distribuée par Apple.</li>
+</ul>
+<p>Pli Scellé n'affiche aucune publicité et n'utilise aucun outil de mesure d'audience.</p>
+
+<h2>8. Modifications</h2>
+<p>Cette politique peut évoluer. La date de dernière mise à jour figure en haut de cette page.</p>
+
+<footer><p><a href="./">Retour à Pli Scellé</a></p></footer>
+</main>
+</body>
+</html>

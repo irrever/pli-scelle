@@ -459,12 +459,15 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v147';
+  const APP_VERSION = 'v148';
   // Monnaie de l’appli : une unité vaut 0,01 €, donc 10 € font 1 000 unités. Elle reste sur l’appareil : aucun compte, rien n’est envoyé.
   // Le nom n’est pas encore choisi : il ne s’écrit qu’ici (et dans les libellés générés).
   const MONNAIE = { un: 'sceau', pluriel: 'sceaux' };
   // Tant que les achats ne sont pas branchés (appli iPhone), PAIEMENT_ACTIF reste faux : rien n’est débité, tout reste gratuit pendant les tests.
   const PAIEMENT_ACTIF = false;
+  // Vitrine de la Boutique (bouton, prix, blocs de paiement) : masquée tant que les achats intégrés Apple ne sont pas branchés.
+  // Les options restent gratuites tant que PAIEMENT_ACTIF est faux : seule la vitrine disparaît.
+  const BOUTIQUE_VISIBLE = false;
   // Recharges en euros (achat à venir) : chacune crédite des unités.
   const RECHARGES = [{ euros: 2, unites: 200 }, { euros: 3, unites: 300 }, { euros: 5, unites: 500 }, { euros: 10, unites: 1000 }, { euros: 20, unites: 2000 }, { euros: 50, unites: 5000 }];
   // Prix des options, en unités (500 = 5 €). Agent double : à chaque création. Code d’urgence et sauvegarde : une fois par appareil.
@@ -525,6 +528,7 @@ button.chip{cursor:pointer;font:inherit}
     return soldeMonnaie() >= COUTS[cle] ? 'suffisant' : 'insuffisant';
   }
   function paiementHTML(cle) {
+    if (!BOUTIQUE_VISIBLE) return '';
     const agent = cle === 'agentDouble';
     const etat = etatPaiement(cle);
     if (etat === 'acquis') return '';
@@ -566,6 +570,7 @@ button.chip{cursor:pointer;font:inherit}
   }
   // Pastille de prix, en unités. « Acquis » pour une option déjà payée ; « Déjà payé » quand un crédit d’agent double attend.
   const tarifHTML = (cle) => {
+    if (!BOUTIQUE_VISIBLE) return '';
     if (cle === 'agentDouble' && creditsAgent() > 0) return '<span class="tarif paye">Payé</span>';
     if (cle !== 'agentDouble' && optionAcquise(cle)) return '<span class="tarif acquis">Acquis</span>';
     if (cle !== 'agentDouble' && creditsOption(cle) > 0) return '<span class="tarif acquis">Crédit : ' + creditsOption(cle) + '</span>';
@@ -1995,7 +2000,7 @@ button.chip{cursor:pointer;font:inherit}
         '<p class="hint" id="recherche-vide" hidden>Aucun contact ne correspond à cette recherche.</p>'
       : emptyState();
     return '<div class="screen">' +
-      topbar({ titleHTML: 'Messages', right: '<button class="topbtn-boutique" data-act="go" data-arg="boutique" aria-label="Boutique">' + I.caddie + '<span>Boutique</span></button>' + '<button class="iconbtn" data-act="go" data-arg="identite" aria-label="Mon identité">' + I.user + '</button><button class="iconbtn" data-act="lock" aria-label="' + (idActif === 'b' ? 'Fermer cet agent double' : 'Verrouiller') + '">' + I.lock + '</button>' }) +
+      topbar({ titleHTML: 'Messages', right: (BOUTIQUE_VISIBLE ? '<button class="topbtn-boutique" data-act="go" data-arg="boutique" aria-label="Boutique">' + I.caddie + '<span>Boutique</span></button>' : '') + '<button class="iconbtn" data-act="go" data-arg="identite" aria-label="Mon identité">' + I.user + '</button><button class="iconbtn" data-act="lock" aria-label="' + (idActif === 'b' ? 'Fermer cet agent double' : 'Verrouiller') + '">' + I.lock + '</button>' }) +
       (notices ? '<div class="pending-stack">' + notices + '</div>' : '') +
       invitationsEnAttenteHTML() +
       (versionNouvelle ? '<div class="pending-stack"><button class="notice warn" data-act="recharger">' + I.refresh + '<span class="grow">Nouvelle version (' + esc(versionNouvelle) + ') disponible<br><span class="more">Touchez pour la charger. Vos données restent sur cet appareil.</span></span>' + I.chev + '</button></div>' : '') +

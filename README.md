@@ -23,9 +23,10 @@ Les invitations et les messages passent par un relais Supabase. Les scripts se l
 1. `relais.sql` : les tables et les fonctions du relais.
 2. `securite-relais.sql` : réserve la lecture et la suppression des messages à l'identité qui possède le secret de sa boîte.
 3. `securite-envois.sql` : coupures et reprises de lien vérifiées par le serveur. L'appli l'appelle : ne publiez pas cette version avant ce script.
-4. `fichiers-prives.sql` : photos et documents (voir « Photos et documents » ci-dessous). L'appli les envoie par ce script : ne publiez pas cette version avant lui. Déjà installé avant la v136 ? Relancez-le : il passe la purge à 48 heures, sans toucher aux données.
-5. `notifications.sql` : seulement si vous voulez les notifications quand l'appli est fermée (voir ci-dessous).
-6. `sauvegardes-usage-unique.sql` : une sauvegarde ne s'installe qu'une fois. À lancer avant de publier une version qui installe des sauvegardes.
+4. `boites-fermees.sql` : la boîte d'une identité supprimée ne reçoit plus rien. À lancer après `securite-envois.sql`. Sans lui, l'appli marche, mais le relais n'empêche pas les envois vers une identité supprimée.
+5. `fichiers-prives.sql` : photos et documents (voir « Photos et documents » ci-dessous). L'appli les envoie par ce script : ne publiez pas cette version avant lui. Déjà installé avant la v136 ? Relancez-le : il passe la purge à 48 heures, sans toucher aux données.
+6. `notifications.sql` : seulement si vous voulez les notifications quand l'appli est fermée (voir ci-dessous).
+7. `sauvegardes-usage-unique.sql` : une sauvegarde ne s'installe qu'une fois. À lancer avant de publier une version qui installe des sauvegardes.
 
 Ne relancez jamais `relais.sql` après `securite-relais.sql` : il remettrait l'ancienne lecture sans secret.
 
@@ -67,7 +68,7 @@ Pour changer de clés, il faut refaire l'inscription de chaque appareil : désac
 ## Garder ses contacts
 
 - **Sauvegarder** : Mon identité → « Sauvegarder mes contacts ». Le fichier, chiffré par votre code secret, contient vos contacts et de quoi reprendre le lien avec chacun. Gardez-le comme un mot de passe. L'option coûte 200 sceaux à l'achat ou à l'activation, une fois par identité (voir Boutique).
-- **Supprimer son identité en gardant ses contacts** : Mon identité → Supprimer mon identité → « Garder mes contacts et supprimer ». Chaque contact passe en pause pendant 7 jours, sans être coupé. Il apparaît grisé dans « Liens en attente » et ne peut plus être ouvert.
+- **Supprimer son identité en gardant ses contacts** : Mon identité → Supprimer mon identité → « Garder mes contacts et supprimer ». Chaque contact passe en pause pendant 7 jours, sans être coupé. Il apparaît grisé dans « Liens en attente » et ne peut plus être ouvert. La boîte de l'identité supprimée est fermée sur le relais : plus rien ne peut y être envoyé.
 - **Reprendre** : après « Créer mon identité », l’appli propose « Installer ma sauvegarde ». Une sauvegarde ne s’installe qu’une fois : ensuite, les autres sauvegardes de la même identité sont refusées. Puis « Réactiver les liens » envoie la demande à chaque contact. Le lien repart sans nouveau QR code, tant que la personne n’a pas supprimé son identité de son côté.
 - **Limites** : si les deux personnes suppriment leur identité, il faut refaire un QR code. Après 7 jours de pause, le lien est retiré. Une sauvegarde faite avec une version antérieure de l’appli ne peut plus être installée.
 
@@ -90,6 +91,7 @@ Installer une sauvegarde ne coûte rien. Les achats ne sont pas encore branchés
 - `relais.sql` : les tables et les fonctions du relais.
 - `securite-relais.sql` : la protection des boîtes, à lancer après `relais.sql`.
 - `securite-envois.sql` : coupures et reprises vérifiées par le serveur, à lancer après `securite-relais.sql`.
+- `boites-fermees.sql` : la boîte d'une identité supprimée ne reçoit plus rien, à lancer après `securite-envois.sql`.
 - `fichiers-prives.sql` : la table et les fonctions des photos et documents, à lancer après `securite-envois.sql`.
 - `notifications.sql` : les abonnements et l'appel au serveur d'envoi, à lancer après `securite-envois.sql`.
 - `sauvegardes-usage-unique.sql` : la table et la fonction qui refusent une seconde installation de la même sauvegarde, à lancer une fois dans Supabase.

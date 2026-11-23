@@ -328,10 +328,14 @@ body:has(.conv-screen),body:has(.conv-screen)::before{background:var(--fil)}
 
 
 .row-item.is-off .qr-mini{opacity:.45}
-/* Lien en pause ou à réactiver : le texte prend toute la largeur, la mini-grille et le bouton passent à la ligne dessous */
-.row-item.is-off.attente{flex-wrap:wrap;row-gap:10px}
-.row-item.is-off.attente .row-text{flex:1 1 calc(100% - 56px);min-width:0}
-.row-item.is-off.attente .qr-mini{margin-left:56px}
+/* Reprise des contacts : une ligne par personne, avec une pastille d’état */
+.row-item.reprise .row-sub{display:block;margin-top:2px}
+.st{flex:none;display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:600;line-height:1.4;white-space:nowrap}
+.st-attente{background:var(--warn-soft);color:var(--warn)}
+.st-neutre{background:var(--surface-2);color:var(--muted)}
+.st-refus{background:var(--danger-soft);color:var(--danger)}
+.st-demande{background:var(--accent-soft);color:var(--accent)}
+.reprise-bilan{font-size:13px;color:var(--muted);margin:4px 0 10px;line-height:1.45}
 
 /* Aperçu QR des messages (tuiles) */
 .qr-thumb{width:52px;height:52px;flex:none;border-radius:8px;background:#fff;padding:3px;box-sizing:border-box}
@@ -463,7 +467,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v149';
+  const APP_VERSION = 'v150';
   // Monnaie de l’appli : une unité vaut 0,01 €, donc 10 € font 1 000 unités. Elle reste sur l’appareil : aucun compte, rien n’est envoyé.
   // Le nom n’est pas encore choisi : il ne s’écrit qu’ici (et dans les libellés générés).
   const MONNAIE = { un: 'sceau', pluriel: 'sceaux' };
@@ -719,12 +723,21 @@ button.chip{cursor:pointer;font:inherit}
     do { label = randCode().slice(0, 3); } while (cs.some((c) => c.label === label));
     const c = { cid: rid(8), name: name, pseudo: pseudo || '', raw: raw, label: label, since: Date.now() };
     cs.push(c); LS.set('contacts', cs);
+    LS.set('anciens', anciensLiens().filter((a) => a.raw !== raw));   // une nouvelle liaison remplace le souvenir de l’ancienne
     return c;
+  }
+  // Une personne retirée de la liste (coupure, pause expirée) reste reprenable avec une sauvegarde : on garde son nom et sa clé publique, jamais les messages.
+  function anciensLiens() { return LS.get('anciens', []); }
+  function ancienSouvenir(c) {
+    const liste = anciensLiens().filter((a) => a.raw !== c.raw);
+    liste.push({ raw: c.raw, name: c.name || '', pseudo: c.pseudo || '', ts: Date.now(), refus: !!c.refusReprise });   // un refus reste mémorisé quand le lien quitte la liste
+    LS.set('anciens', liste.slice(-200));
   }
   function removeContact(cid) {
     const cs = contacts();
     const c = cs.find((x) => x.cid === cid);
     if (!c) return null;
+    ancienSouvenir(c);
     LS.set('contacts', cs.filter((x) => x.cid !== cid));
     msgsAll().filter((m) => m.cid === cid && m.kind === 'voice').forEach((m) => vdel('audio', m.mid).catch(() => {}));
     LS.set('msgs', msgsAll().filter((m) => m.cid !== cid));
@@ -1288,21 +1301,33 @@ button.chip{cursor:pointer;font:inherit}
   async function onReprise(m) {
     // Reprise : seulement si le serveur a vérifié l’expéditeur, que c’est bien celui du message, et que la clé du lien est juste.
     if (m.auth !== true || typeof m.old !== 'string' || typeof m.from !== 'string') return false;
-    const c = contacts().find((x) => x.raw === m.old || x.prev === m.old);
-    if (!c) return false;
+    const c = contacts().find((x) => x.raw === m.old || x.prev === m.old) || null;
+    // Sans lien dans la liste, seul le souvenir d’un lien retiré permet la reprise : sinon, personne ne peut y prétendre.
+    const souvenir = c ? null : anciensLiens().find((a) => a.raw === m.old) || null;
+    if (!c && !souvenir) return false;
     let p;
     try { p = await decryptFrom(await sharedKey(m.old), m.iv, m.ct); } catch (e) { return false; }
     if (!p || typeof p.raw !== 'string' || p.raw.length < 40 || p.raw !== m.from) return false;
-    if (c.prev === m.old) {
+    if (c && c.prev === m.old) {
       // Ce lien a déjà été repris : le fichier ne sert plus. Seule la même nouvelle identité peut redemander, pour recevoir l’accusé.
       if (c.raw !== p.raw) return false;
       try { await sendAuth(c.raw, 'reprise-ok', { ts: Date.now() }); } catch (e) { /* renvoyé à la prochaine reprise */ }
       return true;
     }
-    if (c.rts && Number(p.ts) <= c.rts) return false;
+    if (souvenir && souvenir.refus) {
+      // Déjà refusée : on le redit à la nouvelle identité, sans rien demander de nouveau à la personne.
+      try { await sendAuth(p.raw, 'reprise-refus', { ts: Date.now() }); } catch (e) { /* renvoyé à la prochaine demande */ }
+      return false;
+    }
+    if (c && c.refusReprise === m.old) {
+      // Déjà refusée : on le redit à la nouvelle identité, sans rien demander de nouveau à la personne.
+      try { await sendAuth(p.raw, 'reprise-refus', { ts: Date.now() }); } catch (e) { /* renvoyé à la prochaine demande */ }
+      return false;
+    }
+    if (c && c.rts && Number(p.ts) <= c.rts) return false;
     // Rien ne bouge tout de suite : la personne compare les dix mots avec celle qui reprend, puis confirme.
-    LS.set('pending', pendingAll().filter((q) => !(q.type === 'reprise-verif' && q.cid === c.cid)));
-    pushPending({ type: 'reprise-verif', cid: c.cid, peer: p.raw, oldRaw: m.old, pseudo: String(p.pseudo || ''), ts: Number(p.ts) || Date.now() });
+    LS.set('pending', pendingAll().filter((q) => !(q.type === 'reprise-verif' && q.oldRaw === m.old)));
+    pushPending({ type: 'reprise-verif', cid: c ? c.cid : null, peer: p.raw, oldRaw: m.old, pseudo: String(p.pseudo || ''), nom: c ? '' : (souvenir.name || souvenir.pseudo || String(p.pseudo || '')), ts: Number(p.ts) || Date.now() });
     return true;
   }
   // La personne a comparé les dix mots : le lien passe sur la nouvelle identité. Une seule fois.
@@ -1310,10 +1335,21 @@ button.chip{cursor:pointer;font:inherit}
     const p = pendingById(pid);
     if (!p || p.type !== 'reprise-verif') return go('accueil');
     dropPending(pid);
+    if (!p.cid) {
+      // Le lien était sorti de la liste (coupé, ou retiré après la pause) : la sauvegarde le rétablit, avec l’accord de la personne.
+      LS.set('anciens', anciensLiens().filter((a) => a.raw !== p.oldRaw));
+      if (!contacts().some((y) => y.raw === p.peer)) addContact(p.peer, p.pseudo, p.nom || p.pseudo || 'Contact');
+      const tous = contacts(); const nouveau = tous.find((y) => y.raw === p.peer);
+      nouveau.prev = p.oldRaw; nouveau.pseudo = p.pseudo || nouveau.pseudo || ''; nouveau.rts = p.ts; delete nouveau.pause;
+      LS.set('contacts', tous);
+      try { await sendAuth(nouveau.raw, 'reprise-ok', { ts: Date.now() }); } catch (e) { /* renvoyé à la prochaine reprise */ }
+      S.flash = { t: (nouveau.name || nouveau.pseudo) + ' a repris le lien avec vous.', ok: true };
+      return go('accueil');
+    }
     const all = contacts();
     const x = all.find((y) => y.cid === p.cid);
     if (!x || x.raw !== p.oldRaw) { S.flash = { t: 'Cette reprise n’est plus valable.', ok: false }; return go('accueil'); }
-    x.prev = p.oldRaw; x.raw = p.peer; x.pseudo = p.pseudo || x.pseudo || ''; x.rts = p.ts; delete x.pause;
+    x.prev = p.oldRaw; x.raw = p.peer; x.pseudo = p.pseudo || x.pseudo || ''; x.rts = p.ts; delete x.pause; delete x.refusReprise;
     LS.set('contacts', all);
     try { await sendAuth(x.raw, 'reprise-ok', { ts: Date.now() }); } catch (e) { /* renvoyé à la prochaine reprise */ }
     S.flash = { t: (x.name || x.pseudo) + ' a repris le lien avec vous.', ok: true };
@@ -1322,6 +1358,10 @@ button.chip{cursor:pointer;font:inherit}
   async function refuserReprise(pid) {
     const p = pendingById(pid);
     dropPending(pid);
+    // Refusée : le souvenir du lien reste, pour répondre « refusée » aux prochaines demandes, sans vous déranger à nouveau.
+    if (p && p.type === 'reprise-verif' && !p.cid) LS.set('anciens', anciensLiens().map((a) => (a.raw === p.oldRaw ? Object.assign({}, a, { refus: true }) : a)));
+    // Contact encore dans la liste (en pause) : le refus reste mémorisé, et les demandes suivantes sont refusées sans la déranger.
+    if (p && p.type === 'reprise-verif' && p.cid) { const tous = contacts(); const x = tous.find((y) => y.cid === p.cid); if (x) { x.refusReprise = p.oldRaw; LS.set('contacts', tous); } }
     // Le refus part vers la nouvelle identité, pour qu’elle le voie sur son écran.
     if (p && p.type === 'reprise-verif') { try { await sendAuth(p.peer, 'reprise-refus', { ts: Date.now() }); } catch (e) { /* le refus n’est pas renvoyé automatiquement */ } }
     S.flash = { t: 'Reprise refusée. Le lien ne bouge pas.', ok: true };
@@ -1329,7 +1369,8 @@ button.chip{cursor:pointer;font:inherit}
   }
   function nomContactPending(p) {
     const c = contacts().find((x) => x.cid === p.cid);
-    return c ? (c.name || c.pseudo || '') : '';
+    if (c) return c.name || c.pseudo || '';
+    return p.type === 'reprise-verif' ? (p.nom || p.pseudo || '') : '';   // lien sorti de la liste : le nom gardé, sinon le pseudo
   }
   function viewRepriseLien() {
     const p = pendingById(S.arg);
@@ -1340,7 +1381,7 @@ button.chip{cursor:pointer;font:inherit}
       '<p class="nom-reprise" style="font-size:30px;font-weight:700;line-height:1.2;margin-top:14px;overflow-wrap:anywhere">' + nom + '</p>' +
       '<p class="lead" style="margin-top:6px">reprend le lien avec vous depuis un nouvel appareil.</p></div>' +
       '<section class="card"><p class="hint">Si c’est bien cette personne, confirmez : le lien revient. Si vous ne reconnaissez pas cette demande, refusez : le lien ne bouge pas.</p></section>' +
-      '<div class="dock stack"><button class="btn btn-primary" data-act="repriseok" data-arg="' + esc(p.pid) + '">Oui, c’est bien cette personne</button><button class="btn btn-danger" data-act="reprisenon" data-arg="' + esc(p.pid) + '">Refuser</button></div>' +
+      '<div class="dock stack"><button class="btn btn-primary" data-act="repriseok" data-arg="' + esc(p.pid) + '">Oui, c’est bien cette personne</button><button class="btn btn-danger" data-act="reprisenon" data-arg="' + esc(p.pid) + '">Refuser</button><button class="btn btn-ghost" data-act="repriseeffacer" data-arg="' + esc(p.pid) + '">Effacer la demande</button></div>' +
     '</div>';
   }
   // Le contact a refusé la reprise : la ligne le dit, le lien reste à réactiver.
@@ -1352,6 +1393,12 @@ button.chip{cursor:pointer;font:inherit}
     x.pend.refus = Date.now(); delete x.pend.envoyee;
     LS.set('contacts', all);
     return true;
+  }
+  function marquerInconnu(c) {
+    const all = contacts(); const x = all.find((y) => y.cid === c.cid);
+    if (!x || !x.pend) return;
+    x.pend.inconnu = Date.now(); delete x.pend.envoyee; delete x.pend.refus;
+    LS.set('contacts', all);
   }
   // Confirmation : le lien est rétabli de notre côté aussi.
   async function onRepriseOk(m) {
@@ -1368,7 +1415,7 @@ button.chip{cursor:pointer;font:inherit}
     const limite = Date.now() - PAUSE_MS;
     const perdus = contacts().filter((c) => c.pause && c.pause.since < limite);
     perdus.forEach((c) => removeContact(c.cid));
-    if (perdus.length) S.flash = { t: 'Le lien avec ' + (perdus[0].name || perdus[0].pseudo) + ' a expiré : la pause a duré 7 jours.' };
+    if (perdus.length) S.flash = { t: (perdus[0].name || perdus[0].pseudo) + ' a quitté la liste : la pause a duré 7 jours. Si cette personne reprend le lien avec sa sauvegarde, vous serez prévenu.' };
     return perdus.length > 0;
   }
 
@@ -1383,6 +1430,9 @@ button.chip{cursor:pointer;font:inherit}
     if (!S.me || !S.priv) return;
     reessaieEffacements().catch(() => {});
     if (expirePauses()) S.needRender = true;
+    if (expireDemandes()) S.needRender = true;
+    const retires = retirerSansReponse();
+    if (retires) { S.needRender = true; S.flash = { t: (retires > 1 ? retires + ' liens sans suite ont été retirés' : 'Un lien sans suite a été retiré') + ' de la liste. Ils ne reviendront qu’avec un nouveau QR code.' }; }
     const pend = pendingAll();
     if (S.cut && S.screen !== 'lien-coupe') return go('lien-coupe');
     // Demande reçue : sa page s’ouvre toute seule, sauf si on est en train de taper quelque chose.
@@ -1775,7 +1825,7 @@ button.chip{cursor:pointer;font:inherit}
     scanner: viewScanner,
     inviter: viewInviter, attente: viewAttente, demande: viewDemande, 'verifier-ff': viewVerifierFF,
     'lien-ouvert': viewLienOuvert, nommer: viewNommer, contact: viewContact, conv: viewConv,
-    nouveau: viewNouveau, reglages: viewReglages, couper: viewCouper, 'lien-coupe': viewLienCoupe, identite: viewIdentite, sonnerie: viewSonnerie, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, seconde: viewSeconde, 'couper-liens': viewCouperLiens, 'essai-trait': viewEssaiTrait, ajouteridentite: viewAjouterIdentite, boutique: viewBoutique, recharger: viewRecharger, 'seconde-prete': viewSecondePrete, 'identite-prete': viewIdentitePrete, verif: viewVerif, finir: viewFinir, reprise: viewRepriseLien,
+    nouveau: viewNouveau, reglages: viewReglages, couper: viewCouper, 'lien-coupe': viewLienCoupe, 'lien-reprise': viewLienReprise, identite: viewIdentite, sonnerie: viewSonnerie, biometrie: viewBiometrie, supprimer: viewSupprimer, sauvegarde: viewSauvegarde, installer: viewInstaller, reprendre: viewReprendre, seconde: viewSeconde, 'couper-liens': viewCouperLiens, 'essai-trait': viewEssaiTrait, ajouteridentite: viewAjouterIdentite, boutique: viewBoutique, recharger: viewRecharger, 'seconde-prete': viewSecondePrete, 'identite-prete': viewIdentitePrete, verif: viewVerif, finir: viewFinir, reprise: viewRepriseLien,
     codeoublie: viewCodeOublie, 'codeoublie-decompte': viewCodeOublieDecompte, urgence: viewUrgence, verrouillage: viewVerrouillage,
     invalide: viewInvalide
   };
@@ -1936,11 +1986,6 @@ button.chip{cursor:pointer;font:inherit}
     '</div>';
   }
   // Où en est une demande de reprise, pour une ligne « lien à reprendre ».
-  function statutReprise(c) {
-    if (c.pend && c.pend.refus) return 'Refusée par ' + esc(c.name || 'la personne') + '. Touchez « Réactiver les liens » pour renvoyer la demande.';
-    if (c.pend && c.pend.envoyee) return 'Demande envoyée : en attente de sa confirmation';
-    return 'À réactiver';
-  }
   // Recherche et zones : outils partagés par l’accueil et « Nouveau message ».
   // Un contact garde la date de son dernier message, même quand le message lui-même est effacé.
   function marqueConversation(cid, ts) {
@@ -1991,32 +2036,158 @@ button.chip{cursor:pointer;font:inherit}
         : emptyState()) +
       '</div>';
   }
+  // ---------- reprise des contacts : une ligne par personne, avec son état ----------
+  const JOUR_MS = 24 * 3600 * 1000;
+  const DUREE_SANS_REPONSE_MS = 7 * JOUR_MS;   // au bout de 7 jours sans réponse : « Pas de réponse »
+  const DUREE_DEMANDE_MS = 7 * JOUR_MS;        // une demande reçue disparaît après 7 jours sans réponse
+  const DUREE_RETRAIT_MS = 30 * JOUR_MS;       // sans suite pendant 30 jours : la ligne est retirée de la liste
+  function joursDepuis(t) { return Math.floor((Date.now() - t) / JOUR_MS); }
+  function depuisTexte(t) { const j = joursDepuis(t); return j <= 0 ? 'aujourd’hui' : (j === 1 ? 'hier' : j + ' jours'); }
+  function envoyeeTexte(t) { const j = joursDepuis(t); return j <= 0 ? 'Envoyée aujourd’hui' : (j === 1 ? 'Envoyée hier' : 'Envoyée il y a ' + j + ' jours'); }
+  // L’état d’un contact dans la section : null si le contact n’y a pas sa place.
+  function etatReprise(c, demandes) {
+    if (demandes.some((d) => d.cid === c.cid)) return { ordre: 5, code: 'demande', libelle: 'Demande reçue', sous: 'Veut reprendre le lien avec vous', classe: 'st-demande' };
+    const p = c.pend;
+    if (p && p.inconnu) return { ordre: 4, code: 'introuvable', libelle: 'Introuvable', sous: 'A supprimé son identité', classe: 'st-refus' };
+    if (p && p.refus) return { ordre: 3, code: 'refus', libelle: 'Refusée', sous: 'Ne reviendra pas sans nouveau QR code', classe: 'st-refus' };
+    if (p && p.envoyee) {
+      const sansReponse = Date.now() - p.envoyee >= DUREE_SANS_REPONSE_MS;
+      return sansReponse
+        ? { ordre: 2, code: 'pasreponse', libelle: 'Pas de réponse', sous: envoyeeTexte(p.envoyee), classe: 'st-attente' }
+        : { ordre: 1, code: 'attente', libelle: 'En attente', sous: envoyeeTexte(p.envoyee), classe: 'st-attente' };
+    }
+    if (p) return { ordre: 0, code: 'envoyer', libelle: 'À envoyer', sous: 'Demande pas encore envoyée', classe: 'st-neutre' };
+    if (c.pause) return { ordre: 6, code: 'pause', libelle: 'En pause', sous: 'En pause depuis ' + depuisTexte(c.pause.since), classe: 'st-neutre' };
+    return null;
+  }
+  // La section « Reprise de vos contacts » : une ligne par personne. Toucher une ligne fait ce que dit son état.
+  function sectionReprise(cs, demandes) {
+    const items = [];
+    cs.forEach((c) => { const e = etatReprise(c, demandes); if (e) items.push({ c: c, e: e, nom: c.name || c.pseudo || '' }); });
+    demandes.filter((d) => !d.cid).forEach((d) => items.push({ d: d, e: { ordre: 5, code: 'demande', libelle: 'Demande reçue', sous: 'Veut reprendre le lien avec vous', classe: 'st-demande' }, nom: d.nom || d.pseudo || 'Quelqu’un' }));
+    if (!items.length) return '';
+    items.sort((a, b) => a.e.ordre - b.e.ordre || normaliser(a.nom).localeCompare(normaliser(b.nom)));
+    const lignes = items.map((it) => {
+      if (it.c) {
+        const c = it.c, e = it.e;
+        const act = e.code === 'demande' ? 'openp' : (e.code === 'envoyer' || e.code === 'attente') ? 'reprisecontact' : 'lienreprise';
+        const arg = e.code === 'demande' ? 'reprise|' + demandes.find((d) => d.cid === c.cid).pid : c.cid;
+        return '<button class="row-item reprise" data-cherche="' + esc(normaliser(c.name || c.pseudo || '')) + '" data-act="' + act + '" data-arg="' + esc(arg) + '"><span class="avatar">' + esc(initial(c.name || c.pseudo || '')) + '</span><span class="row-text"><span class="row-title">' + esc(c.name || c.pseudo || '') + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · ' + esc(e.sous) + '</span></span><span class="st ' + e.classe + '">' + esc(e.libelle) + '</span></button>';
+      }
+      const d = it.d;
+      return '<button class="row-item reprise" data-cherche="' + esc(normaliser(it.nom)) + '" data-act="openp" data-arg="' + esc('reprise|' + d.pid) + '"><span class="avatar">' + esc(initial(it.nom)) + '</span><span class="row-text"><span class="row-title">' + esc(it.nom) + '</span><span class="row-sub">Veut reprendre le lien avec vous</span></span><span class="st st-demande">Demande reçue</span></button>';
+    }).join('');
+    const batch = cs.some((c) => c.restaure || c.pend);
+    const confirmes = cs.filter((c) => c.restaure && !c.pend).length;
+    const enAttente = cs.filter((c) => c.pend && c.pend.envoyee && !c.pend.refus && !c.pend.inconnu).length;
+    const aEnvoyer = cs.filter((c) => c.pend && !c.pend.envoyee && !c.pend.refus && !c.pend.inconnu).length;
+    const bilan = batch && (confirmes || enAttente || aEnvoyer) ? '<p class="reprise-bilan">' + confirmes + (confirmes > 1 ? ' confirmés' : ' confirmé') + ' · ' + enAttente + ' en attente · ' + aEnvoyer + ' à envoyer</p>' : '';
+    const bouton = aEnvoyer ? '<div class="pending-stack"><button class="btn btn-secondary" data-act="reactiver">' + (aEnvoyer > 1 ? 'Demander la reprise à ' + aEnvoyer + ' contacts' : 'Demander la reprise à 1 contact') + '</button></div>' : '';
+    return '<section data-zone="reprise"><div class="section-title" style="margin-top:14px">Reprise de vos contacts</div>' + bilan + bouton + '<div class="list">' + lignes + '</div><p class="hint">Une demande reçue disparaît après 7 jours sans réponse. Une reprise envoyée passe en « Pas de réponse » au bout de 7 jours, puis est retirée au bout de 30 jours.</p></section>';
+  }
+  // Envoie la demande de reprise à chaque contact de la liste (ou la renvoie). Une boîte fermée : la personne a supprimé son identité.
+  async function envoyerDemandes(liste) {
+    let envoyes = 0, introuvables = 0;
+    for (const c of liste) {
+      try {
+        await sendReprise(c);
+        const all = contacts(); const x = all.find((y) => y.cid === c.cid);
+        if (x && x.pend) { x.pend.envoyee = Date.now(); delete x.pend.refus; LS.set('contacts', all); }
+        envoyes++;
+      } catch (e) {
+        if (boiteFermee(e)) { marquerInconnu(c); introuvables++; }
+      }
+    }
+    return { envoyes: envoyes, introuvables: introuvables };
+  }
+  function messageEnvoi(b) {
+    if (b.envoyes) return { t: 'Demande envoyée à ' + b.envoyes + (b.envoyes > 1 ? ' contacts' : ' contact') + '. Chacun confirme dans son appli.', ok: true };
+    if (b.introuvables) return { t: 'Cette personne a supprimé son identité : un nouveau QR code est nécessaire.', ok: false };
+    return { t: 'Envoi impossible pour l’instant. Réessayez.', ok: false };
+  }
+  // « Demander la reprise » : seulement aux contacts qui n’ont pas encore reçu de demande.
+  async function actReactivate() {
+    const aEnvoyer = contacts().filter((x) => x.pend && !x.pend.envoyee && !x.pend.refus && !x.pend.inconnu);
+    const b = await envoyerDemandes(aEnvoyer);
+    render();
+    flashNow(messageEnvoi(b));
+  }
+  // Toucher « À envoyer », « En attente » ou « Pas de réponse » envoie (ou renvoie) la demande. Les autres états ouvrent leur menu.
+  async function reprendreContact(cid) {
+    const c = contacts().find((x) => x.cid === cid);
+    if (!c || !c.pend) return go('accueil');
+    const code = etatReprise(c, pendingAll().filter((p) => p.type === 'reprise-verif')).code;
+    if (code !== 'envoyer' && code !== 'attente' && code !== 'pasreponse') return go('lien-reprise', cid);
+    const b = await envoyerDemandes([c]);
+    render();
+    flashNow(messageEnvoi(b));
+  }
+  // Une demande reçue dure 7 jours : au-delà, elle disparaît (celle qui l’a envoyée peut la renvoyer).
+  function expireDemandes() {
+    const limite = Date.now() - DUREE_DEMANDE_MS;
+    const toutes = pendingAll();
+    const gardees = toutes.filter((p) => !(p.type === 'reprise-verif' && (p.at || 0) < limite));
+    if (gardees.length === toutes.length) return false;
+    LS.set('pending', gardees);
+    return true;
+  }
+  // Sans suite pendant 30 jours (pas de réponse, refus ou introuvable) : la ligne est retirée de la liste.
+  function retirerSansReponse() {
+    const limite = Date.now() - DUREE_RETRAIT_MS;
+    const dernier = (c) => Math.max(c.pend.envoyee || 0, c.pend.refus || 0, c.pend.inconnu || 0);
+    const retires = contacts().filter((c) => c.pend && dernier(c) > 0 && dernier(c) < limite);
+    retires.forEach((c) => removeContact(c.cid));
+    return retires.length;
+  }
+  // Efface une demande reçue sans répondre : rien n’est envoyé, la personne peut la renvoyer.
+  function effacerDemande(pid) {
+    dropPending(pid);
+    S.flash = { t: 'Demande effacée. La personne peut la renvoyer.', ok: true };
+    go('accueil');
+  }
+  // Le menu d’un contact qu’on ne peut pas reprendre tout de suite.
+  function viewLienReprise() {
+    const c = contacts().find((x) => x.cid === S.arg);
+    if (!c) return viewAccueil();
+    const e = etatReprise(c, pendingAll().filter((p) => p.type === 'reprise-verif')) || { code: '' };
+    const texte = {
+      pasreponse: 'Cette personne n’a pas répondu à la demande envoyée. Vous pouvez la renvoyer, ou reprendre contact autrement.',
+      refus: 'Cette personne a refusé la reprise. Le lien ne reviendra pas avec la sauvegarde : un nouveau QR code est nécessaire.',
+      introuvable: 'Cette personne a supprimé son identité. La sauvegarde ne peut plus rétablir ce lien : un nouveau QR code est nécessaire.',
+      pause: 'Cette personne a supprimé son identité en gardant ses contacts. Le lien reste en pause.'
+    }[e.code] || 'Vous pouvez reprendre contact, ou retirer cette personne de votre liste.';
+    return '<div class="screen">' + topbar({ back: 'accueil', title: '' }) +
+      '<div><h1>' + esc(c.name || c.pseudo || 'Ce contact') + '</h1><p class="lead" style="margin-top:8px">' + esc(texte) + '</p></div>' +
+      '<div class="dock stack" style="position:static">' +
+      (e.code === 'pasreponse' ? '<button class="btn btn-primary" data-act="reprisecontact" data-arg="' + esc(c.cid) + '">Renvoyer la demande</button>' : '') +
+      '<button class="btn btn-secondary" data-act="newinvite">Inviter avec un nouveau QR code</button>' +
+      '<button class="btn btn-danger" data-act="cut" data-arg="' + esc(c.cid) + '">Retirer ce contact</button>' +
+      '</div></div>';
+  }
   function viewAccueil() {
-    const notices = pendingAll().filter((p) => ['ff-request', 'remote-claim', 'ff-accepted', 'remote-accepted', 'remote-sent', 'verif', 'code', 'code-envoye', 'reprise-verif'].indexOf(p.type) >= 0).map(noticeHTML).join('');
+    const notices = pendingAll().filter((p) => ['ff-request', 'remote-claim', 'ff-accepted', 'remote-accepted', 'remote-sent', 'verif', 'code', 'code-envoye'].indexOf(p.type) >= 0).map(noticeHTML).join('');
     const ms = msgsAll();
     const cs = contacts();
-    // Lien en pause ou à réactiver : la ligne est grisée, on ne peut plus l’ouvrir ; elle reste dans une section à part.
+    // Les contacts en reprise ou en pause ont leur propre section, « Reprise de vos contacts ».
     const miniQR = (c) => '<span class="qr-mini" aria-hidden="true">' + qrGrille(c.cid) + '</span>';
     const ligne = (c) => {
       const n = ms.filter((m) => m.cid === c.cid && m.dir === 'in' && m.state === 'new' && !m.seen).length;
-      if (c.pause || c.pend) {
-        return '<div class="row-item is-off attente" data-cherche="' + esc(normaliser(c.name)) + '" aria-disabled="true"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · ' + (c.pause ? 'En pause, en attente de sa reprise' : statutReprise(c)) + '</span></span>' + miniQR(c) + '<button class="btn btn-secondary" style="min-height:40px;width:auto;padding:0 12px" data-act="cut" data-arg="' + esc(c.cid) + '">Couper le lien</button></div>';
-      }
       return '<button class="row-item conv" data-cherche="' + esc(normaliser(c.name)) + '" data-act="conv" data-arg="' + esc(c.cid) + '"><span class="avatar">' + esc(initial(c.name)) + '</span><span class="row-text"><span class="row-title">' + esc(c.name) + '</span><span class="row-sub"><span class="mono">' + esc(c.label) + '</span> · Vérifié</span></span>' + miniQR(c) + (n ? '<span class="count">' + n + '</span>' : '') + I.chev + '</button>';
     };
-    const actifs = cs.filter((c) => !c.pause && !c.pend);
-    const attente = cs.filter((c) => c.pause || c.pend);
+    const demandes = pendingAll().filter((p) => p.type === 'reprise-verif');
+    const actifs = cs.filter((c) => !c.pause && !c.pend && !demandes.some((d) => d.cid === c.cid));
+    const attente = sectionReprise(cs, demandes);
     // Deux zones : « Conversations » (contacts avec un message reçu ou envoyé, le plus récent en haut) et « Contacts » (les autres).
     const dernier = dernierMessageParContact(cs, ms);
     const conversations = actifs.filter((c) => dernier[c.cid] > 0).sort((a, b) => dernier[b.cid] - dernier[a.cid]);
     const autres = actifs.filter((c) => !(dernier[c.cid] > 0));
     const list = cs.length
       ? '<div class="stack"><input id="recherche" class="field" type="search" placeholder="Rechercher un contact" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Rechercher un contact"></div>' +
+        attente +
         (conversations.length ? '<section data-zone="conversations"><div class="section-title">Conversations</div><div class="list">' + conversations.map(ligne).join('') + '</div></section>' : '') +
         (autres.length ? '<section data-zone="contacts"><div class="section-title">Contacts</div><div class="list">' + autres.map(ligne).join('') + '</div></section>' : '') +
-        (attente.length ? '<section data-zone="attente"><div class="section-title" style="margin-top:14px">Liens en attente</div><div class="list">' + attente.map(ligne).join('') + '</div></section>' : '') +
         '<p class="hint" id="recherche-vide" hidden>Aucun contact ne correspond à cette recherche.</p>'
-      : emptyState();
+      : attente + emptyState();   // sans contact, une demande reçue reste visible
     return '<div class="screen">' +
       topbar({ titleHTML: 'Messages', right: (BOUTIQUE_VISIBLE ? '<button class="topbtn-boutique" data-act="go" data-arg="boutique" aria-label="Boutique">' + I.caddie + '<span>Boutique</span></button>' : '') + '<button class="iconbtn" data-act="go" data-arg="identite" aria-label="Mon identité">' + I.user + '</button><button class="iconbtn" data-act="lock" aria-label="' + (idActif === 'b' ? 'Fermer cet agent double' : 'Verrouiller') + '">' + I.lock + '</button>' }) +
       (notices ? '<div class="pending-stack">' + notices + '</div>' : '') +
@@ -2024,7 +2195,6 @@ button.chip{cursor:pointer;font:inherit}
       (versionNouvelle ? '<div class="pending-stack"><button class="notice warn" data-act="recharger">' + I.refresh + '<span class="grow">Nouvelle version (' + esc(versionNouvelle) + ') disponible<br><span class="more">Touchez pour la charger. Vos données restent sur cet appareil.</span></span>' + I.chev + '</button></div>' : '') +
       noticeSonPause() +
       (idActif === 'a' && cs.length && !(getPrefs().notif && getPrefs().push) ? '<div class="pending-stack"><button class="notice warn" data-act="togglenotif">' + I.msg + '<span class="grow">Notifications quand l’appli est fermée : ' + (getPrefs().notif ? 'pas encore prêtes' : 'désactivées') + '<br><span class="more">Touchez pour ' + (getPrefs().notif ? 'réessayer' : 'les activer sur cet appareil') + '.</span></span>' + I.chev + '</button></div>' : '') +
-      (cs.some((c) => c.pend) ? '<div class="pending-stack"><button class="notice warn" data-act="reactiver">' + I.link + '<span class="grow">Réactiver les liens<br><span class="more">Vos contacts sont installés. Touchez pour leur envoyer la demande : chacun confirme dans son appli.</span></span>' + I.chev + '</button></div>' : '') +
       (idActif === 'a' && cs.length && !LS.get('lastBackup', 0) ? '<div class="pending-stack"><button class="notice warn" data-act="go" data-arg="sauvegarde">' + I.shield + '<span class="grow">Sauvegardez vos contacts<br><span class="more">Sans sauvegarde, ils restent dans ce navigateur seulement.</span></span>' + I.chev + '</button></div>' : '') +
       '<section>' + list + '</section>' +
       '<div class="dock stack"><button class="btn btn-primary" data-act="go" data-arg="nouveau">' + I.edit + '<span>Nouveau message</span></button><button class="btn btn-secondary" data-act="go" data-arg="ajouter">' + I.plus + '<span>Ajouter une personne</span></button></div>' +
@@ -2258,7 +2428,7 @@ button.chip{cursor:pointer;font:inherit}
     if (lien && (lien.pause || lien.pend)) {
       return '<div class="composer">' + notice('info', lien.pause
         ? esc(lien.name) + ' a supprimé son identité : le lien est en pause. Vous pourrez écrire dès qu’il aura repris le lien.'
-        : 'Lien à réactiver : touchez « Réactiver les liens » dans l’accueil avant d’écrire.') + '</div>';
+        : 'Lien à reprendre : envoyez la demande depuis « Reprise de vos contacts », sur l’accueil, avant d’écrire.') + '</div>';
     }
     // Date et heure de maintenant, en heure locale : valeurs par défaut du formulaire d’événement.
     const quandHTML = () => {
@@ -2440,7 +2610,7 @@ button.chip{cursor:pointer;font:inherit}
     const actRetour = enPause ? 'go' : 'conv';
     return '<div class="screen center-col">' + topbar({ backAct: actRetour, backArg: retour, title: 'Couper le lien' }) +
       '<div class="hero-icon danger">' + I.unlink + '</div>' +
-      '<div><h1>Couper le lien avec ' + esc(c.name || c.pseudo || 'ce contact') + ' ?</h1><p class="lead" style="margin-top:8px">La conversation sera effacée des deux côtés. Pour reprendre contact, il faudra une nouvelle connexion.</p></div>' +
+      '<div><h1>Couper le lien avec ' + esc(c.name || c.pseudo || 'ce contact') + ' ?</h1><p class="lead" style="margin-top:8px">La conversation sera effacée des deux côtés. Pour reprendre contact, il faudra une nouvelle connexion, ou une reprise par sauvegarde que vous confirmerez.</p></div>' +
       '<div class="dock stack" style="width:100%"><button class="btn btn-danger" data-act="cutyes" data-arg="' + esc(c.cid) + '">Couper le lien</button><button class="btn btn-secondary" data-act="' + actRetour + '" data-arg="' + esc(retour) + '">Annuler</button></div>' +
     '</div>';
   }
@@ -2552,8 +2722,8 @@ button.chip{cursor:pointer;font:inherit}
   function viewSupprimer() {
     return '<div class="screen">' + topbar({ back: 'identite', title: 'Supprimer mon identité' }) +
       '<div class="hero-icon danger">' + I.alert + '</div>' +
-      '<div><h1>Supprimer mon identité</h1><p class="lead" style="margin-top:8px">Vos messages sont effacés de cet appareil. Vous pouvez garder vos contacts : chacun reste en pause pendant 7 jours, le temps de reprendre le lien avec votre nouvelle identité.</p></div>' +
-      notice('info', 'Avec « Tout supprimer », chaque lien est coupé tout de suite, et les personnes concernées sont prévenues.') +
+      '<div><h1>Supprimer mon identité</h1><p class="lead" style="margin-top:8px">Vos messages sont effacés de cet appareil. Vous pouvez garder vos contacts : chacun reste en pause. Avec votre sauvegarde, vous reprenez le lien sans nouveau QR code, après que chacun a confirmé dans son appli, tant que la personne n’a pas supprimé la sienne.</p></div>' +
+      notice('info', 'Avec « Tout supprimer », chaque lien est coupé tout de suite, et les personnes concernées sont prévenues. Avec une sauvegarde faite avant, vous pourrez encore les reprendre, si chacune confirme.') +
       '<div class="dock stack"><button class="btn btn-primary" data-act="supprimerkeep">Garder mes contacts et supprimer</button><button class="btn btn-danger-solid" data-act="deleteme">Tout supprimer</button><button class="btn btn-secondary" data-act="go" data-arg="identite">Garder mon identité</button></div>' +
     '</div>';
   }
@@ -2641,13 +2811,13 @@ button.chip{cursor:pointer;font:inherit}
   }
   function viewReprendre() {
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Vos contacts' }) +
-      '<div><h1>Reprendre vos contacts ?</h1><p class="lead" style="margin-top:6px">Si vous avez une sauvegarde de vos contacts, installez-la maintenant. Les personnes qui ont gardé le lien le retrouvent avec votre nouvelle identité.</p></div>' +
+      '<div><h1>Reprendre vos contacts ?</h1><p class="lead" style="margin-top:6px">Si vous avez une sauvegarde de vos contacts, installez-la maintenant. Chaque personne qui n’a pas supprimé son identité peut reprendre le lien avec vous : elle confirme dans son appli.</p></div>' +
       '<div class="dock stack" style="position:static"><button class="btn btn-primary" data-act="go" data-arg="installer">Installer ma sauvegarde</button><button class="btn btn-ghost" data-act="go" data-arg="accueil">Pas maintenant</button></div>' +
     '</div>';
   }
   function viewInstaller() {
     return '<div class="screen">' + topbar({ back: 'accueil', title: 'Installer une sauvegarde' }) +
-      '<div><h1>Installer une sauvegarde</h1><p class="lead" style="margin-top:6px">Chaque contact apparaît en « À réactiver ». Touchez ensuite « Réactiver les liens » dans l’accueil. Un fichier ne s’installe qu’une fois.</p></div>' +
+      '<div><h1>Installer une sauvegarde</h1><p class="lead" style="margin-top:6px">Chaque contact apparaît dans « Reprise de vos contacts », « À envoyer ». Demandez la reprise à chacun, ou à tous d’un coup. Un fichier ne s’installe qu’une fois.</p></div>' +
       '<section class="card form"><span class="label">Fichier de sauvegarde</span>' +
         '<label class="btn btn-secondary file-btn">' + I.download + '<span>Choisir le fichier</span><input id="restorefile" class="sr-only" type="file"></label>' +
         '<details class="fallback"><summary>Je n’arrive pas à choisir le fichier</summary><div class="stack" style="margin-top:10px"><textarea id="rtext" class="field" rows="4" placeholder="Collez ici le contenu de la sauvegarde"></textarea></div></details>' +
@@ -3909,7 +4079,7 @@ button.chip{cursor:pointer;font:inherit}
     }
     go('sauvegarde');
   }
-  // Installer la sauvegarde des contacts : ils apparaissent « À réactiver » jusqu’à la réponse de chaque personne.
+  // Installer la sauvegarde des contacts : ils apparaissent « À envoyer » jusqu’à la réponse de chaque personne.
   async function actInstall() {
     const code = $('#rcode').value || '';
     const text = ($('#rtext').value || '').trim();
@@ -3929,28 +4099,14 @@ button.chip{cursor:pointer;font:inherit}
       if (contacts().some((c) => c.raw === item.raw)) continue;
       const c = addContact(item.raw, String(item.pseudo || ''), String(item.name || item.pseudo || 'Contact').slice(0, 40));
       const all = contacts(); const x = all.find((y) => y.cid === c.cid);
-      if (x) x.pend = { old: item.old, lk: item.lk };
+      if (x) { x.pend = { old: item.old, lk: item.lk }; x.restaure = true; }
       LS.set('contacts', all);
       n++;
     }
-    S.flash = { t: (n ? (n + (n > 1 ? ' contacts installés' : ' contact installé') + '. Touchez « Réactiver les liens » dans l’accueil.') : 'Ces contacts sont déjà dans votre liste.') + ' Ce fichier n’est plus utilisable : vous pouvez le supprimer.', ok: true };
+    S.flash = { t: (n ? (n + (n > 1 ? ' contacts installés' : ' contact installé') + '. Retrouvez-les dans « Reprise de vos contacts », sur l’accueil.') : 'Ces contacts sont déjà dans votre liste.') + ' Ce fichier n’est plus utilisable : vous pouvez le supprimer.', ok: true };
     go('accueil');
   }
   // Envoie la demande de reprise à chaque contact en attente. Le lien revient quand la personne répond.
-  async function actReactivate() {
-    let envoyes = 0;
-    for (const c of contacts().filter((x) => x.pend)) {
-      try {
-        await sendReprise(c);
-        // La demande est partie : la personne confirme dans son appli.
-        const all = contacts(); const x = all.find((y) => y.cid === c.cid);
-        if (x && x.pend) { x.pend.envoyee = Date.now(); delete x.pend.refus; LS.set('contacts', all); }
-        envoyes++;
-      } catch (e) { /* réessayé au prochain appui */ }
-    }
-    render();
-    flashNow({ t: envoyes ? 'Demande envoyée. Chaque lien revient quand la personne a confirmé dans son appli.' : 'Envoi impossible pour l’instant. Réessayez.', ok: envoyes > 0 });
-  }
 
   const ACTS = {
     go: (a) => { const p = String(a).split('|'); go(p[0], p[1] || null); },
@@ -4021,6 +4177,9 @@ button.chip{cursor:pointer;font:inherit}
     deletekeep: () => actDeleteMe(true),
     install: () => actInstall(),
     reactiver: () => actReactivate(),
+    reprisecontact: (cid) => reprendreContact(cid),
+    lienreprise: (cid) => go('lien-reprise', cid),
+    repriseeffacer: (pid) => effacerDemande(pid),
     oubliecommencer: () => { go('codeoublie-decompte'); demarrerDecompteOublie(); },
     urgenceenregistrer: () => actEnregistrerUrgence(),
     acheter: (cle) => actAcheter(cle),

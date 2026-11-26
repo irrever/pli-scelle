@@ -467,7 +467,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v151';
+  const APP_VERSION = 'v152';
   // Monnaie de l’appli : une unité vaut 0,01 €, donc 10 € font 1 000 unités. Elle reste sur l’appareil : aucun compte, rien n’est envoyé.
   // Le nom n’est pas encore choisi : il ne s’écrit qu’ici (et dans les libellés générés).
   const MONNAIE = { un: 'sceau', pluriel: 'sceaux' };
@@ -2590,10 +2590,22 @@ button.chip{cursor:pointer;font:inherit}
         'Pli Scellé chiffre les messages sur votre téléphone : seuls vous deux pouvez les lire. Il n’y a ni compte, ni numéro de téléphone, et le serveur qui transporte les messages ne voit que du contenu chiffré.'
       ], S.motsCle.mots) + '<div class="dock" style="position:static"><button class="btn btn-ghost" data-act="motsafficher">Masquer les mots</button></div>';
   }
+  // Renomme un contact existant. Le nom ne change que sur cet appareil : l’autre personne garde le sien.
+  function actRenommer(cid) {
+    const c = contacts().find((x) => x.cid === cid);
+    if (!c) return go('accueil');
+    const nom = nameValue();
+    if (!nom) return setStatus('formstatus', 'err', 'Donnez un nom à ce contact.');
+    const all = contacts(); const x = all.find((y) => y.cid === cid);
+    x.name = nom; LS.set('contacts', all);
+    render();
+    flashNow({ t: 'Nom enregistré.', ok: true });
+  }
   function viewReglages() {
     const c = contacts().find((x) => x.cid === S.arg);
     if (!c) return viewAccueil();
     return '<div class="screen">' + topbar({ backAct: 'conv', backArg: c.cid, title: 'Réglages' }) +
+      '<section class="card form"><label class="label" for="cname">Nom dans vos contacts</label><input id="cname" class="field" placeholder="Nom obligatoire" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="words" value="' + esc(c.name || '') + '">' + formStatus() + '<p class="hint">Ce nom n’apparaît que sur votre téléphone. L’autre personne garde le sien.</p><button class="btn btn-primary" data-act="renommercontact" data-arg="' + esc(c.cid) + '">Enregistrer le nom</button></section>' +
       '<div class="card code-card"><span class="code-label">Code de ce contact</span><div class="code">' + esc(c.label) + '</div></div>' +
       '<section class="stack"><div class="section-title">Durée de lecture</div><p class="hint">Un message ouvert reste lisible ce temps, puis il est effacé. Touchez-le pour le fermer tout de suite.</p>' +
       '<section class="list">' +
@@ -2699,7 +2711,7 @@ button.chip{cursor:pointer;font:inherit}
       '<section><div class="section-title">Identités</div><div class="list"><button class="rowlink" data-act="go" data-arg="ajouteridentite"><span class="rico">' + svg(BQ_PICTOS.personnes) + '</span><span>Créer un agent double' + (creditsAgent() ? '<span class="row-sub">Payé : touchez pour le créer</span>' : '') + '</span>' + tarifHTML('agentDouble') + I.chev + '</button></div></section>' +
       '<section><div class="section-title">Alertes</div><div class="list"><button class="rowlink" data-act="togglesound"><span class="rico warn">' + I.volume + '</span><span>Sonnerie à la réception</span><span class="state">' + (getPrefs().sound ? 'Activée' : 'Désactivée') + '</span>' + I.chev + '</button><button class="rowlink" data-act="go" data-arg="sonnerie"><span class="rico warn">' + I.music + '</span><span>Choisir la sonnerie</span><span class="state">' + TONES[getPrefs().tone].label + '</span>' + I.chev + '</button></div><div class="list" style="margin-top:12px"><button class="rowlink" data-act="togglenotif"><span class="rico warn">' + I.bell + '</span><span>Notifications quand l’appli est fermée</span><span class="state">' + (getPrefs().notif ? (getPrefs().push ? 'Activées' : 'En attente') : 'Désactivées') + '</span>' + I.chev + '</button></div>' + notifHintHTML() + '<p class="hint">La sonnerie joue à chaque message ou demande reçus, tant que l’appli est ouverte (et vibre sur Android).</p></section>' +
       '<section><div class="section-title">Sauvegarde</div><div class="list"><button class="rowlink" data-act="go" data-arg="sauvegarde"><span class="rico">' + I.download + '</span><span class="row-text"><span class="row-title" style="white-space:normal">Sauvegarder mes contacts</span>' + (optionAcquise('sauvegarde') ? '<span class="row-sub"><span class="etat-ok">' + I.check + 'Activée et achetée</span></span>' : '') + '</span>' + tarifHTML('sauvegarde') + I.chev + '</button><button class="rowlink" data-act="go" data-arg="installer"><span class="rico">' + I.upload + '</span><span>Installer une sauvegarde</span>' + I.chev + '</button></div><p class="hint">' + (LS.get('lastBackup', 0) ? 'Dernière sauvegarde : ' + esc(new Date(LS.get('lastBackup', 0)).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })) : 'Pas encore de sauvegarde. Sans elle, vos contacts ne sont que dans ce navigateur.') + '</p></section>' +
-      '<section><div class="section-title">Sécurité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="supprimer"><span class="rico danger">' + I.trash + '</span><span>Supprimer mon identité</span>' + I.chev + '</button></div></section>' + (idActif === 'b' ? '<section><div class="section-title">Liens et identité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="couper-liens"><span class="rico danger">' + I.unlink + '</span><span>Couper tous les liens</span>' + I.chev + '</button></div></section>' : '') +
+      '<section><div class="section-title">Sécurité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="supprimer"><span class="rico danger">' + I.trash + '</span><span>Supprimer mon identité</span>' + I.chev + '</button></div><p class="hint">Désinstaller l’appli efface votre identité, vos contacts et vos messages de cet appareil. Vos contacts ne sont pas prévenus. Pour les retrouver plus tard, gardez une sauvegarde. Pour les prévenir, supprimez d’abord votre identité avec « Garder mes contacts et supprimer ».</p></section>' + (idActif === 'b' ? '<section><div class="section-title">Liens et identité</div><div class="list"><button class="rowlink danger" data-act="go" data-arg="couper-liens"><span class="rico danger">' + I.unlink + '</span><span>Couper tous les liens</span>' + I.chev + '</button></div></section>' : '') +
       '<p class="hint center" style="padding-top:8px">Version ' + APP_VERSION + ' · dernière synchronisation : ' + esc(LS.get('lastSync', 0) ? new Date(LS.get('lastSync', 0)).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'jamais') + ' · messages reçus : ' + LS.get('recus', 0) + '</p>' +
     '</div>';
   }
@@ -2728,6 +2740,7 @@ button.chip{cursor:pointer;font:inherit}
       '<div class="hero-icon danger">' + I.alert + '</div>' +
       '<div><h1>Supprimer mon identité</h1><p class="lead" style="margin-top:8px">Vos messages sont effacés de cet appareil. Vous pouvez garder vos contacts : chacun reste en pause. Avec votre sauvegarde, vous reprenez le lien sans nouveau QR code, après que chacun a confirmé dans son appli, tant que la personne n’a pas supprimé la sienne.</p></div>' +
       notice('info', 'Avec « Tout supprimer », chaque lien est coupé tout de suite, et les personnes concernées sont prévenues. Avec une sauvegarde faite avant, vous pourrez encore les reprendre, si chacune confirme.') +
+      '<p class="hint">Désinstaller l’appli ne prévient pas vos contacts. Pour les prévenir, supprimez d’abord votre identité ici.</p>' +
       '<div class="dock stack"><button class="btn btn-primary" data-act="supprimerkeep">Garder mes contacts et supprimer</button><button class="btn btn-danger-solid" data-act="deleteme">Tout supprimer</button><button class="btn btn-secondary" data-act="go" data-arg="identite">Garder mon identité</button></div>' +
     '</div>';
   }
@@ -2882,6 +2895,7 @@ button.chip{cursor:pointer;font:inherit}
     let html;
     try { html = fn(); } catch (e) { console.error(e); html = '<div class="screen">' + notice('err', 'Affichage impossible : ' + esc(e.message)) + '</div>'; }
     const flash = S.flash ? notice(S.flash.ok ? 'ok' : 'info', esc(S.flash.t)) : '';
+    const flashTexte = S.flash ? { t: S.flash.t, ok: !!S.flash.ok } : null;
     S.flash = null; S.needRender = false;
     const hauteur = window.visualViewport ? window.visualViewport.height : window.innerHeight;
     const pres = hauteur + window.scrollY >= document.documentElement.scrollHeight - 160 || !!S.forceBas;   // en bas, ou message envoyé à l’instant
@@ -2904,7 +2918,10 @@ button.chip{cursor:pointer;font:inherit}
       return;
     }
     app.__coque = coque;
-    app.innerHTML = maj + flash + html;
+    // Sur la conversation, le message part près de la zone de saisie : il reste à la vue, au lieu de se perdre en haut.
+    const surConversation = S.screen === 'conv' && !!flashTexte;
+    app.innerHTML = maj + (surConversation ? '' : flash) + html;
+    if (surConversation && !messageBasConversation(flashTexte.t, flashTexte.ok)) app.insertAdjacentHTML('afterbegin', flash);
     app.classList.toggle('meme-ecran', same);   // même écran redessiné : il ne rejoue pas son apparition
     hydrateVoices();
     Object.keys(keep).forEach((id) => { const el = document.getElementById(id); if (el) el.value = keep[id]; });
@@ -2927,7 +2944,19 @@ button.chip{cursor:pointer;font:inherit}
     else { el.className = 'status status-' + kind; el.textContent = text; }
     el.hidden = false;
   }
+  // Un message sur la conversation : juste au-dessus de la zone de saisie, pendant 3 secondes.
+  function messageBasConversation(t, ok) {
+    const compo = document.querySelector('#app .composer');
+    if (!compo) return false;
+    const el = document.createElement('div');
+    el.className = 'status msg-saisie ' + (ok ? 'status-ok' : 'status-info');
+    el.textContent = t;
+    compo.prepend(el);
+    setTimeout(() => el.remove(), 3000);
+    return true;
+  }
   function flashNow(f) {
+    if (S.screen === 'conv' && messageBasConversation(f.t, f.ok)) return;
     const app = $('#app'); if (!app) return;
     const el = document.createElement('div');
     el.className = 'status flash ' + (f.ok ? 'status-ok' : 'status-info');
@@ -3975,13 +4004,26 @@ button.chip{cursor:pointer;font:inherit}
   // Efface l’identité. Avec « keep », les contacts sont mis en pause ; sinon ils reçoivent une coupure vérifiée par le serveur.
   // Renvoie false si un contact n’a pas pu être prévenu : rien n’est effacé, sauf si on force (code d’urgence).
   // Efface l’identité ouverte, et elle seule. « keep » garde les contacts en pause ; sinon ils reçoivent la coupure.
+  // Message après un effacement reporté : ce qui est fait, et ce qui reste à faire en ligne.
+  function messageEffacementPartiel(coupes, echecs) {
+    const noms = echecs.join(', ');
+    if (!coupes) return 'Rien n’a été effacé : impossible de prévenir ' + noms + '. Réessayez en ligne.';
+    return (coupes === 1 ? '1 lien coupé' : coupes + ' liens coupés') + '. ' + (echecs.length === 1 ? noms + ' reste à prévenir' : noms + ' restent à prévenir') + ' : réessayez en ligne.';
+  }
   async function effacerIdentite(keep, forcer) {
     if (keep === true) {
       for (const c of contacts()) { try { await sendAuth(c.raw, 'pause', { ts: Date.now() }); } catch (e) {} }
     } else {
+      // Chaque lien prévenu est retiré tout de suite : si l’effacement est reporté, ce téléphone et l’autre restent d’accord.
       const echecs = [];
-      for (const c of contacts()) { try { await envoyerSigne(c.raw, { kind: 'cut' }); } catch (e) { if (!boiteFermee(e)) echecs.push(c.name || c.pseudo || 'un contact'); } }
-      if (echecs.length && !forcer) { S.flash = { t: 'Rien n’a été effacé : impossible de prévenir ' + echecs.join(', ') + '. Réessayez en ligne.', ok: false }; return false; }
+      let coupes = 0;
+      for (const c of contacts()) {
+        let ok = false;
+        try { await envoyerSigne(c.raw, { kind: 'cut' }); ok = true; }
+        catch (e) { ok = boiteFermee(e); if (!ok) echecs.push(c.name || c.pseudo || 'un contact'); }
+        if (ok) { removeContact(c.cid); coupes++; }
+      }
+      if (echecs.length && !forcer) { S.flash = { t: messageEffacementPartiel(coupes, echecs), ok: false }; return false; }
     }
     await fermerBoite();   // la boîte ne reçoit plus rien, avant de vider le relais
     try { await purgerRelais(false); } catch (e) { /* hors ligne */ }
@@ -4007,13 +4049,20 @@ button.chip{cursor:pointer;font:inherit}
   async function effacerTout() {
     const ids = IDENTITES.filter(presente);
     const avant = S.me, ouverte = idActif;
+    let coupes = 0;
     for (const id of ids) {
       idActif = id; S.me = LS.get('me', null);
+      // Même règle que « Tout supprimer » : chaque lien prévenu est retiré tout de suite.
       const echecs = [];
-      for (const c of contacts()) { try { await envoyerSigne(c.raw, { kind: 'cut' }); } catch (e) { if (!boiteFermee(e)) echecs.push(c.name || c.pseudo || 'un contact'); } }
+      for (const c of contacts()) {
+        let ok = false;
+        try { await envoyerSigne(c.raw, { kind: 'cut' }); ok = true; }
+        catch (e) { ok = boiteFermee(e); if (!ok) echecs.push(c.name || c.pseudo || 'un contact'); }
+        if (ok) { removeContact(c.cid); coupes++; }
+      }
       if (echecs.length) {
         idActif = ouverte; S.me = avant;
-        S.flash = { t: 'Rien n’a été effacé : impossible de prévenir ' + echecs.join(', ') + '. Réessayez en ligne.', ok: false };
+        S.flash = { t: messageEffacementPartiel(coupes, echecs), ok: false };
         return false;
       }
     }
@@ -4216,6 +4265,7 @@ button.chip{cursor:pointer;font:inherit}
     addlink: addLinkAttach,
     rmattach: (i) => { S.attach = S.attach || []; S.attach.splice(Number(i), 1); renderAttach(); },
     savecontact: saveContactFile,
+    renommercontact: (cid) => actRenommer(cid),
     pickcontact: pickContactName,
     setname: (a) => { const el = $('#cname'); if (el) el.value = String(a || '').slice(0, 40); const l = $('#vcardlist'); if (l) l.innerHTML = ''; },
     backup: actMakeBackup,

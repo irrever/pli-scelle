@@ -6,7 +6,7 @@ Messagerie privée : chaque personne a une identité (un pseudo et un code secre
 
 Ouvrez https://irrever.github.io/pli-scelle/ sur votre téléphone.
 
-Sur iPhone, pour recevoir les notifications quand l'appli est fermée : Safari → Partager → Sur l'écran d'accueil, puis ouvrez l'appli depuis cette icône (iOS 16.4 ou plus récent).
+Sur iPhone, pour recevoir les notifications quand l'appli est fermée : Safari → Partager → Sur l'écran d'accueil, puis ouvrez l'appli depuis cette icône (iOS 16.4 ou plus récent). Si l'icône ouvre Safari au lieu de l'appli, supprimez-la de l'écran d'accueil et recréez-la.
 
 ## Ajouter une personne
 
@@ -91,6 +91,7 @@ Installer une sauvegarde ne coûte rien. Les achats ne sont pas encore branchés
 ## Fichiers
 
 - `index.html` : l'appli, un seul fichier.
+- `manifest.webmanifest`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png` : nom, icônes et ouverture en mode appli depuis l'écran d'accueil.
 - `relais.sql` : les tables et les fonctions du relais.
 - `securite-relais.sql` : la protection des boîtes, à lancer après `relais.sql`.
 - `securite-envois.sql` : coupures et reprises vérifiées par le serveur, à lancer après `securite-relais.sql`.

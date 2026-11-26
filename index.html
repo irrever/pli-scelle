@@ -2,8 +2,11 @@
 <html lang="fr">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="claude:viewport-fit-sides" content="cover">
 <title>Pli Scellé</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pli Scellé">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
 :root{--bg:#FFFFFF;--fil:#DFE7EE;--surface:#FFFFFF;--surface-2:#F5F7FA;--ink:#10233A;--ink-2:#33475C;--muted:#5B6B7D;--line:#D3DAE2;--line-2:#E3E8EE;--accent:#0B6B5C;--on-accent:#FFFFFF;--accent-soft:#DDEFEA;--warn:#8A5200;--warn-soft:#FBEFD9;--danger:#B3261E;--danger-soft:#F9E3E1;--id-bg:#10233A;--id-ink:#E6EDF4;--id-muted:#9FB0C3;--id-accent:#9FD8C9;--shadow:0 1px 2px rgba(16,35,58,.06),0 6px 18px rgba(16,35,58,.06);color-scheme:light}
@@ -467,7 +470,7 @@ button.chip{cursor:pointer;font:inherit}
   const EMP = {};   // emblème de chaque contact, calculé une fois (clé : identité + contact)
   const EMP_EN_COURS = new Set();
   const APP_URL = 'https://irrever.github.io/pli-scelle/';
-  const APP_VERSION = 'v152';
+  const APP_VERSION = 'v153';
   // Monnaie de l’appli : une unité vaut 0,01 €, donc 10 € font 1 000 unités. Elle reste sur l’appareil : aucun compte, rien n’est envoyé.
   // Le nom n’est pas encore choisi : il ne s’écrit qu’ici (et dans les libellés générés).
   const MONNAIE = { un: 'sceau', pluriel: 'sceaux' };
